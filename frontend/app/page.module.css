@@ -1,0 +1,133 @@
+/* --- Estilos para page.module.css --- */
+
+/* Contenedor principal de la página */
+.container {
+  display: flex;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+}
+
+/* Lado Izquierdo - Formulario */
+.formContainer {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.title {
+  font-size: 2.5em;
+  margin-bottom: 30px;
+  color: #00529C; /* Azul Pepsi */
+  font-weight: bold;
+  text-align: center;
+}
+
+.subtitle {
+  margin-bottom: 30px;
+  color: #666;
+  font-size: 1.2em;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 300px;
+  max-width: 100%;
+}
+
+.label {
+  display: block;
+  margin-bottom: 5px;
+  color: #333;
+  font-weight: bold;
+}
+
+.input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1em;
+  box-sizing: border-box; 
+  color: black; 
+}
+
+/* Contenedor para el input de contraseña y el botón */
+.passwordWrapper {
+  position: relative;
+}
+
+.toggleBtn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9em;
+  color: #00529C; /* Azul Pepsi */
+  padding: 5px;
+  margin-top: 10px; /* Ajuste para la label */
+}
+
+.forgotContainer {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.9em;
+}
+
+.link {
+  color: #00529C; /* Azul Pepsi */
+  text-decoration: none;
+}
+
+.error {
+  color: red;
+  text-align: center;
+  min-height: 1.2em;
+  font-size: 0.9em;
+}
+
+.submitBtn {
+  width: 100%;
+  padding: 12px;
+  background-color: #00529C; /* Azul Pepsi */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.1em;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.registerText {
+  text-align: center;
+  font-size: 0.9em;
+  color: #666;
+  margin-top: 10px;
+}
+
+/* Lado Derecho - Imagen */
+.imageContainer {
+  width: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #E0E0E0; /* Fondo gris claro */
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.image {
+  max-width: 80%;
+  height: auto;
+  max-height: 80%;
+  object-fit: contain;
+}
