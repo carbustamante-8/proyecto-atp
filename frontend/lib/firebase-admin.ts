@@ -1,12 +1,14 @@
+// lib/firebase-admin.ts
+
 import * as admin from 'firebase-admin';
 
-// Carga el archivo JSON de la cuenta de servicio que descargaste
-// process.cwd() apunta a la raíz de 'frontend/'
-const serviceAccount = require(process.cwd() + '/firebase-service-account.json');
+// --- ¡ESTA ES LA LÍNEA CORREGIDA! ---
+import serviceAccount from '../firebase-service-account.json';
 
 // Inicializa la app de Admin (solo si no se ha hecho antes)
 if (!admin.apps.length) {
   admin.initializeApp({
+    // @ts-ignore (Esto es para que TypeScript no se queje del import)
     credential: admin.credential.cert(serviceAccount),
   });
 }
