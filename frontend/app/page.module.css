@@ -5,82 +5,102 @@
   display: flex;
   min-height: 100vh;
   font-family: Arial, sans-serif;
+  align-items: stretch;
+  gap: 0; /* evitar gaps inesperados */
 }
 
 /* Lado Izquierdo - Formulario */
 .formContainer {
-  width: 50%;
+  flex: 1 1 0%; /* usar flex en lugar de width para evitar franjas por redondeo */
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start; /* alinear el contenido hacia la izquierda del panel */
   justify-content: center;
   background-color: white;
-  padding: 20px;
+  /* aumentar padding-left para separar del borde izquierdo */
+  padding: 40px 24px 40px 250px; /* top right bottom left - desplazado más a la derecha */
   box-sizing: border-box;
 }
 
 .title {
-  font-size: 2.5em;
-  margin-bottom: 30px;
+  font-size: 2rem;
+  margin-bottom: 20px;
   color: #00529C; /* Azul Pepsi */
-  font-weight: bold;
-  text-align: center;
+  font-weight: 700;
+  text-align: left;
+  width: 100%;
+  max-width: 480px;
 }
 
 .subtitle {
-  margin-bottom: 30px;
+  margin-bottom: 24px;
   color: #666;
-  font-size: 1.2em;
+  font-size: 1rem;
+  width: 100%;
+  max-width: 480px;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  width: 300px;
+  gap: 16px;
+  width: 360px; /* más ancho para aspecto profesional */
   max-width: 100%;
+}
+
+/* Campo form - estructura consistente para cada label+input */
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 }
 
 .label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 0;
   color: #333;
-  font-weight: bold;
+  font-weight: 700;
+  font-size: 0.95rem;
 }
 
 .input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 1em;
-  box-sizing: border-box; 
-  color: black; 
+  padding: 12px 44px 12px 12px; /* dejar espacio a la derecha para el botón Mostrar */
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  color: #111;
+  background: #fff;
 }
 
 /* Contenedor para el input de contraseña y el botón */
 .passwordWrapper {
   position: relative;
+  width: 100%;
 }
 
 .toggleBtn {
   position: absolute;
-  right: 10px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
-  background: none;
+  background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: 0.9rem;
   color: #00529C; /* Azul Pepsi */
-  padding: 5px;
-  margin-top: 10px; /* Ajuste para la label */
+  padding: 4px 6px;
+  line-height: 1;
 }
 
 .forgotContainer {
   display: flex;
   justify-content: flex-end;
   font-size: 0.9em;
+  width: 100%;
+  max-width: 360px;
 }
 
 .link {
@@ -101,10 +121,10 @@
   background-color: #00529C; /* Azul Pepsi */
   color: white;
   border: none;
-  border-radius: 5px;
-  font-size: 1.1em;
+  border-radius: 6px;
+  font-size: 1.05rem;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 700;
 }
 
 .registerText {
@@ -116,18 +136,38 @@
 
 /* Lado Derecho - Imagen */
 .imageContainer {
-  width: 50%;
+  flex: 1 1 0%; /* usar flex para parejas exactas sin gaps */
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #E0E0E0; /* Fondo gris claro */
+  background-color: white; /* Mantener blanco para evitar franjas negras */
   padding: 20px;
   box-sizing: border-box;
 }
 
 .image {
-  max-width: 80%;
+  max-width: 60%;
   height: auto;
   max-height: 80%;
   object-fit: contain;
+}
+
+/* Responsive: en pantallas pequeñas apilar verticalmente */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+  }
+  .form {
+    width: 92%;
+  }
+  .image {
+    max-width: 50%;
+    margin: 24px 0;
+  }
+  /* reducir el padding-left en pantallas pequeñas y centrar el contenido */
+  .formContainer {
+    padding-left: 24px;
+    padding-right: 24px;
+    align-items: center;
+  }
 }
