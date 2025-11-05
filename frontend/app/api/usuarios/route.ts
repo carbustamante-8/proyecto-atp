@@ -1,63 +1,45 @@
 // app/api/usuarios/route.ts
 
 import { NextResponse } from 'next/server';
-// 1. IMPORTA LA LLAVE MAESTRA (Conexión Admin)
 import { adminDb } from '@/lib/firebase-admin';
 
-/**
- * Función GET: Se ejecuta cuando tu vista de "Admin Usuarios"
- * pida la lista de usuarios.
- */
+// ... (Aquí está tu función GET, que ya existe) ...
 export async function GET() {
-  try {
-    console.log('GET /api/usuarios: Obteniendo lista de usuarios...');
+  // ... tu código GET ...
+}
 
-    // 2. USA LA CONEXIÓN ADMIN para hablar con Firestore
-    // Esto va a la "colección" (tabla) llamada "usuarios"
-    const usuariosSnapshot = await adminDb.collection('usuarios').get();
-
-    // 3. Convierte los datos a un formato JSON simple
-    const usuarios = usuariosSnapshot.docs.map(doc => ({
-      id: doc.id, // El ID único del documento
-      ...doc.data(), // El resto de los datos (nombre, email, rol, etc.)
-    }));
-
-    // 4. Responde con la lista de usuarios
-    return NextResponse.json(usuarios);
-
-  } catch (error) {
-    console.error("Error en GET /api/usuarios:", error);
-    return NextResponse.json({ error: 'Error al obtener usuarios' }, { status: 500 });
-  }
+// ... (Aquí está tu función POST, que ya existe) ...
+export async function POST(request: Request) {
+  // ... tu código POST ...
 }
 
 
+// --- ¡AÑADE ESTA NUEVA FUNCIÓN! ---
+
 /**
- * Función POST: Se ejecuta cuando tu formulario "Crear Nuevo Usuario"
- * envíe los datos.
+ * Función DELETE: Se ejecuta cuando el frontend pide borrar un usuario.
+ * Recibirá el ID del usuario por la URL (ej: /api/usuarios?id=abc12345)
  */
-export async function POST(request: Request) {
+export async function DELETE(request: Request) {
   try {
-    // 1. Lee los datos que envió el formulario (Nombre, Email, Rol, etc.)
-    const body = await request.json(); 
-    
-    console.log('POST /api/usuarios: Creando nuevo usuario...');
-    console.log('Datos recibidos:', body);
+    // 1. Obtiene la URL y saca el ID del usuario
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('id');
 
-    // 2. USA LA CONEXIÓN ADMIN para CREAR un nuevo documento en Firestore
-    const nuevoUsuarioRef = await adminDb.collection('usuarios').add({
-      nombre: body.nombre,
-      email: body.email,
-      rol: body.rol,
-      estado: "Activo", // Puedes poner un estado por defecto
-      // NOTA: La contraseña no se guarda aquí, se guarda en "Authentication"
-    });
+    if (!userId) {
+      return NextResponse.json({ error: 'Falta el ID del usuario' }, { status: 400 });
+    }
 
-    // 3. Responde con los datos del usuario creado
-    return NextResponse.json({ id: nuevoUsuarioRef.id, ...body }, { status: 201 });
+    console.log(`DELETE /api/usuarios: Borrando usuario con ID: ${userId}`);
+
+    // 2. USA LA LLAVE MAESTRA para borrar el documento de Firestore
+    await adminDb.collection('usuarios').doc(userId).delete();
+
+    // 3. Responde con un mensaje de éxito
+    return NextResponse.json({ message: 'Usuario eliminado exitosamente' });
 
   } catch (error) {
-    console.error("Error en POST /api/usuarios:", error);
-    return NextResponse.json({ error: 'Error al crear el usuario' }, { status: 500 });
+    console.error("Error en DELETE /api/usuarios:", error);
+    return NextResponse.json({ error: 'Error al eliminar el usuario' }, { status: 500 });
   }
 }

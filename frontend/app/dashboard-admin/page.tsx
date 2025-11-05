@@ -21,6 +21,37 @@ export default function DashboardAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const handleEliminar = async (userId: string, nombre: string) => {
+    // 1. Pide confirmación antes de borrar
+    if (!confirm(`¿Estás seguro de que quieres eliminar a "${nombre}"? Esta acción no se puede deshacer.`)) {
+      return; // Si el usuario cancela, no hace nada
+    }
+
+    try {
+      // 2. Llama a tu API usando el método DELETE y pasando el ID
+      const response = await fetch(`/api/usuarios?id=${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al eliminar el usuario');
+      }
+
+      // 3. ¡Éxito! Ahora actualiza la lista de usuarios en la pantalla
+      // (sin tener que recargar la página)
+      // Filtra la lista actual, quitando el usuario que acabamos de borrar
+      setUsuarios(usuariosActuales => 
+        usuariosActuales.filter(user => user.id !== userId)
+      );
+      console.log('Usuario eliminado:', userId);
+
+    } catch (err) {
+      console.error(err);
+      if (err instanceof Error) setError(err.message);
+      else setError('Un error desconocido ocurrió al eliminar');
+    }
+  };
+
   // 3. Este "Hook" se ejecuta 1 vez cuando la página carga
   useEffect(() => {
     
@@ -131,7 +162,12 @@ export default function DashboardAdminPage() {
                   </td>
                   <td className="px-6 py-4 text-sm font-medium">
                     <button className="text-blue-600 hover:text-blue-900">Editar</button>
-                    <button className="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
+                    <button 
+                      onClick={() => handleEliminar(user.id, user.nombre)}
+                      className="text-red-600 hover:text-red-900 ml-4"
+                    >
+                      Eliminar
+                    </button>
                   </td>
                 </tr>
               ))
