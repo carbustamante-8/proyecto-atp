@@ -13,11 +13,15 @@ type Context = {
  */
 export async function GET(
   request: NextRequest, 
-  context: Context // <-- CAMBIO 1: Usa el nuevo tipo 'Context'
+  context: Context
 ) {
+  // --- ARREGLO PARA EL LOG DE ERRORES ---
+  let id: string;
+  // --- FIN ARREGLO ---
+
   try {
-    // CAMBIO 2: ¡Debemos usar 'await' para resolver la Promesa!
-    const { id } = await context.params; 
+    const params = await context.params;
+    id = params.id; // Asigna el valor
     
     const otDoc = await adminDb.collection('ordenes-trabajo').doc(id).get();
 
@@ -28,7 +32,7 @@ export async function GET(
     return NextResponse.json({ id: otDoc.id, ...otDoc.data() });
 
   } catch (error) {
-    console.error(`Error en GET /api/ordenes-trabajo/[id]:`, error);
+    console.error(`Error en GET /api/ordenes-trabajo/[id]:`, error); // El 'id' no está aquí, pero el error general es suficiente
     return NextResponse.json({ error: 'Error al obtener la OT' }, { status: 500 });
   }
 }
@@ -39,11 +43,16 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest, 
-  context: Context // <-- CAMBIO 1: Usa el nuevo tipo 'Context'
+  context: Context
 ) {
+  // --- ARREGLO PARA EL LOG DE ERRORES ---
+  let id: string = 'ID_DESCONOCIDO'; // Pon un valor por defecto
+  // --- FIN ARREGLO ---
+
   try {
-    // CAMBIO 2: ¡Debemos usar 'await' para resolver la Promesa!
-    const { id } = await context.params; 
+    const params = await context.params;
+    id = params.id; // Asigna el valor real
+    
     const body = await request.json(); 
 
     console.log(`PUT /api/ordenes-trabajo/${id}: Actualizando OT...`);
@@ -55,7 +64,8 @@ export async function PUT(
     return NextResponse.json({ message: 'OT actualizada exitosamente' });
 
   } catch (error) {
-    console.error(`Error en PUT /api/ordenes-trabajo/${id}:`, error);
+    // Ahora 'id' SÍ es accesible aquí para el log
+    console.error(`Error en PUT /api/ordenes-trabajo/${id}:`, error); 
     return NextResponse.json({ error: 'Error al actualizar la OT' }, { status: 500 });
   }
 }
