@@ -3,26 +3,51 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 
-// ... (Aquí está tu función GET, que ya existe) ...
+// --- 1. FUNCIÓN GET (YA EXISTÍA) ---
 export async function GET() {
-  // ... tu código GET ...
+  try {
+    console.log('GET /api/usuarios: Obteniendo lista de usuarios...');
+
+    const usuariosSnapshot = await adminDb.collection('usuarios').get();
+    
+    const usuarios = usuariosSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return NextResponse.json(usuarios);
+
+  } catch (error) {
+    console.error("Error en GET /api/usuarios:", error);
+    return NextResponse.json({ error: 'Error al obtener usuarios' }, { status: 500 });
+  }
 }
 
-// ... (Aquí está tu función POST, que ya existe) ...
+// --- 2. FUNCIÓN POST (YA EXISTÍA) ---
 export async function POST(request: Request) {
-  // ... tu código POST ...
+  try {
+    const body = await request.json(); 
+    
+    console.log('POST /api/usuarios: Creando nuevo usuario...');
+
+    const nuevoUsuarioRef = await adminDb.collection('usuarios').add({
+      nombre: body.nombre,
+      email: body.email,
+      rol: body.rol,
+      estado: "Activo",
+    });
+
+    return NextResponse.json({ id: nuevoUsuarioRef.id, ...body }, { status: 201 });
+
+  } catch (error) {
+    console.error("Error en POST /api/usuarios:", error);
+    return NextResponse.json({ error: 'Error al crear el usuario' }, { status: 500 });
+  }
 }
 
-
-// --- ¡AÑADE ESTA NUEVA FUNCIÓN! ---
-
-/**
- * Función DELETE: Se ejecuta cuando el frontend pide borrar un usuario.
- * Recibirá el ID del usuario por la URL (ej: /api/usuarios?id=abc12345)
- */
+// --- 3. FUNCIÓN DELETE (LA QUE AÑADIMOS) ---
 export async function DELETE(request: Request) {
   try {
-    // 1. Obtiene la URL y saca el ID del usuario
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('id');
 
@@ -32,10 +57,8 @@ export async function DELETE(request: Request) {
 
     console.log(`DELETE /api/usuarios: Borrando usuario con ID: ${userId}`);
 
-    // 2. USA LA LLAVE MAESTRA para borrar el documento de Firestore
     await adminDb.collection('usuarios').doc(userId).delete();
 
-    // 3. Responde con un mensaje de éxito
     return NextResponse.json({ message: 'Usuario eliminado exitosamente' });
 
   } catch (error) {
