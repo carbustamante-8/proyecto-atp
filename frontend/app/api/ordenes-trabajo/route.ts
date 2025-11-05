@@ -39,21 +39,17 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     // 1. Lee los datos que envió el formulario
-    // (Datos de ejemplo basados en tus maquetas)
     const body = await request.json(); 
     
     console.log('POST /api/ordenes-trabajo: Creando nueva OT...');
     
     // 2. USA LA CONEXIÓN ADMIN para CREAR un nuevo documento en Firestore
-    // ¡Firestore creará la colección "ordenes-trabajo" si no existe!
     const nuevaOtRef = await adminDb.collection('ordenes-trabajo').add({
       patente: body.patente,
       descripcionProblema: body.descripcionProblema,
-      mecanicoAsignado: body.mecanicoAsignado || null, // (ID del mecánico)
-      // Estado inicial (basado en tu maqueta)
-      estado: 'Pendiente', 
+      mecanicoAsignado: body.mecanicoAsignado || null,
+      estado: 'Pendiente', // Fija un estado inicial
       fechaCreacion: admin.firestore.FieldValue.serverTimestamp(), // Pone la fecha actual
-      // (Aquí irán más campos después, como repuestos, fotos, etc.)
     });
 
     // 3. Responde con los datos de la OT creada
