@@ -35,8 +35,8 @@ export async function PUT(
   request: NextRequest, // <-- CAMBIO 2: Usar NextRequest
   context: { params: { id: string } } // <-- CAMBIO 3: Usar 'context'
 ) {
+  const id = context.params.id; // Mover la lectura del 'id' fuera del try para que esté disponible en el catch
   try {
-    const id = context.params.id; // <-- CAMBIO 4: Leer el 'id' desde 'context'
     const body = await request.json(); // Obtiene los datos a actualizar (ej: { estado: "En Progreso" })
 
     console.log(`PUT /api/ordenes-trabajo/${id}: Actualizando OT...`);
