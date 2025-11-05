@@ -1,17 +1,23 @@
 // app/api/ordenes-trabajo/[id]/route.ts
 
-import { NextResponse, NextRequest } from 'next/server'; // <-- CAMBIO 1: Importar NextRequest
+import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+
+// Define el tipo de 'context' que Vercel espera (con la Promise)
+type Context = {
+  params: Promise<{ id: string }>
+}
 
 /**
  * Función GET: Obtiene UNA Orden de Trabajo específica por su ID.
  */
 export async function GET(
-  request: NextRequest, // <-- CAMBIO 2: Usar NextRequest
-  context: { params: { id: string } } // <-- CAMBIO 3: Usar 'context'
+  request: NextRequest, 
+  context: Context // <-- CAMBIO 1: Usa el nuevo tipo 'Context'
 ) {
   try {
-    const id = context.params.id; // <-- CAMBIO 4: Leer el 'id' desde 'context'
+    // CAMBIO 2: ¡Debemos usar 'await' para resolver la Promesa!
+    const { id } = await context.params; 
     
     const otDoc = await adminDb.collection('ordenes-trabajo').doc(id).get();
 
@@ -32,23 +38,19 @@ export async function GET(
  * Función PUT: Actualiza UNA Orden de Trabajo específica.
  */
 export async function PUT(
-  request: NextRequest, // <-- CAMBIO 2: Usar NextRequest
-  context: { params: { id: string } } // <-- CAMBIO 3: Usar 'context'
+  request: NextRequest, 
+  context: Context // <-- CAMBIO 1: Usa el nuevo tipo 'Context'
 ) {
-  const id = context.params.id; // Mover la lectura del 'id' fuera del try para que esté disponible en el catch
   try {
-    const body = await request.json(); // Obtiene los datos a actualizar (ej: { estado: "En Progreso" })
+    // CAMBIO 2: ¡Debemos usar 'await' para resolver la Promesa!
+    const { id } = await context.params; 
+    const body = await request.json(); 
 
     console.log(`PUT /api/ordenes-trabajo/${id}: Actualizando OT...`);
     console.log('Datos recibidos:', body);
 
     const otRef = adminDb.collection('ordenes-trabajo').doc(id);
-
-    // Actualiza el documento en Firestore
-    await otRef.update({
-      estado: body.estado, 
-      // (Aquí también podríamos actualizar repuestos, fotos, etc.)
-    });
+    await otRef.update({ estado: body.estado });
 
     return NextResponse.json({ message: 'OT actualizada exitosamente' });
 

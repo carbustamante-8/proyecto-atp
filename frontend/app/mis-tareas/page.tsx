@@ -2,6 +2,8 @@
 
 'use client'; // <-- Obligatorio, porque vamos a pedir datos
 
+
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 
 // 1. Define un "tipo" para tus Órdenes de Trabajo (basado en la API)
@@ -79,10 +81,12 @@ export default function MisTareasPage() {
           <div className="space-y-3">
             {pendientes.length > 0 ? (
               pendientes.map(ot => (
-                <div key={ot.id} className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
-                  <p className="font-semibold">{ot.descripcionProblema}</p>
-                  <p className="text-sm text-gray-500">Patente: {ot.patente}</p>
-                </div>
+                <Link href={`/tareas-detalle/${ot.id}`} key={ot.id}>
+                  <div className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
+                    <p className="font-semibold">{ot.descripcionProblema}</p>
+                    <p className="text-sm text-gray-500">Patente: {ot.patente}</p>
+                  </div>
+                </Link>
               ))
             ) : (
               <p className="text-gray-500">No hay tareas pendientes.</p>
@@ -96,10 +100,12 @@ export default function MisTareasPage() {
           <div className="space-y-3">
             {enProgreso.length > 0 ? (
               enProgreso.map(ot => (
-                <div key={ot.id} className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
-                  <p className="font-semibold">{ot.descripcionProblema}</p>
-                  <p className="text-sm text-gray-500">Patente: {ot.patente}</p>
-                </div>
+                <Link href={`/tareas-detalle/${ot.id}`} key={ot.id}>
+                  <div className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
+                    <p className="font-semibold">{ot.descripcionProblema}</p>
+                    <p className="text-sm text-gray-500">Patente: {ot.patente}</p>
+                  </div>
+                </Link>
               ))
             ) : (
               <p className="text-gray-500">No hay tareas en progreso.</p>
@@ -113,10 +119,12 @@ export default function MisTareasPage() {
           <div className="space-y-3">
             {finalizadas.length > 0 ? (
               finalizadas.map(ot => (
-                <div key={ot.id} className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
-                  <p className="font-semibold">{ot.descripcionProblema}</p>
-                  <p className="text-sm text-gray-500">Patente: {ot.patente}</p>
-                </div>
+                <Link href={`/tareas-detalle/${ot.id}`} key={ot.id}>
+                  <div className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
+                    <p className="font-semibold">{ot.descripcionProblema}</p>
+                    <p className="text-sm text-gray-500">Patente: {ot.patente}</p>
+                  </div>
+                </Link>
               ))
             ) : (
               <p className="text-gray-500">No hay tareas finalizadas.</p>
