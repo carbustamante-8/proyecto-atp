@@ -2,6 +2,8 @@
 
 'use client'; // <-- Obligatorio, es un formulario interactivo
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation'; // Para redirigir
 
