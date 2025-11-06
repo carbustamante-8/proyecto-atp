@@ -54,13 +54,17 @@ export default function DashboardJefeTallerPage() {
     fetchRegistros(); // Llama a la función al cargar la página
   }, []); // El array vacío `[]` significa "ejecutar solo 1 vez"
 
-  // 5. Función (FUTURA) para manejar la creación de OT
+  // 5. Función (ACTIVADA) para manejar la creación de OT
   const handleCrearOT = (registro: RegistroIngreso) => {
-    console.log('Crear OT para:', registro.patente);
-    // Aquí usaremos el router para ir a la página "Crear OT"
-    // y le pasaremos los datos del registro (patente, motivo, etc.)
-    // router.push(`/crear-ot?patente=${registro.patente}&motivo=${registro.motivoIngreso}`);
-    alert(`(FUTURO) Crear OT para la patente ${registro.patente}`);
+    console.log('Enviando datos al formulario de OT:', registro.patente);
+
+    // Codificamos los datos para que viajen seguros en la URL
+    // (ej: "Falla en motor" se convierte en "Falla%20en%20motor")
+    const patente = encodeURIComponent(registro.patente);
+    const motivo = encodeURIComponent(registro.motivoIngreso);
+
+    // ¡AQUÍ ESTÁ LA MAGIA! Redirige al formulario pasándole los datos
+    router.push(`/crear-ot?patente=${patente}&motivo=${motivo}`);
   };
 
   // 6. MUESTRA LOS DATOS

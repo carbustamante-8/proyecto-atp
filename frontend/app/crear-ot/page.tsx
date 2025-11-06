@@ -2,18 +2,35 @@
 
 'use client'; // <-- Obligatorio, es un formulario interactivo
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // Para redirigir
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation'; // Para redirigir
 
 export default function CrearOTPage() {
   
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // 1. Estados para guardar los datos del formulario
   const [patente, setPatente] = useState('');
   const [descripcionProblema, setDescripcionProblema] = useState('');
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter(); // Hook para redirigir
+
+  // Este "Hook" se ejecuta 1 vez cuando la página carga
+  useEffect(() => {
+    // Lee los datos de la URL
+    const patenteURL = searchParams.get('patente');
+    const motivoURL = searchParams.get('motivo');
+
+    // Si los datos existen, rellena el formulario
+    if (patenteURL) {
+      setPatente(patenteURL); // Rellena el estado 'patente'
+    }
+    if (motivoURL) {
+      setDescripcionProblema(motivoURL); // Rellena el estado 'descripcionProblema'
+    }
+  }, [searchParams]); // Se ejecuta cada vez que los parámetros de la URL cambien
 
   // 2. Función que se ejecuta al enviar el formulario
   const handleCrearOT = async (e: React.FormEvent) => {

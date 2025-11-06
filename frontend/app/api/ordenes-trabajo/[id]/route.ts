@@ -59,7 +59,18 @@ export async function PUT(
     console.log('Datos recibidos:', body);
 
     const otRef = adminDb.collection('ordenes-trabajo').doc(id);
-    await otRef.update({ estado: body.estado });
+      // Prepara los datos a actualizar
+      const datosActualizados: { estado: string, repuestosUsados?: string } = {
+        estado: body.estado,
+      };
+
+      // Solo añade 'repuestosUsados' si fue enviado
+      if (body.repuestosUsados !== undefined) {
+        datosActualizados.repuestosUsados = body.repuestosUsados;
+      }
+
+      // Actualiza el documento en Firestore
+      await otRef.update(datosActualizados);
 
     return NextResponse.json({ message: 'OT actualizada exitosamente' });
 
