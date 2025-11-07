@@ -2,7 +2,7 @@
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-
+import * as admin from 'firebase-admin';
 // Define el tipo de 'context' que Vercel espera
 type Context = {
   params: Promise<{ id: string }>
@@ -49,14 +49,35 @@ export async function PUT(
     
     const body = await request.json(); 
 
+    // --- ¡AQUÍ ESTÁ LA LÓGICA COMPLETA! ---
     // Prepara los datos a actualizar
-    const datosActualizados: { estado?: string, repuestosUsados?: string } = {};
+    const datosActualizados: { 
+      estado?: string, 
+      repuestosUsados?: string,
+      fotos?: admin.firestore.FieldValue // Para el array de fotos
+    } = {};
 
+    // Si el body envió un 'estado', lo añade
     if (body.estado) {
       datosActualizados.estado = body.estado;
     }
+    
+    // Si el body envió 'repuestosUsados', lo añade
     if (body.repuestosUsados !== undefined) {
       datosActualizados.repuestosUsados = body.repuestosUsados;
+    }
+    
+    // Si el body envió una 'nuevaFotoURL' (de Vercel Blob), la AÑADE a un array
+    if (body.nuevaFotoURL) {
+      // 'arrayUnion' añade un ítem a un array sin duplicarlo
+      // Esto crea el campo 'fotos' si no existe
+      datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
+    }
+    // --- FIN DE LA LÓGICA ---
+    
+    // Revisa si el objeto de actualización está vacío
+    if (Object.keys(datosActualizados).length === 0) {
+      throw new Error('No se enviaron datos para actualizar.');
     }
 
     // Actualiza el documento en Firestore
