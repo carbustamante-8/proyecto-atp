@@ -1,53 +1,84 @@
 // frontend/context/AuthContext.tsx
 
-'use client'; // <-- Este archivo es 100% del lado del cliente
+'use client'; 
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '@/lib/firebase'; // Importa tu conexión de auth
+import { auth, db } from '@/lib/firebase'; // <-- 1. IMPORTA 'db' (de Firestore)
+import { doc, getDoc } from 'firebase/firestore'; // <-- 2. IMPORTA las funciones de Firestore
 
-// 1. Define el tipo de datos que tendrá el contexto
-type AuthContextType = {
-  user: User | null;       // El objeto de usuario de Firebase
-  loading: boolean;      // Para saber si está "Cargando..."
+// 3. Define el "tipo" de perfil que guardamos en Firestore
+// (Esto debe coincidir con los datos que creas en el formulario)
+type UserProfile = {
+  id: string;
+  nombre: string;
+  email: string;
+  rol: string;
+  estado: 'Activo' | 'Inactivo';
 };
 
-// 2. Crea el Contexto
+// 4. Define el tipo de datos que tendrá el contexto
+type AuthContextType = {
+  user: User | null;           // El objeto de usuario de Firebase Auth (con el UID)
+  userProfile: UserProfile | null; // El objeto de usuario de Firestore (con el ROL)
+  loading: boolean;          // Para saber si está "Cargando..."
+};
+
+// 5. Crea el Contexto
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// 3. Crea el "Proveedor" (el componente que "envuelve")
+// 6. Crea el "Proveedor" (el componente que "envuelve")
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null); // <-- NUEVO ESTADO
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // onAuthStateChanged es el "oyente" de Firebase
-    // Se activa CADA VEZ que alguien inicia o cierra sesión
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // onAuthStateChanged ahora es asíncrono
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      
       if (user) {
-        // Usuario está logueado
+        // --- Usuario está logueado ---
         setUser(user);
+        
+        // ¡MAGIA! Busca el perfil en Firestore usando el UID del login
+        const docRef = doc(db, 'usuarios', user.uid); // Busca en la colección 'usuarios'
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          // Si encontramos el documento...
+          console.log("Perfil de usuario encontrado:", docSnap.data());
+          // Guarda el perfil completo (con nombre, email, ROL, etc.)
+          setUserProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
+        } else {
+          // El usuario existe en Auth, pero NO en Firestore
+          // (Esto puede pasar con usuarios 'antiguos' como guardia@pepsi.com)
+          console.warn(`¡Alerta! El usuario ${user.uid} existe en Auth pero no tiene perfil en Firestore.`);
+          setUserProfile(null);
+        }
+        
       } else {
-        // Usuario cerró sesión
+        // --- Usuario cerró sesión ---
         setUser(null);
+        setUserProfile(null);
       }
+      
       setLoading(false); // Deja de cargar
     });
 
-    // Se limpia el "oyente" cuando el componente se desmonta
     return () => unsubscribe();
   }, []);
 
-  // Provee el 'user' y 'loading' a todos los hijos
+  // 7. Provee el 'user', el 'userProfile' y 'loading' a todos los hijos
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, userProfile, loading }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// 4. Crea el "Hook" (el atajo para usar el contexto)
-// Esto es lo que usaremos en las páginas
+// 8. Crea el "Hook" (el atajo para usar el contexto)
+// (Este hook no cambia, pero ahora devuelve más datos)
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
