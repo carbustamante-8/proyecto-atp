@@ -1,63 +1,98 @@
 // app/api/usuarios/route.ts
 
-import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { NextResponse, NextRequest } from 'next/server';
+import { adminDb, admin } from '../../../lib/firebase-admin'; // Usa la ruta relativa
 
-// --- 1. FUNCIÓN GET (YA EXISTÍA) ---
+// --- FUNCIÓN GET (Sigue igual) ---
 export async function GET() {
   try {
-    console.log('GET /api/usuarios: Obteniendo lista de usuarios...');
-
     const usuariosSnapshot = await adminDb.collection('usuarios').get();
-    
     const usuarios = usuariosSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     }));
-
     return NextResponse.json(usuarios);
-
   } catch (error) {
     console.error("Error en GET /api/usuarios:", error);
     return NextResponse.json({ error: 'Error al obtener usuarios' }, { status: 500 });
   }
 }
 
-// --- 2. FUNCIÓN POST (YA EXISTÍA) ---
-export async function POST(request: Request) {
+// --- ¡FUNCIÓN POST (CORREGIDA)! ---
+export async function POST(
+  request: NextRequest // Asegúrate de que es NextRequest
+) {
+  
+  // --- ¡NUEVO BLOQUE DE DEBUG! ---
+  // Vamos a atrapar el error de 'request.json()' por separado
+  let body: any;
   try {
-    const body = await request.json(); 
-    
-    console.log('POST /api/usuarios: Creando nuevo usuario...');
+    body = await request.json();
+    console.log("BODY RECIBIDO EN EL BACKEND:", body); // Log para ver qué recibe
+  } catch (error) {
+    console.error("FALLÓ AL LEER EL BODY (request.json):", error);
+    return NextResponse.json({ error: 'El body de la solicitud no es JSON válido' }, { status: 400 });
+  }
+  // --- FIN DEL BLOQUE DE DEBUG ---
 
-    const nuevoUsuarioRef = await adminDb.collection('usuarios').add({
+  try {
+    // 1. Valida que los datos necesarios llegaron
+    if (!body.email || !body.password || !body.nombre || !body.rol) {
+      console.warn('Faltan datos en el body:', body); // Log de advertencia
+      return NextResponse.json({ error: 'Faltan datos (email, password, nombre, rol)' }, { status: 400 });
+    }
+
+    console.log('POST /api/usuarios: Creando nuevo usuario...');
+    
+    // 2. Crea el usuario en Firebase Authentication
+    const userRecord = await admin.auth().createUser({
+      email: body.email,
+      password: body.password,
+      displayName: body.nombre,
+      disabled: false,
+    });
+
+    console.log('Usuario creado en Auth, UID:', userRecord.uid);
+
+    // 3. Prepara los datos para Firestore
+    const datosUsuarioFirestore = {
       nombre: body.nombre,
       email: body.email,
       rol: body.rol,
       estado: "Activo",
-    });
+    };
 
-    return NextResponse.json({ id: nuevoUsuarioRef.id, ...body }, { status: 201 });
+    // 4. Guarda los datos en Firestore
+    await adminDb.collection('usuarios').doc(userRecord.uid).set(datosUsuarioFirestore);
+
+    console.log('Datos de usuario guardados en Firestore');
+
+    // 5. Responde con los datos del usuario creado
+    return NextResponse.json({ id: userRecord.uid, ...datosUsuarioFirestore }, { status: 201 });
 
   } catch (error) {
     console.error("Error en POST /api/usuarios:", error);
-    return NextResponse.json({ error: 'Error al crear el usuario' }, { status: 500 });
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'auth/email-already-exists') {
+      return NextResponse.json({ error: 'El correo electrónico ya está en uso' }, { status: 409 });
+    }
+    return NextResponse.json({ error: 'Error al crear el usuario', detalle: error instanceof Error ? error.message : 'Error desconocido' }, { status: 500 });
   }
 }
 
-// --- 3. FUNCIÓN DELETE (LA QUE AÑADIMOS) ---
-export async function DELETE(request: Request) {
+
+// --- FUNCIÓN DELETE (Sigue igual) ---
+export async function DELETE(
+  request: NextRequest
+) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('id');
-
     if (!userId) {
       return NextResponse.json({ error: 'Falta el ID del usuario' }, { status: 400 });
     }
 
-    console.log(`DELETE /api/usuarios: Borrando usuario con ID: ${userId}`);
-
-    await adminDb.collection('usuarios').doc(userId).delete();
+    await admin.auth().deleteUser(userId); 
+    await adminDb.collection('usuarios').doc(userId).delete(); 
 
     return NextResponse.json({ message: 'Usuario eliminado exitosamente' });
 

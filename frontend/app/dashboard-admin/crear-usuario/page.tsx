@@ -31,6 +31,11 @@ export default function CrearUsuarioPage() {
     setError('');
 
     try {
+      // --- ¡AÑADE ESTAS LÍNEAS DE "ESPÍA"! ---
+      const datosParaEnviar = { nombre, email, password, rol };
+      console.log("DATOS A PUNTO DE ENVIAR:", datosParaEnviar);
+      // --- FIN DEL ESPÍA ---
+
       // 3. ¡AQUÍ ESTÁ LA MAGIA! Llama a tu API con método POST
       const response = await fetch('/api/usuarios', {
         method: 'POST',
@@ -38,13 +43,12 @@ export default function CrearUsuarioPage() {
           'Content-Type': 'application/json',
         },
         // Envía los datos de los estados en el "body"
+        // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
         body: JSON.stringify({
-          nombre,
-          email,
-          rol,
-          // NOTA: La contraseña (password) no la enviamos a Firestore
-          // por seguridad. La API de 'usuarios' no la guarda.
-          // El login real se debe crear en Firebase Authentication.
+          nombre: nombre,
+          email: email,
+          rol: rol,
+          password: password, // <-- AÑADE ESTA LÍNEA
         }),
       });
 
