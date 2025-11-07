@@ -3,7 +3,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 
-// Define el tipo de 'context' que Vercel espera (con la Promise)
+// Define el tipo de 'context' que Vercel espera
 type Context = {
   params: Promise<{ id: string }>
 }
@@ -15,13 +15,10 @@ export async function GET(
   request: NextRequest, 
   context: Context
 ) {
-  // --- ARREGLO PARA EL LOG DE ERRORES ---
   let id: string;
-  // --- FIN ARREGLO ---
-
   try {
     const params = await context.params;
-    id = params.id; // Asigna el valor
+    id = params.id; 
     
     const otDoc = await adminDb.collection('ordenes-trabajo').doc(id).get();
 
@@ -32,50 +29,43 @@ export async function GET(
     return NextResponse.json({ id: otDoc.id, ...otDoc.data() });
 
   } catch (error) {
-    console.error(`Error en GET /api/ordenes-trabajo/[id]:`, error); // El 'id' no está aquí, pero el error general es suficiente
+    console.error(`Error en GET /api/ordenes-trabajo/[id]:`, error); 
     return NextResponse.json({ error: 'Error al obtener la OT' }, { status: 500 });
   }
 }
 
 
 /**
- * Función PUT: Actualiza UNA Orden de Trabajo específica.
+ * Función PUT: Actualiza 'estado' y 'repuestosUsados' (¡SIN FOTOS!)
  */
 export async function PUT(
   request: NextRequest, 
   context: Context
 ) {
-  // --- ARREGLO PARA EL LOG DE ERRORES ---
-  let id: string = 'ID_DESCONOCIDO'; // Pon un valor por defecto
-  // --- FIN ARREGLO ---
-
+  let id: string = 'ID_DESCONOCIDO'; 
   try {
     const params = await context.params;
-    id = params.id; // Asigna el valor real
+    id = params.id; 
     
     const body = await request.json(); 
 
-    console.log(`PUT /api/ordenes-trabajo/${id}: Actualizando OT...`);
-    console.log('Datos recibidos:', body);
+    // Prepara los datos a actualizar
+    const datosActualizados: { estado?: string, repuestosUsados?: string } = {};
 
+    if (body.estado) {
+      datosActualizados.estado = body.estado;
+    }
+    if (body.repuestosUsados !== undefined) {
+      datosActualizados.repuestosUsados = body.repuestosUsados;
+    }
+
+    // Actualiza el documento en Firestore
     const otRef = adminDb.collection('ordenes-trabajo').doc(id);
-      // Prepara los datos a actualizar
-      const datosActualizados: { estado: string, repuestosUsados?: string } = {
-        estado: body.estado,
-      };
-
-      // Solo añade 'repuestosUsados' si fue enviado
-      if (body.repuestosUsados !== undefined) {
-        datosActualizados.repuestosUsados = body.repuestosUsados;
-      }
-
-      // Actualiza el documento en Firestore
-      await otRef.update(datosActualizados);
+    await otRef.update(datosActualizados);
 
     return NextResponse.json({ message: 'OT actualizada exitosamente' });
 
   } catch (error) {
-    // Ahora 'id' SÍ es accesible aquí para el log
     console.error(`Error en PUT /api/ordenes-trabajo/${id}:`, error); 
     return NextResponse.json({ error: 'Error al actualizar la OT' }, { status: 500 });
   }
