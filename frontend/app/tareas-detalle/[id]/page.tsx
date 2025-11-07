@@ -3,6 +3,7 @@
 'use client'; 
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation'; 
 
 type DetalleOrdenDeTrabajo = {
@@ -11,7 +12,8 @@ type DetalleOrdenDeTrabajo = {
   descripcionProblema: string; 
   estado: 'Pendiente' | 'En Progreso' | 'Finalizado';
   fechaCreacion: any; 
-  repuestosUsados?: string; 
+  repuestosUsados?: string;
+  fotos?: string[]; // <-- ¡AÑADIDO!
 };
 
 export default function DetalleOTPage() {
@@ -104,8 +106,10 @@ export default function DetalleOTPage() {
     try {
       // 1. ¡NUEVA API! Llama a tu backend de Vercel Blob
       // Le pasa el nombre del archivo en la URL
+      // --- ¡ESTA ES LA LÍNEA CORREGIDA! ---
+      const filename = `ot-${id}/${Date.now()}-${selectedFile.name}`;
       const response = await fetch(
-        `/api/upload-foto?filename=ot-${id}/${selectedFile.name}`,
+        `/api/upload-foto?filename=${filename}`,
         {
           method: 'POST',
           body: selectedFile, // ¡El body es el archivo mismo!
@@ -135,9 +139,9 @@ export default function DetalleOTPage() {
         throw new Error('No se pudo guardar la URL de la foto en la OT');
       }
 
-      alert('¡Foto subida y guardada en la OT!');
-      setSelectedFile(null); // Limpia el input
-      // (En un futuro, recargamos la OT para mostrar la foto)
+  alert('¡Foto subida y guardada en la OT!');
+  setSelectedFile(null); // Limpia el input
+  router.refresh(); // Esto le dice a Next.js que vuelva a cargar los datos
 
     } catch (err) {
       console.error(err);
@@ -225,6 +229,32 @@ export default function DetalleOTPage() {
             </button>
           </div>
           {/* --- FIN DEL NUEVO BLOQUE --- */}
+
+          {/* --- BLOQUE PARA MOSTRAR LAS FOTOS SUBIDAS --- */}
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold">Fotos Subidas:</h3>
+            {/* Revisa si el array 'fotos' existe y tiene fotos */}
+            {ot && ot.fotos && ot.fotos.length > 0 ? (
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                {/* Muestra cada foto en un bucle */}
+                {ot.fotos.map((fotoUrl, index) => (
+                  <div key={index} className="relative w-full h-40 rounded-lg overflow-hidden shadow-md">
+                    <Image
+                      src={fotoUrl}
+                      alt={`Evidencia ${index + 1}`}
+                      layout="fill"
+                      objectFit="cover"
+                      className="transition-transform duration-300 hover:scale-110"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // Muestra esto si no hay fotos
+              <p className="mt-2 text-sm text-gray-500">Aún no se han subido fotos para esta OT.</p>
+            )}
+          </div>
+          {/* --- FIN DEL BLOQUE PARA MOSTRAR FOTOS --- */}
 
         </div>
       </div>

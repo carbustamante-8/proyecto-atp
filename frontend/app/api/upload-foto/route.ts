@@ -4,6 +4,10 @@ import { put } from '@vercel/blob'; // Importa la función 'put' de Vercel Blob
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request): Promise<NextResponse> {
+  // --- ¡AÑADE ESTA LÍNEA PARA DEPURAR! ---
+  console.log("VIENDO LA LLAVE DE BLOB:", process.env.BLOB_READ_WRITE_TOKEN);
+  // --- FIN DE LA LÍNEA ---
+
   // 1. Obtiene el 'searchParam' de la URL (?filename=ejemplo.jpg)
   const { searchParams } = new URL(request.url);
   const filename = searchParams.get('filename');
