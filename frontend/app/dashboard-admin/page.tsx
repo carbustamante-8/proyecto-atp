@@ -3,7 +3,7 @@
 'use client'; 
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import Link from "next/link"; // Import Link from next/link
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
@@ -170,7 +170,9 @@ export default function DashboardAdminPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900">Editar</button>
+                    <Link href={`/dashboard-admin/editar-usuario/${user.id}`}>
+                      <button className="text-blue-600 hover:text-blue-900">Editar</button>
+                    </Link>
                     <button onClick={() => handleEliminar(user.id, user.nombre)} className="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
                   </td>
                 </tr>
