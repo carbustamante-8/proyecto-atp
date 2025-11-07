@@ -198,10 +198,34 @@ export default function DetalleOTPage() {
               Escribe los repuestos. Presiona "Guardar Cambios" (a la derecha).
             </p>
           </div>
-          
-          {/* Espacio para la futura Evidencia Fotográfica */}
+
+          {/* --- ¡ESTE ES EL NUEVO BLOQUE DE JSX! --- */}
+
+          {/* Evidencia Fotográfica */}
           <h2 className="text-xl font-semibold mt-6 mb-4">Evidencia Fotográfica</h2>
-          <p className="text-gray-500">(Sección para subir fotos...)</p>
+          <div className="flex items-center space-x-4">
+            <input
+              type="file"
+              onChange={handleFileChange} // <-- Conecta con la lógica
+              accept="image/png, image/jpeg" // Solo acepta imágenes
+              className="block w-full text-sm text-gray-500
+                         file:mr-4 file:py-2 file:px-4
+                         file:rounded-full file:border-0
+                         file:text-sm file:font-semibold
+                         file:bg-blue-50 file:text-blue-700
+                         hover:file:bg-blue-100"
+            />
+            <button
+              type="button" // (Importante: 'type="button"' para que no envíe el formulario principal)
+              onClick={handleFileUpload} // <-- Conecta con la lógica
+              disabled={isUploading || !selectedFile} // Se activa cuando eliges un archivo
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {isUploading ? 'Subiendo...' : 'Subir Foto'}
+            </button>
+          </div>
+          {/* --- FIN DEL NUEVO BLOQUE --- */}
+
         </div>
       </div>
 
