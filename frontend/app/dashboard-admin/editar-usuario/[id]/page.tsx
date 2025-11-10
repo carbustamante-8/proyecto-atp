@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
 type UsuarioData = {
   nombre: string;
@@ -26,7 +26,7 @@ export default function EditarUsuarioPage() {
   
   const [loading, setLoading] = useState(true); 
   const [isUpdating, setIsUpdating] = useState(false); 
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   
   const { user, userProfile, loading: authLoading } = useAuth();
 
@@ -35,7 +35,6 @@ export default function EditarUsuarioPage() {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
-          // ¡PERMITIDO! Carga los datos
           const fetchUsuario = async () => {
             try {
               const response = await fetch(`/api/usuarios/${id}`);
@@ -43,7 +42,7 @@ export default function EditarUsuarioPage() {
               const data: UsuarioData = await response.json();
               setFormData(data); 
             } catch (err) {
-              if (err instanceof Error) setError(err.message);
+              if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
             } finally {
               setLoading(false);
             }
@@ -70,7 +69,6 @@ export default function EditarUsuarioPage() {
   const handleActualizar = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    setError('');
     try {
       const { nombre, rol, estado } = formData; 
       const response = await fetch(`/api/usuarios/${id}`, {
@@ -79,10 +77,10 @@ export default function EditarUsuarioPage() {
         body: JSON.stringify({ nombre, rol, estado }),
       });
       if (!response.ok) throw new Error('No se pudo actualizar el usuario');
-      alert('¡Usuario actualizado!');
+      toast.success('¡Usuario actualizado!'); // <-- 3. Cambiado
       router.push('/dashboard-admin'); 
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setIsUpdating(false);
     }
@@ -92,7 +90,7 @@ export default function EditarUsuarioPage() {
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Editar Usuario</h1>
-        {error && (<p className="text-red-500 text-center mb-4">{error}</p>)}
+        {/* El error ahora es un Toast */}
         <form onSubmit={handleActualizar} className="space-y-6">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">

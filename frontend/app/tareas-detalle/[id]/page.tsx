@@ -1,12 +1,15 @@
 // frontend/app/tareas-detalle/[id]/page.tsx
+// (CÓDIGO COMPLETO Y CORREGIDO)
+
 'use client'; 
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation'; 
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
+import toast from 'react-hot-toast'; // Importamos 'toast' para las notificaciones
 
-import { put } from '@vercel/blob';
-
+// Define los "tipos" de datos
 type DetalleOrdenDeTrabajo = {
   id: string;
   patente: string;
@@ -14,34 +17,45 @@ type DetalleOrdenDeTrabajo = {
   estado: 'Pendiente' | 'En Progreso' | 'Finalizado';
   fechaCreacion: any; 
   repuestosUsados?: string;
-  fotos?: string[];
+  fotos?: string[]; // Un array de URLs de fotos
 };
 
 export default function DetalleOTPage() {
+  
+  // --- HOOKS (INCLUYE EL GUARDIA) ---
   const params = useParams();
   const id = params.id as string; 
   const router = useRouter();
   
   const [ot, setOt] = useState<DetalleOrdenDeTrabajo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); 
   const [error, setError] = useState('');
   
+  // Estados para los formularios
   const [nuevoEstado, setNuevoEstado] = useState<'Pendiente' | 'En Progreso' | 'Finalizado'>('Pendiente');
   const [repuestosUsados, setRepuestosUsados] = useState(''); 
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false); // Para el botón "Guardar"
   
-  const { user, userProfile, loading: authLoading } = useAuth();
+  // Estados para la subida de fotos
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false); // Para el botón "Subir Foto"
+  
+  const { user, userProfile, loading: authLoading } = useAuth(); // Hook de Auth
 
+  // --- LÓGICA DE CARGA Y PROTECCIÓN (CORREGIDA) ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Mecánico'];
+        // Roles que SÍ pueden ver esta página (Mecánicos y Admins)
+        const rolesPermitidos = ['Mecánico', 'Jefe de Taller', 'Supervisor', 'Coordinador'];
+        
         if (rolesPermitidos.includes(userProfile.rol)) {
+          // 1. ¡PERMITIDO! Carga los datos
           fetchDetalleOT();
         } else {
-          router.push('/');
+          // 2. ¡NO PERMITIDO! Redirige
+          console.warn(`Acceso denegado a /tareas-detalle. Rol: ${userProfile.rol}`);
+          router.push('/'); 
         }
       } else if (!user) {
         router.push('/');
@@ -49,6 +63,7 @@ export default function DetalleOTPage() {
     }
   }, [user, userProfile, authLoading, router, id]);
 
+  // Función de carga de datos
   const fetchDetalleOT = async () => {
     try {
       setLoading(true);
@@ -65,6 +80,7 @@ export default function DetalleOTPage() {
     }
   };
 
+  // --- Lógica de 'handleActualizar' (Estado y Repuestos) ---
   const handleActualizar = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
@@ -79,27 +95,41 @@ export default function DetalleOTPage() {
         }),
       });
       if (!response.ok) throw new Error('No se pudo actualizar el estado');
-      alert('¡OT actualizada!');
+      toast.success('¡OT actualizada exitosamente!'); // Notificación
       router.push('/mis-tareas');
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setIsUpdating(false);
     }
   };
 
+  // --- ¡AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA! ---
+  // Esta se activa cuando el usuario elige un archivo
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
     }
   };
 
+  // Esta se activa cuando el usuario presiona "Subir Foto"
   const handleFileUpload = async () => {
-    if (!selectedFile || !id) return;
+    if (!selectedFile) {
+      toast.error('Primero selecciona un archivo.');
+      return;
+    }
+    if (!id) {
+      toast.error('No se ha cargado el ID de la OT.');
+      return;
+    }
     setIsUploading(true);
     setError('');
+
     try {
+      // 1. Arregla el nombre del archivo (con Date.now() para que sea único)
       const filename = `ot-${id}/${Date.now()}-${selectedFile.name}`;
+      
+      // 2. Llama a tu API de Vercel Blob
       const response = await fetch(
         `/api/upload-foto?filename=${filename}`, 
         { method: 'POST', body: selectedFile }
@@ -109,6 +139,7 @@ export default function DetalleOTPage() {
       const newBlob = await response.json();
       const downloadURL = newBlob.url; 
       
+      // 3. Llama a tu API PUT para guardar la URL en la OT
       const updateResponse = await fetch(`/api/ordenes-trabajo/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -116,17 +147,19 @@ export default function DetalleOTPage() {
       });
       if (!updateResponse.ok) throw new Error('No se pudo guardar la URL de la foto en la OT');
       
-      alert('¡Foto subida y guardada en la OT!');
+      toast.success('¡Foto subida y guardada en la OT!');
       setSelectedFile(null); 
-      router.refresh(); 
+      router.refresh(); // Refresca los datos de la página
     } catch (err) {
       console.error(err);
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setIsUploading(false);
     }
   };
+  // --- FIN DE LAS FUNCIONES DE SUBIDA ---
 
+  // --- LÓGICA DE RETORNO TEMPRANO ---
   if (authLoading || !userProfile || loading) {
     return <div className="p-8 text-gray-900">Validando sesión y cargando OT...</div>;
   }
@@ -134,13 +167,15 @@ export default function DetalleOTPage() {
   if (error) return <div className="p-8 text-red-500">Error: {error}</div>;
   if (!ot) return <div className="p-8 text-gray-900">OT no encontrada.</div>;
 
+  // --- RENDERIZADO DE LA PÁGINA (CON JSX COMPLETO) ---
   return (
     <div className="p-8 text-gray-900 grid grid-cols-3 gap-8">
       
       {/* Columna Izquierda */}
       <div className="col-span-2 space-y-6">
         <h1 className="text-3xl font-bold">Detalle de OT-{ot.id.substring(0, 6)}</h1>
-        {/* ... (JSX de Info General) ... */}
+        
+        {/* Información General */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4">Información General</h2>
           <div className="mt-4">
@@ -171,7 +206,7 @@ export default function DetalleOTPage() {
             />
           </div>
           
-          {/* Evidencia Fotográfica */}
+          {/* Evidencia Fotográfica (¡CON JSX COMPLETO!) */}
           <h2 className="text-xl font-semibold mt-6 mb-4">Evidencia Fotográfica</h2>
           <div className="flex items-center space-x-4">
             <input

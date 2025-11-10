@@ -5,16 +5,15 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar'; 
+// --- ¡CAMBIO 1: Importa el Toaster! ---
+import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'] });
 
-// --- ¡ESTE ES EL ARREGLO! ---
-// Un solo objeto de metadata simple para todo el sitio.
 export const metadata: Metadata = {
-  title: 'Pepsi-Fleet', // Este será el título en todas las pestañas
+  title: 'Pepsi-Fleet', 
   description: 'Gestión de Flota ATP',
 };
-// --- FIN DEL ARREGLO ---
 
 export default function RootLayout({
   children,
@@ -25,8 +24,19 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         <AuthProvider>
+          
+          {/* --- ¡CAMBIO 2: Añade el Toaster aquí! --- */}
+          {/* (Se puede poner arriba o abajo, no afecta el layout) */}
+          <Toaster 
+            position="bottom-right" // Las notificaciones saldrán en la esquina inferior derecha
+            toastOptions={{
+              duration: 4000, // Duran 4 segundos
+            }}
+          />
+          
           <Navbar /> 
           {children} 
+        
         </AuthProvider>
       </body>
     </html>

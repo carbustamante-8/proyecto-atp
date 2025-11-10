@@ -3,32 +3,31 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
-
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
 export default function ControlAccesoPage() {
   const [patente, setPatente] = useState('');
   const [chofer, setChofer] = useState('');
   const [motivoIngreso, setMotivoIngreso] = useState('');
-  const [kilometraje, setKilometraje] = useState('');
+  const [numeroChasis, setNumeroChasis] = useState('');
   const [zonaOrigen, setZonaOrigen] = useState('');
   
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false); 
+  // const [success, setSuccess] = useState(false); // <-- 2. Ya no lo usamos
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         if (userProfile.rol !== 'Guardia') {
-          console.warn(`Acceso denegado a /control-acceso. Rol: ${userProfile.rol}`);
           if (userProfile.rol === 'Mecánico') router.push('/mis-tareas');
           else if (userProfile.rol === 'Jefe de Taller') router.push('/dashboard-admin');
           else router.push('/');
         }
-        // Si ES Guardia, no hace nada, permite ver la página
       } else if (!user) {
         router.push('/');
       }
@@ -37,45 +36,39 @@ export default function ControlAccesoPage() {
 
   const handleRegistrarIngreso = async (e: React.FormEvent) => {
     e.preventDefault(); 
-    if (!patente || !chofer || !motivoIngreso || !kilometraje || !zonaOrigen) {
-      setError('Por favor, completa todos los campos.');
+    if (!patente || !chofer || !motivoIngreso || !numeroChasis || !zonaOrigen) {
+      toast.error('Por favor, completa todos los campos.'); // <-- 3. Cambiado
       return;
     }
     setLoading(true);
-    setError('');
-    setSuccess(false);
     try {
       const response = await fetch('/api/registros-acceso', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          patente, chofer, motivoIngreso, kilometraje, zonaOrigen,
+          patente, chofer, motivoIngreso, numeroChasis, zonaOrigen,
         }),
       });
       if (!response.ok) throw new Error('Falló el registro del ingreso');
-      setSuccess(true); 
+      
+      toast.success('¡Ingreso registrado exitosamente!'); // <-- 3. Cambiado
+      
       setPatente('');
       setChofer('');
       setMotivoIngreso('');
-      setKilometraje('');
+      setNumeroChasis('');
       setZonaOrigen('');
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setLoading(false); 
     }
   };
 
-  if (authLoading || !userProfile) {
+  if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // Si llegamos aquí, SÍ es un Guardia (o la lógica aún no se ha ejecutado)
-  // Añadimos una comprobación final por si acaso
-  if (userProfile.rol !== 'Guardia') {
-    return <div className="p-8 text-gray-900">Acceso denegado.</div>;
-  }
-
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
@@ -84,6 +77,7 @@ export default function ControlAccesoPage() {
         </h1>
         <p className="text-center text-gray-500 mb-6">Rol: Guardia de Seguridad</p>
         <form onSubmit={handleRegistrarIngreso} className="space-y-4">
+          {/* ... (inputs de patente, chofer, chasis, zona, motivo) ... */}
           <div>
             <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
             <input type="text" id="patente" value={patente} onChange={(e) => setPatente(e.target.value)}
@@ -97,8 +91,12 @@ export default function ControlAccesoPage() {
             />
           </div>
           <div>
-            <label htmlFor="kilometraje" className="block text-sm font-medium text-gray-700">Kilometraje</label>
-            <input type="number" id="kilometraje" value={kilometraje} onChange={(e) => setKilometraje(e.target.value)}
+            <label htmlFor="numeroChasis" className="block text-sm font-medium text-gray-700">
+              Número de Chasis
+            </label>
+            <input
+              type="text" id="numeroChasis" value={numeroChasis}
+              onChange={(e) => setNumeroChasis(e.target.value)}
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
@@ -115,8 +113,7 @@ export default function ControlAccesoPage() {
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
-          {error && (<p className="text-red-500 text-center">{error}</p>)}
-          {success && (<p className="text-green-500 text-center">¡Ingreso registrado exitosamente!</p>)}
+          {/* Los mensajes de error/éxito ahora son Toasts */}
           <button
             type="submit"
             disabled={loading} 

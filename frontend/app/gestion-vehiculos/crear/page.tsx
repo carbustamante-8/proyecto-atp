@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
 type UsuarioSimple = {
   id: string;
@@ -21,13 +21,14 @@ export default function CrearVehiculoPage() {
   });
   
   const [choferes, setChoferes] = useState<UsuarioSimple[]>([]);
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const [loading, setLoading] = useState(false);
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   
   useEffect(() => {
+    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
@@ -50,7 +51,7 @@ export default function CrearVehiculoPage() {
       setChoferes(listaChoferes);
     } catch (err) {
       console.error("Error cargando choferes:", err);
-      setError('No se pudo cargar la lista de choferes.');
+      toast.error('No se pudo cargar la lista de choferes.'); // <-- 3. Cambiado
     }
   };
   
@@ -62,11 +63,10 @@ export default function CrearVehiculoPage() {
     e.preventDefault(); 
     const { patente, modelo, tipo_vehiculo, año, kilometraje, id_chofer_asignado } = formData;
     if (!patente || !modelo || !tipo_vehiculo) {
-      setError('Patente, Modelo y Tipo son obligatorios.');
+      toast.error('Patente, Modelo y Tipo son obligatorios.'); // <-- 3. Cambiado
       return;
     }
     setLoading(true);
-    setError('');
     try {
       const response = await fetch('/api/vehiculos', {
         method: 'POST',
@@ -79,9 +79,10 @@ export default function CrearVehiculoPage() {
         }),
       });
       if (!response.ok) throw new Error('Falló la creación del vehículo');
+      toast.success(`Vehículo ${patente} creado.`); // <-- 3. Cambiado
       router.push('/gestion-vehiculos');
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setLoading(false); 
     }
@@ -98,9 +99,10 @@ export default function CrearVehiculoPage() {
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
           Añadir Nuevo Vehículo a la Flota
         </h1>
-        {error && (<p className="text-red-500 text-center mb-4">{error}</p>)}
+        {/* El error ahora es un Toast */}
         <form onSubmit={handleCrearVehiculo} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+          {/* ... (todos tus inputs no cambian) ... */}
+           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
               <input type="text" name="patente" id="patente" value={formData.patente} onChange={handleChange}

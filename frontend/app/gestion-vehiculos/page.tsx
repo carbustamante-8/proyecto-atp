@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
 type Vehiculo = {
   id: string;
@@ -18,11 +19,12 @@ type Vehiculo = {
 export default function GestionVehiculosPage() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
@@ -45,7 +47,7 @@ export default function GestionVehiculosPage() {
       const data = await response.json();
       setVehiculos(data); 
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setLoading(false); 
     }
@@ -57,8 +59,9 @@ export default function GestionVehiculosPage() {
       const response = await fetch(`/api/vehiculos?id=${vehiculoId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Error al eliminar el vehículo');
       setVehiculos(v => v.filter(v => v.id !== vehiculoId));
+      toast.success(`Vehículo ${patente} eliminado.`); // <-- 3. Cambiado
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     }
   };
   
@@ -83,6 +86,7 @@ export default function GestionVehiculosPage() {
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
+            {/* ... (thead no cambia) ... */}
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Modelo</th>
@@ -96,12 +100,11 @@ export default function GestionVehiculosPage() {
             {loading && (
               <tr><td colSpan={6} className="px-6 py-4 text-center">Cargando vehículos...</td></tr>
             )}
-            {error && (
-              <tr><td colSpan={6} className="px-6 py-4 text-center text-red-500">{error}</td></tr>
-            )}
-            {!loading && !error && vehiculos.length > 0 ? (
+            {/* El error ahora es un Toast */}
+            {!loading && vehiculos.length > 0 ? (
               vehiculos.map(vehiculo => (
                 <tr key={vehiculo.id}>
+                  {/* ... (tbody no cambia) ... */}
                   <td className="px-6 py-4 font-medium">{vehiculo.patente}</td>
                   <td className="px-6 py-4">{vehiculo.modelo}</td>
                   <td className="px-6 py-4">{vehiculo.tipo_vehiculo}</td>
@@ -124,7 +127,7 @@ export default function GestionVehiculosPage() {
                 </tr>
               ))
             ) : (
-              !loading && !error && vehiculos.length === 0 && (
+              !loading && vehiculos.length === 0 && (
                 <tr><td colSpan={6} className="px-6 py-4 text-center">No se encontraron vehículos en la flota.</td></tr>
               )
             )}

@@ -3,20 +3,20 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
-
-// --- COMPONENTE DEL FORMULARIO ---
 function CrearUsuarioForm() {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rol, setRol] = useState(''); 
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const [loading, setLoading] = useState(false);
   const router = useRouter(); 
   const { user, userProfile, loading: authLoading } = useAuth();
 
   useEffect(() => {
+    // ... (la lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
@@ -36,15 +36,14 @@ function CrearUsuarioForm() {
   const handleCrearUsuario = async (e: React.FormEvent) => {
     e.preventDefault(); 
     if (!nombre || !email || !password || !rol) {
-      setError('Por favor, completa todos los campos.');
+      toast.error('Por favor, completa todos los campos.'); // <-- 3. Cambiado
       return;
     }
     if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
+      toast.error('La contraseña debe tener al menos 6 caracteres.'); // <-- 3. Cambiado
       return;
     }
     setLoading(true);
-    setError('');
     try {
       const response = await fetch('/api/usuarios', {
         method: 'POST',
@@ -55,9 +54,10 @@ function CrearUsuarioForm() {
       if (!response.ok) {
         throw new Error(data.error || 'Falló la creación del usuario');
       }
+      toast.success(`Usuario "${nombre}" creado exitosamente.`); // <-- 3. Cambiado
       router.push('/dashboard-admin');
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setLoading(false); 
     }
@@ -70,6 +70,7 @@ function CrearUsuarioForm() {
           Crear Nuevo Usuario
         </h1>
         <form onSubmit={handleCrearUsuario} className="space-y-6">
+          {/* ... (inputs de nombre, email, password) ... */}
           <div>
             <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre</label>
             <input type="text" id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)}
@@ -104,7 +105,7 @@ function CrearUsuarioForm() {
               <option value="Gerente">Gerente</option> 
             </select>
           </div>
-          {error && (<p className="text-red-500 text-center">{error}</p>)}
+          {/* El error ahora es un Toast */}
           <button
             type="submit"
             disabled={loading}
@@ -118,7 +119,7 @@ function CrearUsuarioForm() {
   );
 }
 
-// --- ENVOLTORIO (para arreglar el error de Vercel 'useSearchParams') ---
+// --- ENVOLTORIO (no cambia) ---
 export default function CrearUsuarioPageWrapper() {
   return (
     <Suspense fallback={<div className="p-8">Cargando...</div>}>

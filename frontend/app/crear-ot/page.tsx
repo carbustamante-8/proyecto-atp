@@ -3,26 +3,24 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
-
-// --- COMPONENTE DEL FORMULARIO ---
 function CrearOTForm() {
   const [patente, setPatente] = useState('');
   const [descripcionProblema, setDescripcionProblema] = useState('');
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const [loading, setLoading] = useState(false);
   const router = useRouter(); 
   const { user, userProfile, loading: authLoading } = useAuth();
   const searchParams = useSearchParams(); 
 
   useEffect(() => {
-    // 1. Rellenar el formulario desde la URL
+    // ... (lógica de protección no cambia) ...
     const patenteURL = searchParams.get('patente');
     const motivoURL = searchParams.get('motivo');
     if (patenteURL) setPatente(patenteURL);
     if (motivoURL) setDescripcionProblema(motivoURL);
 
-    // 2. Proteger la página
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
@@ -42,11 +40,10 @@ function CrearOTForm() {
   const handleCrearOT = async (e: React.FormEvent) => {
     e.preventDefault(); 
     if (!patente || !descripcionProblema) {
-      setError('Por favor, completa todos los campos.');
+      toast.error('Por favor, completa todos los campos.'); // <-- 3. Cambiado
       return;
     }
     setLoading(true);
-    setError('');
     try {
       const response = await fetch('/api/ordenes-trabajo', {
         method: 'POST',
@@ -57,9 +54,10 @@ function CrearOTForm() {
         }),
       });
       if (!response.ok) throw new Error('Falló la creación de la OT');
+      toast.success('¡OT Creada! Redirigiendo al tablero del mecánico...'); // <-- 3. Cambiado
       router.push('/mis-tareas');
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setLoading(false); 
     }
@@ -72,6 +70,7 @@ function CrearOTForm() {
           Registrar Nueva Orden de Trabajo
         </h1>
         <form onSubmit={handleCrearOT} className="space-y-6">
+          {/* ... (inputs de patente y descripción) ... */}
           <div>
             <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
             <input
@@ -89,7 +88,7 @@ function CrearOTForm() {
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
-          {error && (<p className="text-red-500 text-center">{error}</p>)}
+          {/* El error ahora es un Toast */}
           <button
             type="submit"
             disabled={loading}
@@ -103,7 +102,7 @@ function CrearOTForm() {
   );
 }
 
-// --- ENVOLTORIO (para arreglar el error de Vercel 'useSearchParams') ---
+// --- ENVOLTORIO (no cambia) ---
 export default function CrearOTPageWrapper() {
   return (
     <Suspense fallback={<div className="p-8">Cargando...</div>}>

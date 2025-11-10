@@ -1,16 +1,12 @@
 // frontend/app/generador-reportes/page.tsx
-
 'use client'; 
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext'; 
 import { useRouter } from 'next/navigation';   
 import * as XLSX from 'xlsx'; 
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
-
-// --- ¡ARREGLO 1! ---
-// Actualizamos los "tipos" para que coincidan con lo que llega del JSON
-
+// (Los 'type' no cambian)
 type ReporteOT = {
   id: string;
   patente: string;
@@ -20,26 +16,18 @@ type ReporteOT = {
   mecanicoAsignado: string; 
   estado: string;
 };
-
-// Este es el "tipo" de dato que realmente llega desde la API
 type OT_Desde_API = {
   id: string;
   patente: string;
   estado: string;
   mecanicoAsignado?: string;
-  fechaCreacion: { // ¡Viene como un objeto simple!
-    _seconds: number;
-    _nanoseconds: number;
-  }
+  fechaCreacion: { _seconds: number; _nanoseconds: number; }
 }
-// --- FIN ARREGLO 1 ---
 
 export default function ReportesPage() {
-  
-  // --- (Tus 'useState' y 'useAuth' no cambian) ---
   const [reporteData, setReporteData] = useState<ReporteOT[]>([]);
   const [loading, setLoading] = useState(false); 
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [estado, setEstado] = useState('Todos');
@@ -47,8 +35,8 @@ export default function ReportesPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- (Tu 'useEffect' de protección no cambia) ---
   useEffect(() => {
+    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
@@ -60,14 +48,10 @@ export default function ReportesPage() {
       }
     }
   }, [user, userProfile, authLoading, router]);
-
   
-  // --- Función para "Generar Reporte" ---
   const handleGenerarReporte = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-    
     try {
       const params = new URLSearchParams();
       if (estado && estado !== 'Todos') params.append('estado', estado);
@@ -78,14 +62,11 @@ export default function ReportesPage() {
       const response = await fetch(`/api/reportes?${params.toString()}`);
       if (!response.ok) throw new Error('No se pudo generar el reporte');
       
-      const data: OT_Desde_API[] = await response.json(); // Usa el nuevo tipo
+      const data: OT_Desde_API[] = await response.json();
       
-      // --- ¡ARREGLO 2! ---
-      // Mapea los datos leyendo '_seconds' en lugar de '.toMillis()'
       const dataFormateada = data.map((ot) => ({
         id: ot.id,
         patente: ot.patente || 'N/A',
-        // ¡Aquí está la corrección!
         fechaIngreso: ot.fechaCreacion && ot.fechaCreacion._seconds 
                       ? new Date(ot.fechaCreacion._seconds * 1000).toLocaleDateString('es-CL') 
                       : 'N/A',
@@ -94,22 +75,21 @@ export default function ReportesPage() {
         mecanicoAsignado: ot.mecanicoAsignado || 'N/A',
         estado: ot.estado || 'N/A',
       }));
-      // --- FIN ARREGLO 2 ---
-      
       setReporteData(dataFormateada);
-      
+      if(dataFormateada.length > 0) {
+        toast.success(`¡Reporte generado! ${dataFormateada.length} resultados.`); // <-- 3. Cambiado
+      }
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
-      else setError('Un error desconocido ocurrió');
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      else toast.error('Un error desconocido ocurrió'); // <-- 3. Cambiado
     } finally {
       setLoading(false); 
     }
   };
 
-  // --- (Tu 'handleExportExcel' no cambia) ---
    const handleExportExcel = () => {
     if (reporteData.length === 0) {
-      setError("No hay datos para exportar. Por favor, genera un reporte primero.");
+      toast.error("No hay datos para exportar. Genera un reporte primero."); // <-- 3. Cambiado
       return;
     }
     const datosParaExcel = reporteData.map(ot => ({
@@ -127,7 +107,6 @@ export default function ReportesPage() {
     XLSX.writeFile(wb, "ReportePepsiFleet.xlsx");
   };
 
-  // --- (Tu 'if (authLoading...)' no cambia) ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
@@ -135,15 +114,12 @@ export default function ReportesPage() {
      return <div className="p-8 text-gray-900">Acceso denegado.</div>;
   }
   
-  // --- RENDERIZADO DE LA PÁGINA (Sin cambios) ---
   return (
     <div className="p-8 text-gray-900"> 
-      
       <h1 className="text-3xl font-bold mb-6">Generador de Reportes</h1>
       <p className="text-gray-600 mb-6">Seleccione los filtros para extraer los datos de la operación.</p>
-
-      {/* Formulario de Filtros */}
-       <form onSubmit={handleGenerarReporte} className="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+      {/* ... (Formulario de Filtros no cambia) ... */}
+      <form onSubmit={handleGenerarReporte} className="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
         <div>
           <label htmlFor="fechaInicio" className="block text-sm font-medium text-gray-700">Fecha de Inicio</label>
           <input
@@ -202,10 +178,10 @@ export default function ReportesPage() {
           Exportar Datos a Excel
         </button>
       </div>
-      
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
+            {/* ... (thead no cambia) ... */}
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID OT</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
@@ -220,12 +196,11 @@ export default function ReportesPage() {
             {loading && (
               <tr><td colSpan={7} className="px-6 py-4 text-center">Generando reporte...</td></tr>
             )}
-            {error && (
-              <tr><td colSpan={7} className="px-6 py-4 text-center text-red-500">{error}</td></tr>
-            )}
-            {!loading && !error && reporteData.length > 0 ? (
+            {/* El error ahora es un Toast */}
+            {!loading && reporteData.length > 0 ? (
               reporteData.map(ot => (
                 <tr key={ot.id}>
+                  {/* ... (tbody no cambia) ... */}
                   <td className="px-6 py-4">{ot.id.substring(0, 6)}</td>
                   <td className="px-6 py-4 font-medium">{ot.patente}</td>
                   <td className="px-6 py-4">{ot.fechaIngreso}</td>
@@ -244,7 +219,7 @@ export default function ReportesPage() {
                 </tr>
               ))
             ) : (
-              !loading && !error && reporteData.length === 0 && (
+              !loading && reporteData.length === 0 && (
                 <tr><td colSpan={7} className="px-6 py-4 text-center">No se encontraron datos para este reporte. Use el filtro y presione "Generar Reporte".</td></tr>
               )
             )}

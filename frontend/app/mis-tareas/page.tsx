@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
 type OrdenDeTrabajo = {
   id: string;
@@ -16,17 +16,17 @@ type OrdenDeTrabajo = {
 export default function MisTareasPage() {
   const [ordenes, setOrdenes] = useState<OrdenDeTrabajo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         if (userProfile.rol === 'Mecánico') {
           fetchOrdenes();
         } else {
-          console.warn(`Acceso denegado a /mis-tareas. Rol: ${userProfile.rol}`);
           if (userProfile.rol === 'Jefe de Taller') router.push('/dashboard-admin');
           else if (userProfile.rol === 'Guardia') router.push('/control-acceso');
           else router.push('/');
@@ -45,20 +45,16 @@ export default function MisTareasPage() {
       const data = await response.json();
       setOrdenes(data); 
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setLoading(false);
     }
   };
 
-  if (authLoading || !userProfile) {
+  if (authLoading || !userProfile || userProfile.rol !== 'Mecánico') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  if (userProfile.rol !== 'Mecánico') {
-    return <div className="p-8 text-gray-900">Acceso denegado.</div>;
-  }
-
   const pendientes = ordenes.filter(ot => ot.estado === 'Pendiente');
   const enProgreso = ordenes.filter(ot => ot.estado === 'En Progreso');
   const finalizadas = ordenes.filter(ot => ot.estado === 'Finalizado');

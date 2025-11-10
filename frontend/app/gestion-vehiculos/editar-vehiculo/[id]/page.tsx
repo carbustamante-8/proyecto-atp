@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
-
+// (Los 'type' no cambian)
 type VehiculoData = {
   patente: string;
   modelo: string;
@@ -37,16 +38,16 @@ export default function EditarVehiculoPage() {
   const [choferes, setChoferes] = useState<UsuarioSimple[]>([]); 
   const [loading, setLoading] = useState(true); 
   const [isUpdating, setIsUpdating] = useState(false); 
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   
   const { user, userProfile, loading: authLoading } = useAuth();
 
   useEffect(() => {
+    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
-          // ¡PERMITIDO! Carga los datos
           const fetchVehiculo = async () => {
             try {
               const response = await fetch(`/api/vehiculos/${id}`);
@@ -54,7 +55,7 @@ export default function EditarVehiculoPage() {
               const data: VehiculoData = await response.json();
               setFormData(data); 
             } catch (err) {
-              if (err instanceof Error) setError(err.message);
+              if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
             }
           };
           const fetchChoferes = async () => {
@@ -91,7 +92,6 @@ export default function EditarVehiculoPage() {
   const handleActualizar = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    setError('');
     try {
       const response = await fetch(`/api/vehiculos/${id}`, {
         method: 'PUT',
@@ -103,10 +103,10 @@ export default function EditarVehiculoPage() {
         }),
       });
       if (!response.ok) throw new Error('No se pudo actualizar el vehículo');
-      alert('¡Vehículo actualizado!');
+      toast.success('¡Vehículo actualizado!'); // <-- 3. Cambiado
       router.push('/gestion-vehiculos'); 
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setIsUpdating(false);
     }
@@ -116,15 +116,15 @@ export default function EditarVehiculoPage() {
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Editar Vehículo</h1>
-        {error && (<p className="text-red-500 text-center mb-4">{error}</p>)}
+        {/* El error ahora es un Toast */}
         <form onSubmit={handleActualizar} className="space-y-6">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Patente</label>
+          {/* ... (todos tus inputs no cambian) ... */}
+           <div>
+            <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
             <input type="text" name="patente" id="patente" value={formData.patente} onChange={handleChange}
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
-          {/* ... (resto de tus inputs) ... */}
            <div>
             <label htmlFor="modelo" className="block text-sm font-medium text-gray-700">Modelo</label>
             <input type="text" name="modelo" id="modelo" value={formData.modelo} onChange={handleChange}

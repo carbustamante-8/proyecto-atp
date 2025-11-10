@@ -1,67 +1,47 @@
 // frontend/app/recuperar-contrasena/page.tsx
 
 'use client'; 
-
 import { useState } from 'react';
 import Link from 'next/link'; 
 import { auth } from '@/lib/firebase'; 
 import { sendPasswordResetEmail } from 'firebase/auth'; 
-
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
 export default function RecuperarContrasenaPage() {
-  
-  // 1. Estados para el formulario
   const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false); 
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
+  // const [success, setSuccess] = useState(false); // <-- 2. Ya no lo usamos
   const [loading, setLoading] = useState(false);
 
-  // 2. Función que se ejecuta al enviar el formulario
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault(); 
-    
     if (!email) {
-      setError('Por favor, ingresa tu correo electrónico.');
+      toast.error('Por favor, ingresa tu correo electrónico.'); // <-- 3. Cambiado
       return;
     }
-
     setLoading(true);
-    setError('');
-    setSuccess(false);
-
     try {
-      // 3. Llama a la función de Firebase
       await sendPasswordResetEmail(auth, email);
-
-      // 4. ¡Éxito!
-      setSuccess(true);
+      toast.success('¡Correo enviado! Revisa tu bandeja de entrada.'); // <-- 3. Cambiado
       setEmail(''); 
-      
     } catch (err) {
-      
-      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-      // Hacemos la validación de tipo segura que aprendimos
-      
-      console.error("Error en reseteo de clave:", err);
+      console.error(err);
       if (err && typeof err === 'object' && 'code' in err) {
         if (err.code === 'auth/user-not-found') {
-          setError('No se encontró ningún usuario con ese correo electrónico.');
+          toast.error('No se encontró usuario con ese correo.'); // <-- 3. Cambiado
         } else {
-          setError('Error al enviar el correo. Intenta de nuevo.');
+          toast.error('Error al enviar el correo. Intenta de nuevo.'); // <-- 3. Cambiado
         }
       } else if (err instanceof Error) {
-         setError(err.message);
+         toast.error(err.message); // <-- 3. Cambiado
       } else {
-         setError('Un error desconocido ocurrió.');
+         toast.error('Un error desconocido ocurrió.'); // <-- 3. Cambiado
       }
-      // --- FIN DE LA CORRECCIÓN ---
-
     } finally {
       setLoading(false); 
     }
   };
 
-  // 6. JSX del formulario (sin cambios)
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-lg">
@@ -71,37 +51,19 @@ export default function RecuperarContrasenaPage() {
         <p className="text-center text-gray-500 mb-6">
           Ingresa tu correo electrónico para recibir las instrucciones.
         </p>
-
         <form onSubmit={handleResetPassword} className="space-y-4">
-          
-          {/* Campo Email */}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">
               Correo electrónico
             </label>
             <input
-              type="email"
-              id="email"
-              value={email}
+              type="email" id="email" value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50"
               placeholder="tu-email@ejemplo.com"
             />
           </div>
-
-          {/* Mensaje de Error */}
-          {error && (
-            <p className="text-red-500 text-center">{error}</p>
-          )}
-
-          {/* Mensaje de Éxito */}
-          {success && (
-            <p className="text-green-600 text-center">
-              ¡Correo enviado! Revisa tu bandeja de entrada (y spam) para ver las instrucciones.
-            </p>
-          )}
-
-          {/* Botón de Enviar */}
+          {/* Los mensajes de error/éxito ahora son Toasts */}
           <button
             type="submit"
             disabled={loading} 
@@ -109,8 +71,6 @@ export default function RecuperarContrasenaPage() {
           >
             {loading ? 'Enviando...' : 'Enviar Instrucciones'}
           </button>
-
-          {/* Enlace de vuelta al Login */}
           <div className="text-center">
             <Link href="/">
               <span className="text-sm text-blue-600 hover:underline">
@@ -118,7 +78,6 @@ export default function RecuperarContrasenaPage() {
               </span>
             </Link>
           </div>
-
         </form>
       </div>
     </div>

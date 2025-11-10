@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-
+import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
 type RegistroIngreso = {
   id: string;
@@ -12,19 +12,18 @@ type RegistroIngreso = {
   motivoIngreso: string;
   kilometraje: number;
   zonaOrigen: string;
-  fechaIngreso: { 
-    _seconds: number;
-  };
+  fechaIngreso: { _seconds: number };
 };
 
 export default function DashboardJefeTallerPage() {
   const [registros, setRegistros] = useState<RegistroIngreso[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
@@ -47,13 +46,14 @@ export default function DashboardJefeTallerPage() {
       const data = await response.json();
       setRegistros(data); 
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
     } finally {
       setLoading(false); 
     }
   };
 
   const handleCrearOT = (registro: RegistroIngreso) => {
+    toast.success('Redirigiendo para crear OT...'); // <-- 3. Cambiado
     const patente = encodeURIComponent(registro.patente);
     const motivo = encodeURIComponent(registro.motivoIngreso);
     router.push(`/crear-ot?patente=${patente}&motivo=${motivo}`);
@@ -75,6 +75,7 @@ export default function DashboardJefeTallerPage() {
       </div>
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
+          {/* ... (thead no cambia) ... */}
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
@@ -89,10 +90,8 @@ export default function DashboardJefeTallerPage() {
             {loading && (
               <tr><td colSpan={6} className="px-6 py-4 text-center">Cargando ingresos...</td></tr>
             )}
-            {error && (
-              <tr><td colSpan={6} className="px-6 py-4 text-center text-red-500">{error}</td></tr>
-            )}
-            {!loading && !error && registros.length > 0 ? (
+            {/* El error ahora es un Toast */}
+            {!loading && registros.length > 0 ? (
               registros.map(reg => (
                 <tr key={reg.id}>
                   <td className="px-6 py-4 font-medium">{reg.patente}</td>
@@ -113,7 +112,7 @@ export default function DashboardJefeTallerPage() {
                 </tr>
               ))
             ) : (
-              !loading && !error && registros.length === 0 && (
+              !loading && registros.length === 0 && (
                 <tr><td colSpan={6} className="px-6 py-4 text-center">No hay vehículos pendientes de ingreso.</td></tr>
               )
             )}
