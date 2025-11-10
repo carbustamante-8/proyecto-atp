@@ -1,6 +1,6 @@
 // frontend/context/AuthContext.tsx
 
-'use client'; 
+'use client'; // <-- Este archivo es 100% del lado del cliente
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -9,7 +9,7 @@ import { doc, getDoc } from 'firebase/firestore'; // <-- 2. IMPORTA las funcione
 
 // 3. Define el "tipo" de perfil que guardamos en Firestore
 // (Esto debe coincidir con los datos que creas en el formulario)
-type UserProfile = {
+export type UserProfile = {
   id: string;
   nombre: string;
   email: string;
@@ -18,7 +18,7 @@ type UserProfile = {
 };
 
 // 4. Define el tipo de datos que tendrá el contexto
-type AuthContextType = {
+export type AuthContextType = {
   user: User | null;           // El objeto de usuario de Firebase Auth (con el UID)
   userProfile: UserProfile | null; // El objeto de usuario de Firestore (con el ROL)
   loading: boolean;          // Para saber si está "Cargando..."
@@ -47,12 +47,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (docSnap.exists()) {
           // Si encontramos el documento...
-          console.log("Perfil de usuario encontrado:", docSnap.data());
+          console.log("AuthContext: Perfil de usuario encontrado:", docSnap.data());
           // Guarda el perfil completo (con nombre, email, ROL, etc.)
           setUserProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
         } else {
           // El usuario existe en Auth, pero NO en Firestore
-          // (Esto puede pasar con usuarios 'antiguos' como guardia@pepsi.com)
           console.warn(`¡Alerta! El usuario ${user.uid} existe en Auth pero no tiene perfil en Firestore.`);
           setUserProfile(null);
         }
@@ -66,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false); // Deja de cargar
     });
 
+    // Se limpia el "oyente" cuando el componente se desmonta
     return () => unsubscribe();
   }, []);
 

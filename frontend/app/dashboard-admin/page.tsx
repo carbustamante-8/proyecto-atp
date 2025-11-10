@@ -3,12 +3,11 @@
 'use client'; 
 
 import { useState, useEffect } from 'react';
-import Link from "next/link"; // Import Link from next/link
-import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-
+import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext'; 
+import { useRouter } from 'next/navigation';   
+import { signOut } from 'firebase/auth'; 
+import { auth } from '@/lib/firebase'; 
 
 type Usuario = {
   id: string;
@@ -22,116 +21,115 @@ export default function DashboardAdminPage() {
   
   // --- PASO 1: LLAMAR A TODOS LOS HOOKS ARRIBA ---
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  // (¡Cambiado!) Inicia 'dataLoading' en 'false'. Lo activaremos solo si es necesario.
   const [dataLoading, setDataLoading] = useState(false); 
   const [error, setError] = useState('');
 
-  const { user, loading: authLoading } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   
-  // --- PASO 2: LÓGICA DE 'useEffect' CORREGIDA ---
+  // --- PASO 2: LÓGICA DE 'useEffect' ---
   useEffect(() => {
-    // Si el 'user' (del hook useAuth) existe...
-    if (user) {
-      const fetchUsuarios = async () => {
-        try {
-          setDataLoading(true); // Ahora sí, activa "Cargando..."
-          setError('');
-          
-          const response = await fetch('/api/usuarios');
-          
-          if (!response.ok) {
-            throw new Error('No se pudieron cargar los usuarios');
-          }
-          
-          const data = await response.json();
-          setUsuarios(data); 
-          
-        } catch (err) {
-          if (err instanceof Error) setError(err.message);
-          else setError('Un error desconocido ocurrió');
-        } finally {
-          setDataLoading(false); // Deja de cargar la tabla
-        }
-      };
-      fetchUsuarios();
+    if (!authLoading && user) {
+      if (userProfile) {
+        
+        // --- ¡EL GUARDIA! ---
+        // (Ver las instrucciones del "BYPASS" más abajo)
+        // 
+        // const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        // 
+        // if (rolesPermitidos.includes(userProfile.rol)) {
+        //   // 1. ¡PERMITIDO! Carga los datos de la tabla
+        fetchUsuarios(); // <-- ¡DEJA ESTA LÍNEA SIN COMENTAR!
+        // } else {
+        //   // 2. ¡NO PERMITIDO! Redirige según el rol
+        //   console.warn(`Acceso denegado. Rol: ${userProfile.rol}`);
+        //   if (userProfile.rol === 'Mecánico') {
+        //     router.push('/mis-tareas'); 
+        //   } else if (userProfile.rol === 'Guardia') {
+        //     router.push('/control-acceso'); 
+        //   } else {
+        //     router.push('/'); 
+        //   }
+        // }
+        // --- FIN DEL GUARDIA ---
+
+      }
       
-    } else if (!authLoading) { 
-      // Si NO hay usuario (user es null) Y la autenticación YA TERMINÓ...
-      // ¡Redirige!
-      router.push('/');
+    } else if (!authLoading && !user) { 
+      router.push('/'); 
     }
     
-    // La lógica se activa si 'user' o 'authLoading' cambian
-  }, [user, authLoading, router]);
+  }, [user, userProfile, authLoading, router]); 
   
-  // --- FIN DE LA CORRECCIÓN ---
 
+  // Función para cargar los datos
+  const fetchUsuarios = async () => {
+    try {
+      setDataLoading(true);
+      setError('');
+      const response = await fetch('/api/usuarios');
+      if (!response.ok) throw new Error('No se pudieron cargar los usuarios');
+      const data = await response.json();
+      setUsuarios(data); 
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+      else setError('Un error desconocido ocurrió');
+    } finally {
+      setDataLoading(false); 
+    }
+  };
 
-  // --- PASO 3: LÓGICA DE RETORNO TEMPRANO ---
-  // Muestra "Validando..." SOLO si la autenticación está cargando
-  // o si el usuario aún no existe (porque está a punto de ser redirigido)
-  if (authLoading || !user) {
-    return <div className="p-8 text-gray-900">Validando sesión...</div>;
-  }
-  
-  // --- Lógica de Eliminar (la pondremos aquí para que no de error) ---
+  // --- Lógica de Acciones (Eliminar y Logout) ---
   const handleEliminar = async (userId: string, nombre: string) => {
     if (!confirm(`¿Estás seguro de que quieres eliminar a "${nombre}"?`)) return;
     try {
       const response = await fetch(`/api/usuarios?id=${userId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Error al eliminar');
-      // Refresca la lista de usuarios
       setUsuarios(usuariosActuales => usuariosActuales.filter(user => user.id !== userId));
     } catch (err) {
       if (err instanceof Error) setError(err.message);
-      else setError('Error desconocido al eliminar');
+    }
+  };
+  
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Error al cerrar sesión:", err);
     }
   };
 
-    // --- ¡AÑADE ESTA FUNCIÓN! ---
-    const handleLogout = async () => {
-      try {
-        await signOut(auth); // Le dice a Firebase que cierre sesión
-        // ¡No necesitas redirigir aquí!
-        // El "Cerebro" (AuthContext) detectará el cambio,
-        // 'user' se volverá 'null', y el 'useEffect'
-        // que ya escribimos se encargará de redirigirnos al login.
-      } catch (err) {
-        console.error("Error al cerrar sesión:", err);
-        setError("No se pudo cerrar la sesión.");
-      }
-    };
-    // --- FIN DE LA FUNCIÓN ---
-
+  // --- PASO 3: LÓGICA DE RETORNO TEMPRANO ---
+  if (authLoading || !userProfile) {
+    return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
+  }
+  
   // --- PASO 4: RENDERIZAR LA PÁGINA ---
-  // Si llegamos aquí, es porque 'user' SÍ existe.
   return (
     <div className="p-8 text-gray-900">
       
       {/* Cabecera */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Administración de Usuarios</h1>
-        <Link href="/dashboard-admin/crear-usuario"> 
-          <button className="bg-blue-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-blue-700">
-            + Crear Nuevo Usuario
-          </button>
-        </Link>
-          {/* --- ¡AÑADE ESTE BOTÓN! --- */}
+        <span className="text-lg">Rol: <strong className="text-blue-600">{userProfile.rol}</strong></span>
+        <div>
+          <Link href="/dashboard-admin/crear-usuario"> 
+            <button className="bg-blue-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-blue-700">
+              + Crear Nuevo Usuario
+            </button>
+          </Link>
           <button 
             onClick={handleLogout}
             className="bg-red-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-red-700 ml-4"
           >
             Cerrar Sesión
           </button>
-          {/* --- FIN DEL BOTÓN --- */}
+        </div>
       </div>
 
-      {/* (Filtros - Opcional) */}
-
-      {/* Tabla de Usuarios */}
+      {/* Tabla de Usuarios (sin cambios) */}
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
+         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
