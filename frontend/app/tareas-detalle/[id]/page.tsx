@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation'; 
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
+
 import { put } from '@vercel/blob';
 
 type DetalleOrdenDeTrabajo = {

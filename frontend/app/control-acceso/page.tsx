@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
 
+
 export default function ControlAccesoPage() {
   const [patente, setPatente] = useState('');
   const [chofer, setChofer] = useState('');

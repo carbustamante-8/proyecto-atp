@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { auth } from '@/lib/firebase'; 
 import { sendPasswordResetEmail } from 'firebase/auth'; 
 
+
 export default function RecuperarContrasenaPage() {
   
   // 1. Estados para el formulario

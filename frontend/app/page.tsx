@@ -1,15 +1,15 @@
 // frontend/app/page.tsx
-// (PÁGINA DE LOGIN - AHORA CON REDIRECCIÓN POR ROL)
+// (CÓDIGO LIMPIO - SIN EL ENLACE "Registrarse")
 
 'use client'; 
 
-import React, { useState, useEffect } from 'react'; // ¡Importamos useEffect!
+import React, { useState, useEffect } from 'react'; 
 import Image from 'next/image'; 
 import Link from 'next/link'; 
 import { auth } from '@/lib/firebase'; 
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext'; // ¡IMPORTAMOS EL "CEREBRO"!
+import { useAuth } from '@/context/AuthContext'; 
 
 export default function Home() {
   
@@ -20,39 +20,33 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
-  // ¡Usamos el "Cerebro" para saber si ya hay alguien logueado!
   const { user, userProfile, loading: authLoading } = useAuth();
 
-  // --- ¡NUEVA LÓGICA DE REDIRECCIÓN! ---
+  // --- LÓGICA DE REDIRECCIÓN (para usuarios ya logueados) ---
   useEffect(() => {
-    // Si la autenticación NO está cargando Y SÍ hay un usuario/perfil...
     if (!authLoading && user && userProfile) {
-      // ...¡no deberíamos estar en el login! Redirigimos al dashboard correcto.
-      
       console.log(`Usuario ya logueado (${userProfile.rol}). Redirigiendo...`);
       
-      if (userProfile.rol === 'Jefe de Taller' || userProfile.rol === 'Supervisor' || userProfile.rol === 'Coordinador') {
+      if (['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'].includes(userProfile.rol)) {
         router.push('/dashboard-admin');
       } else if (userProfile.rol === 'Mecánico') {
         router.push('/mis-tareas');
       } else if (userProfile.rol === 'Guardia') {
         router.push('/control-acceso');
       }
-      // (Otros roles se quedan aquí por ahora, o podrías redirigirlos)
+      // (Otros roles se quedan en el login por ahora)
     }
   }, [user, userProfile, authLoading, router]);
-  // --- FIN DE LA NUEVA LÓGICA ---
+  // --- FIN DE LA LÓGICA ---
 
 
-  // --- LÓGICA DE LOGIN (Simplificada) ---
+  // --- LÓGICA DE LOGIN (al hacer submit) ---
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // ¡YA NO REDIRIGIMOS DESDE AQUÍ!
-      // El 'useEffect' de arriba se dará cuenta del cambio
-      // y hará la redirección por rol automáticamente.
+      // ¡No se redirige! El 'useEffect' de arriba se encarga.
       
     } catch (err) {
       console.error('Error en el login:', err);
@@ -64,8 +58,6 @@ export default function Home() {
 
   // --- LÓGICA DE RENDERIZADO ---
   
-  // Si está validando la sesión O si ya hay un usuario (y está a punto de redirigir),
-  // muestra "Cargando..."
   if (authLoading || user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-100 text-gray-900">
@@ -78,7 +70,6 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-100">
       
-      {/* La caja blanca del formulario */}
       <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-xl">
         
         {/* Logo */}
@@ -153,6 +144,8 @@ export default function Home() {
           >
             Iniciar Sesión
           </button>
+
+          {/* --- ¡EL ENLACE "Registrarse" HA SIDO ELIMINADO! --- */}
 
         </form>
       </div>

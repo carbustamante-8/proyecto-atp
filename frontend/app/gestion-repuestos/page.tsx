@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link'; // Para el botón de "Añadir Nuevo Repuesto"
 
+
 // 1. Define un "tipo" para tus Repuestos (basado en tu maqueta)
 type Repuesto = {
   id: string;

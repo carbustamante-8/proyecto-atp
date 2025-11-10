@@ -71,6 +71,9 @@ export default function Navbar() {
           {userProfile.rol === 'Guardia' && (
             <>
               <Link href="/control-acceso" className="hover:text-blue-600">Registrar Ingreso</Link>
+
+              {/* --- ¡AÑADE/CORRIGE ESTA LÍNEA! --- */}
+              <Link href="/registrar-salida" className="hover:text-blue-600">Registrar Salida</Link>
             </>
           )}
 

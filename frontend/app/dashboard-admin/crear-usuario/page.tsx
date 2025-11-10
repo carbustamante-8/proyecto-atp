@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
+
 // --- COMPONENTE DEL FORMULARIO ---
 function CrearUsuarioForm() {
   const [nombre, setNombre] = useState('');

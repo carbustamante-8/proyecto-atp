@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';   
 import * as XLSX from 'xlsx'; 
 
+
 // --- ¡ARREGLO 1! ---
 // Actualizamos los "tipos" para que coincidan con lo que llega del JSON
 

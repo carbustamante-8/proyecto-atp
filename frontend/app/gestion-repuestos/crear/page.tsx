@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation'; // Para redirigir
 
+
 export default function CrearRepuestoPage() {
   
   // 1. Estados para guardar los datos del formulario (basado en tu maqueta)
