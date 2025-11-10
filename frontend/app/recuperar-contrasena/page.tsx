@@ -3,7 +3,7 @@
 'use client'; 
 
 import { useState } from 'react';
-import Link from 'next/link'; // <-- ¡ESTA ES LA LÍNEA QUE FALTABA!
+import Link from 'next/link'; 
 import { auth } from '@/lib/firebase'; 
 import { sendPasswordResetEmail } from 'firebase/auth'; 
 
@@ -37,20 +37,30 @@ export default function RecuperarContrasenaPage() {
       setEmail(''); 
       
     } catch (err) {
-      console.error(err);
-      if (err instanceof Error) {
-        if (err.code === 'auth/user-not-found') { 
+      
+      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+      // Hacemos la validación de tipo segura que aprendimos
+      
+      console.error("Error en reseteo de clave:", err);
+      if (err && typeof err === 'object' && 'code' in err) {
+        if (err.code === 'auth/user-not-found') {
           setError('No se encontró ningún usuario con ese correo electrónico.');
         } else {
           setError('Error al enviar el correo. Intenta de nuevo.');
         }
+      } else if (err instanceof Error) {
+         setError(err.message);
+      } else {
+         setError('Un error desconocido ocurrió.');
       }
+      // --- FIN DE LA CORRECCIÓN ---
+
     } finally {
       setLoading(false); 
     }
   };
 
-  // 6. JSX del formulario (basado en tu maqueta)
+  // 6. JSX del formulario (sin cambios)
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-lg">
@@ -99,7 +109,7 @@ export default function RecuperarContrasenaPage() {
             {loading ? 'Enviando...' : 'Enviar Instrucciones'}
           </button>
 
-          {/* Enlace de vuelta al Login (Corregido) */}
+          {/* Enlace de vuelta al Login */}
           <div className="text-center">
             <Link href="/">
               <span className="text-sm text-blue-600 hover:underline">
