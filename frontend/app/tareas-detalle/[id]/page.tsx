@@ -1,10 +1,10 @@
-// app/tareas-detalle/[id]/page.tsx
-
+// frontend/app/tareas-detalle/[id]/page.tsx
 'use client'; 
-
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation'; 
+import Image from 'next/image';
+import { useAuth } from '@/context/AuthContext';
+import { put } from '@vercel/blob';
 
 type DetalleOrdenDeTrabajo = {
   id: string;
@@ -13,15 +13,14 @@ type DetalleOrdenDeTrabajo = {
   estado: 'Pendiente' | 'En Progreso' | 'Finalizado';
   fechaCreacion: any; 
   repuestosUsados?: string;
-  fotos?: string[]; // <-- ¡AÑADIDO!
+  fotos?: string[];
 };
 
 export default function DetalleOTPage() {
-  
   const params = useParams();
   const id = params.id as string; 
   const router = useRouter();
-
+  
   const [ot, setOt] = useState<DetalleOrdenDeTrabajo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,30 +30,39 @@ export default function DetalleOTPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  
+  const { user, userProfile, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (id) {
-      const fetchDetalleOT = async () => {
-        try {
-          setLoading(true);
-          const response = await fetch(`/api/ordenes-trabajo/${id}`);
-          if (!response.ok) throw new Error('No se pudo cargar la OT');
-          const data = await response.json();
-          setOt(data); 
-          setNuevoEstado(data.estado);
-          if (data.repuestosUsados) {
-            setRepuestosUsados(data.repuestosUsados);
-          }
-        } catch (err) {
-          if (err instanceof Error) setError(err.message);
-          else setError('Un error desconocido ocurrió');
-        } finally {
-          setLoading(false);
+    if (!authLoading) {
+      if (user && userProfile) {
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Mecánico'];
+        if (rolesPermitidos.includes(userProfile.rol)) {
+          fetchDetalleOT();
+        } else {
+          router.push('/');
         }
-      };
-      fetchDetalleOT();
+      } else if (!user) {
+        router.push('/');
+      }
     }
-  }, [id]); 
+  }, [user, userProfile, authLoading, router, id]);
+
+  const fetchDetalleOT = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/ordenes-trabajo/${id}`);
+      if (!response.ok) throw new Error('No se pudo cargar la OT');
+      const data = await response.json();
+      setOt(data); 
+      setNuevoEstado(data.estado);
+      if (data.repuestosUsados) setRepuestosUsados(data.repuestosUsados);
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleActualizar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,86 +82,54 @@ export default function DetalleOTPage() {
       router.push('/mis-tareas');
     } catch (err) {
       if (err instanceof Error) setError(err.message);
-      else setError('Un error desconocido ocurrió al actualizar');
     } finally {
       setIsUpdating(false);
     }
   };
 
-  // --- ¡NUEVA LÓGICA DE SUBIDA DE FOTOS (Vercel Blob)! ---
-
-  // Esta se activa cuando el usuario elige un archivo
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]); // Guarda el archivo en el estado
+      setSelectedFile(e.target.files[0]);
     }
   };
 
-  // Esta se activa cuando el usuario presiona "Subir Foto"
   const handleFileUpload = async () => {
-    if (!selectedFile) {
-      setError('Primero selecciona un archivo.');
-      return;
-    }
-    if (!id) {
-      setError('No se ha cargado el ID de la OT.');
-      return;
-    }
-
+    if (!selectedFile || !id) return;
     setIsUploading(true);
     setError('');
-
     try {
-      // 1. ¡NUEVA API! Llama a tu backend de Vercel Blob
-      // Le pasa el nombre del archivo en la URL
-      // --- ¡ESTA ES LA LÍNEA CORREGIDA! ---
       const filename = `ot-${id}/${Date.now()}-${selectedFile.name}`;
       const response = await fetch(
-        `/api/upload-foto?filename=${filename}`,
-        {
-          method: 'POST',
-          body: selectedFile, // ¡El body es el archivo mismo!
-        }
+        `/api/upload-foto?filename=${filename}`, 
+        { method: 'POST', body: selectedFile }
       );
-
-      if (!response.ok) {
-        throw new Error('Falló la subida del archivo a Vercel Blob');
-      }
-
-      // 2. Obtiene la URL pública desde Vercel Blob
+      if (!response.ok) throw new Error('Falló la subida del archivo a Vercel Blob');
+      
       const newBlob = await response.json();
-      const downloadURL = newBlob.url; // La URL pública de la foto
-
-      console.log('¡Archivo subido! URL:', downloadURL);
-
-      // 3. Llama a tu API PUT (la que ya existe) para guardar la URL en la OT
+      const downloadURL = newBlob.url; 
+      
       const updateResponse = await fetch(`/api/ordenes-trabajo/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nuevaFotoURL: downloadURL // Envía la URL de Vercel Blob
-        }),
+        body: JSON.stringify({ nuevaFotoURL: downloadURL }),
       });
-
-      if (!updateResponse.ok) {
-        throw new Error('No se pudo guardar la URL de la foto en la OT');
-      }
-
-  alert('¡Foto subida y guardada en la OT!');
-  setSelectedFile(null); // Limpia el input
-  router.refresh(); // Esto le dice a Next.js que vuelva a cargar los datos
-
+      if (!updateResponse.ok) throw new Error('No se pudo guardar la URL de la foto en la OT');
+      
+      alert('¡Foto subida y guardada en la OT!');
+      setSelectedFile(null); 
+      router.refresh(); 
     } catch (err) {
       console.error(err);
       if (err instanceof Error) setError(err.message);
-      else setError('Un error desconocido ocurrió al subir la foto');
     } finally {
       setIsUploading(false);
     }
   };
-  // --- FIN DE LA NUEVA LÓGICA ---
 
-  if (loading) return <div className="p-8 text-gray-900">Cargando detalle de OT...</div>;
+  if (authLoading || !userProfile || loading) {
+    return <div className="p-8 text-gray-900">Validando sesión y cargando OT...</div>;
+  }
+  
   if (error) return <div className="p-8 text-red-500">Error: {error}</div>;
   if (!ot) return <div className="p-8 text-gray-900">OT no encontrada.</div>;
 
@@ -163,8 +139,7 @@ export default function DetalleOTPage() {
       {/* Columna Izquierda */}
       <div className="col-span-2 space-y-6">
         <h1 className="text-3xl font-bold">Detalle de OT-{ot.id.substring(0, 6)}</h1>
-        
-        {/* Información General */}
+        {/* ... (JSX de Info General) ... */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4">Información General</h2>
           <div className="mt-4">
@@ -180,38 +155,28 @@ export default function DetalleOTPage() {
             <p className="font-bold text-yellow-600">{ot.estado}</p>
           </div>
         </div>
-
+        
         {/* Registro de Trabajo */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4">Registro de Trabajo</h2>
-          
-          {/* Campo de Texto para Repuestos */}
           <div>
-            <label htmlFor="repuestos" className="block text-sm font-medium text-gray-700">
-              Repuestos Utilizados
-            </label>
+            <label htmlFor="repuestos" className="block text-sm font-medium text-gray-700">Repuestos Utilizados</label>
             <textarea
-              id="repuestos"
-              rows={4}
+              id="repuestos" rows={4}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50"
               placeholder="Ej: 1x Filtro de aceite (Código 1234)..."
               value={repuestosUsados}
               onChange={(e) => setRepuestosUsados(e.target.value)}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Escribe los repuestos. Presiona "Guardar Cambios" (a la derecha).
-            </p>
           </div>
-
-          {/* --- ¡ESTE ES EL NUEVO BLOQUE DE JSX! --- */}
-
+          
           {/* Evidencia Fotográfica */}
           <h2 className="text-xl font-semibold mt-6 mb-4">Evidencia Fotográfica</h2>
           <div className="flex items-center space-x-4">
             <input
               type="file"
-              onChange={handleFileChange} // <-- Conecta con la lógica
-              accept="image/png, image/jpeg" // Solo acepta imágenes
+              onChange={handleFileChange}
+              accept="image/png, image/jpeg"
               className="block w-full text-sm text-gray-500
                          file:mr-4 file:py-2 file:px-4
                          file:rounded-full file:border-0
@@ -220,23 +185,20 @@ export default function DetalleOTPage() {
                          hover:file:bg-blue-100"
             />
             <button
-              type="button" // (Importante: 'type="button"' para que no envíe el formulario principal)
-              onClick={handleFileUpload} // <-- Conecta con la lógica
-              disabled={isUploading || !selectedFile} // Se activa cuando eliges un archivo
+              type="button"
+              onClick={handleFileUpload}
+              disabled={isUploading || !selectedFile}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400"
             >
               {isUploading ? 'Subiendo...' : 'Subir Foto'}
             </button>
           </div>
-          {/* --- FIN DEL NUEVO BLOQUE --- */}
-
-          {/* --- BLOQUE PARA MOSTRAR LAS FOTOS SUBIDAS --- */}
+          
+          {/* Mostrar Fotos Subidas */}
           <div className="mt-6">
             <h3 className="text-lg font-semibold">Fotos Subidas:</h3>
-            {/* Revisa si el array 'fotos' existe y tiene fotos */}
             {ot && ot.fotos && ot.fotos.length > 0 ? (
               <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-                {/* Muestra cada foto en un bucle */}
                 {ot.fotos.map((fotoUrl, index) => (
                   <div key={index} className="relative w-full h-40 rounded-lg overflow-hidden shadow-md">
                     <Image
@@ -244,18 +206,14 @@ export default function DetalleOTPage() {
                       alt={`Evidencia ${index + 1}`}
                       layout="fill"
                       objectFit="cover"
-                      className="transition-transform duration-300 hover:scale-110"
                     />
                   </div>
                 ))}
               </div>
             ) : (
-              // Muestra esto si no hay fotos
               <p className="mt-2 text-sm text-gray-500">Aún no se han subido fotos para esta OT.</p>
             )}
           </div>
-          {/* --- FIN DEL BLOQUE PARA MOSTRAR FOTOS --- */}
-
         </div>
       </div>
 

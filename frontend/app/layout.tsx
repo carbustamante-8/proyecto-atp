@@ -4,13 +4,13 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
-// --- ¡NUESTROS CAMBIOS! ---
-import { AuthProvider } from '@/context/AuthContext'; // 1. Importa el Proveedor
+import { AuthProvider } from '@/context/AuthContext';
+import Navbar from '@/components/Navbar'; // <-- 1. IMPORTA LA NAVBAR
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Taller PepsiCo',
+  title: 'Pepsi-Fleet', // <-- Actualizado
   description: 'Gestión de Flota ATP',
 };
 
@@ -22,9 +22,12 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.className}>
-        {/* 2. Envuelve a los 'children' con el Proveedor */}
         <AuthProvider>
-          {children}
+          
+          <Navbar /> {/* <-- 2. AÑADE LA NAVBAR AQUÍ */}
+          
+          {children} {/* (Las páginas se cargan aquí, debajo de la Navbar) */}
+        
         </AuthProvider>
       </body>
     </html>

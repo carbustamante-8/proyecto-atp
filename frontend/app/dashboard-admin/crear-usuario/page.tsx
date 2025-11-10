@@ -1,171 +1,127 @@
-// app/dashboard-admin/crear-usuario/page.tsx
+// frontend/app/dashboard-admin/crear-usuario/page.tsx
+'use client'; 
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
-'use client'; // <-- Obligatorio, es un formulario interactivo
-
-import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // Para redirigir después de crear
-
-export default function CrearUsuarioPage() {
-  
-  // 1. Estados para guardar los datos del formulario
+// --- COMPONENTE DEL FORMULARIO ---
+function CrearUsuarioForm() {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rol, setRol] = useState(''); // Estado para el <select>
-  
+  const [rol, setRol] = useState(''); 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter(); // Hook para redirigir
+  const router = useRouter(); 
+  const { user, userProfile, loading: authLoading } = useAuth();
 
-  // 2. Función que se ejecuta al enviar el formulario
+  useEffect(() => {
+    if (!authLoading) {
+      if (user && userProfile) {
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        if (!rolesPermitidos.includes(userProfile.rol)) {
+          router.push('/'); 
+        }
+      } else if (!user) {
+        router.push('/');
+      }
+    }
+  }, [user, userProfile, authLoading, router]);
+
+  if (authLoading || !userProfile) {
+    return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
+  }
+  
   const handleCrearUsuario = async (e: React.FormEvent) => {
-    e.preventDefault(); // Evita que la página se recargue
-    
-    // Validación simple
+    e.preventDefault(); 
     if (!nombre || !email || !password || !rol) {
       setError('Por favor, completa todos los campos.');
       return;
     }
-
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
     setLoading(true);
     setError('');
-
     try {
-      // --- ¡AÑADE ESTAS LÍNEAS DE "ESPÍA"! ---
-      const datosParaEnviar = { nombre, email, password, rol };
-      console.log("DATOS A PUNTO DE ENVIAR:", datosParaEnviar);
-      // --- FIN DEL ESPÍA ---
-
-      // 3. ¡AQUÍ ESTÁ LA MAGIA! Llama a tu API con método POST
       const response = await fetch('/api/usuarios', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // Envía los datos de los estados en el "body"
-        // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-        body: JSON.stringify({
-          nombre: nombre,
-          email: email,
-          rol: rol,
-          password: password, // <-- AÑADE ESTA LÍNEA
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, email, password, rol }),
       });
-
+      const data = await response.json();
       if (!response.ok) {
-        // Si el servidor devuelve un error (ej: 500)
-        throw new Error('Falló la creación del usuario');
+        throw new Error(data.error || 'Falló la creación del usuario');
       }
-
-      // 4. ¡Éxito!
-      console.log('Usuario creado exitosamente');
-      
-      // 5. Redirige al usuario de vuelta a la tabla de administración
       router.push('/dashboard-admin');
-
     } catch (err) {
-      console.error(err);
       if (err instanceof Error) setError(err.message);
-      else setError('Un error desconocido ocurrió');
     } finally {
-      setLoading(false); // Deja de mostrar "Cargando..."
+      setLoading(false); 
     }
   };
 
-  // 6. JSX del formulario (basado en tu maqueta)
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
           Crear Nuevo Usuario
         </h1>
-
         <form onSubmit={handleCrearUsuario} className="space-y-6">
-          
-          {/* Campo Nombre */}
           <div>
-            <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">
-              Nombre
-            </label>
-            <input
-              type="text"
-              id="nombre"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Ingresa el nombre del usuario"
+            <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre</label>
+            <input type="text" id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
-
-          {/* Campo Correo Electrónico */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Correo Electrónico
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Ingresa el correo electrónico"
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+            <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
-
-          {/* Campo Contraseña (Temporal) */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Ingresa la contraseña"
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Contraseña</label>
+            <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Nota: La contraseña real se debe gestionar en Firebase Authentication.
-            </p>
           </div>
-
-          {/* Campo Rol (Selector) */}
           <div>
-            <label htmlFor="rol" className="block text-sm font-medium text-gray-700">
-              Rol
-            </label>
-            <select
-              id="rol"
-              value={rol}
-              onChange={(e) => setRol(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            <label htmlFor="rol" className="block text-sm font-medium text-gray-700">Rol</label>
+            <select id="rol" value={rol} onChange={(e) => setRol(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             >
               <option value="" disabled>Selecciona un rol</option>
-              {/* Basado en tu maqueta de Admin Usuarios */}
-              <option value="Administrador">Administrador</option>
+              <option value="Jefe de Taller">Jefe de Taller</option>
               <option value="Supervisor">Supervisor</option>
-              <option value="Conductor">Conductor</option>
+              <option value="Coordinador">Coordinador</option>
               <option value="Mecánico">Mecánico</option>
-              <option value="Despachador">Despachador</option>
+              <option value="Guardia">Guardia</option>
+              <option value="Conductor">Conductor</option> 
+              <option value="Vendedor">Vendedor</option> 
+              <option value="Gerente">Gerente</option> 
             </select>
           </div>
-
-          {/* Mensaje de Error */}
-          {error && (
-            <p className="text-red-500 text-center">{error}</p>
-          )}
-
-          {/* Botón de Crear Usuario */}
+          {error && (<p className="text-red-500 text-center">{error}</p>)}
           <button
             type="submit"
-            disabled={loading} // Deshabilita el botón mientras carga
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
+            disabled={loading}
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
           >
             {loading ? 'Creando...' : 'Crear Usuario'}
           </button>
         </form>
       </div>
     </div>
+  );
+}
+
+// --- ENVOLTORIO (para arreglar el error de Vercel 'useSearchParams') ---
+export default function CrearUsuarioPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-8">Cargando...</div>}>
+      <CrearUsuarioForm />
+    </Suspense>
   );
 }

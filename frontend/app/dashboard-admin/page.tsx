@@ -1,13 +1,13 @@
-// app/dashboard-admin/page.tsx
+// frontend/app/dashboard-admin/page.tsx
+// (CÓDIGO LIMPIO - SIN EL BOTÓN DE LOGOUT DUPLICADO)
 
 'use client'; 
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext'; 
-import { useRouter } from 'next/navigation';   
-import { signOut } from 'firebase/auth'; 
-import { auth } from '@/lib/firebase'; 
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+// (Ya no importamos signOut ni auth, porque la Navbar se encarga)
 
 type Usuario = {
   id: string;
@@ -19,111 +19,87 @@ type Usuario = {
 
 export default function DashboardAdminPage() {
   
-  // --- PASO 1: LLAMAR A TODOS LOS HOOKS ARRIBA ---
+  // --- PASO 1: HOOKS ---
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [dataLoading, setDataLoading] = useState(false); 
   const [error, setError] = useState('');
-
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   
-  // --- PASO 2: LÓGICA DE 'useEffect' ---
+  // --- PASO 2: LÓGICA DE 'useEffect' (Protección y Carga) ---
   useEffect(() => {
-    if (!authLoading && user) {
-      if (userProfile) {
-        
+    if (!authLoading) {
+      if (user && userProfile) {
         // --- ¡EL GUARDIA! ---
-        // (Ver las instrucciones del "BYPASS" más abajo)
-        // 
-        // const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
-        // 
-        // if (rolesPermitidos.includes(userProfile.rol)) {
-        //   // 1. ¡PERMITIDO! Carga los datos de la tabla
-        fetchUsuarios(); // <-- ¡DEJA ESTA LÍNEA SIN COMENTAR!
-        // } else {
-        //   // 2. ¡NO PERMITIDO! Redirige según el rol
-        //   console.warn(`Acceso denegado. Rol: ${userProfile.rol}`);
-        //   if (userProfile.rol === 'Mecánico') {
-        //     router.push('/mis-tareas'); 
-        //   } else if (userProfile.rol === 'Guardia') {
-        //     router.push('/control-acceso'); 
-        //   } else {
-        //     router.push('/'); 
-        //   }
-        // }
-        // --- FIN DEL GUARDIA ---
-
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        if (rolesPermitidos.includes(userProfile.rol)) {
+          fetchUsuarios();
+        } else {
+          // (Redirige a otros roles)
+          if (userProfile.rol === 'Mecánico') router.push('/mis-tareas');
+          else if (userProfile.rol === 'Guardia') router.push('/control-acceso');
+          else router.push('/');
+        }
+      } else if (!user) {
+        router.push('/');
       }
-      
-    } else if (!authLoading && !user) { 
-      router.push('/'); 
     }
-    
-  }, [user, userProfile, authLoading, router]); 
+  }, [user, userProfile, authLoading, router]);
   
-
   // Función para cargar los datos
   const fetchUsuarios = async () => {
+    setDataLoading(true);
     try {
-      setDataLoading(true);
-      setError('');
       const response = await fetch('/api/usuarios');
       if (!response.ok) throw new Error('No se pudieron cargar los usuarios');
       const data = await response.json();
       setUsuarios(data); 
     } catch (err) {
       if (err instanceof Error) setError(err.message);
-      else setError('Un error desconocido ocurrió');
     } finally {
       setDataLoading(false); 
     }
   };
 
-  // --- Lógica de Acciones (Eliminar y Logout) ---
+  // --- Lógica de Eliminar ---
   const handleEliminar = async (userId: string, nombre: string) => {
     if (!confirm(`¿Estás seguro de que quieres eliminar a "${nombre}"?`)) return;
     try {
       const response = await fetch(`/api/usuarios?id=${userId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Error al eliminar');
-      setUsuarios(usuariosActuales => usuariosActuales.filter(user => user.id !== userId));
+      setUsuarios(us => us.filter(user => user.id !== userId));
     } catch (err) {
       if (err instanceof Error) setError(err.message);
     }
   };
   
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error("Error al cerrar sesión:", err);
-    }
-  };
+  // --- (¡LA FUNCIÓN handleLogout SE FUE! La Navbar la maneja) ---
 
-  // --- PASO 3: LÓGICA DE RETORNO TEMPRANO ---
+  // --- PASO 3: RETORNO TEMPRANO ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
+  // (Guardia final por si acaso)
+  if (!['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
+     return <div className="p-8 text-gray-900">Acceso denegado.</div>;
+  }
+
   // --- PASO 4: RENDERIZAR LA PÁGINA ---
   return (
     <div className="p-8 text-gray-900">
       
-      {/* Cabecera */}
+      {/* Cabecera (¡LIMPIA!) */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Administración de Usuarios</h1>
-        <span className="text-lg">Rol: <strong className="text-blue-600">{userProfile.rol}</strong></span>
+        {/* (El rol y el logout se muestran en la Navbar de arriba) */}
         <div>
           <Link href="/dashboard-admin/crear-usuario"> 
             <button className="bg-blue-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-blue-700">
               + Crear Nuevo Usuario
             </button>
           </Link>
-          <button 
-            onClick={handleLogout}
-            className="bg-red-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-red-700 ml-4"
-          >
-            Cerrar Sesión
-          </button>
+          {/* --- ¡EL BOTÓN DE LOGOUT DUPLICADO YA NO ESTÁ AQUÍ! --- */}
         </div>
       </div>
 
@@ -142,14 +118,10 @@ export default function DashboardAdminPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             
             {dataLoading && (
-              <tr>
-                <td colSpan={5} className="px-6 py-4 text-center">Cargando usuarios...</td>
-              </tr>
+              <tr><td colSpan={5} className="px-6 py-4 text-center">Cargando usuarios...</td></tr>
             )}
             {error && (
-              <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-red-500">{error}</td>
-              </tr>
+              <tr><td colSpan={5} className="px-6 py-4 text-center text-red-500">{error}</td></tr>
             )}
 
             {!dataLoading && !error && usuarios.length > 0 ? (
@@ -177,9 +149,7 @@ export default function DashboardAdminPage() {
               ))
             ) : (
               !dataLoading && !error && usuarios.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center">No se encontraron usuarios.</td>
-                </tr>
+                <tr><td colSpan={5} className="px-6 py-4 text-center">No se encontraron usuarios.</td></tr>
               )
             )}
           </tbody>
