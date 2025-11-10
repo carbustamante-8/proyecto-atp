@@ -1,142 +1,161 @@
-// Este "use client" es MUY importante porque usamos botones
-"use client";
+// frontend/app/page.tsx
+// (PÁGINA DE LOGIN - AHORA CON REDIRECCIÓN POR ROL)
 
-import React, { useState } from "react";
-import Image from "next/image"; // Importa el componente de Imagen
+'use client'; 
 
-// Importa los estilos desde tu nuevo archivo CSS
-import styles from "./page.module.css";
-
-// <--- CAMBIO 1: Importa las herramientas de Firebase y el Router ---
-import { auth } from "@/lib/firebase"; // (Asume que creaste lib/firebase.ts)
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from 'react'; // ¡Importamos useEffect!
+import Image from 'next/image'; 
+import Link from 'next/link'; 
+import { auth } from '@/lib/firebase'; 
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext'; // ¡IMPORTAMOS EL "CEREBRO"!
 
 export default function Home() {
- // Estados (estos ya los tenías, están perfectos)
- const [email, setEmail] = useState("");
-const [password, setPassword] = useState("");
-const [error, setError] = useState("");
- const [showPassword, setShowPassword] = useState(false);
+  
+  // --- HOOKS ---
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
-  // <--- CAMBIO 2: Inicializa el router para redirigir ---
-  const router = useRouter();
+  // ¡Usamos el "Cerebro" para saber si ya hay alguien logueado!
+  const { user, userProfile, loading: authLoading } = useAuth();
 
-  // <--- CAMBIO 3: Reemplaza tu LÓGICA FALSA por esta LÓGICA REAL ---
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // Evita que la página se recargue
-    setError(""); // Limpia errores anteriores
+  // --- ¡NUEVA LÓGICA DE REDIRECCIÓN! ---
+  useEffect(() => {
+    // Si la autenticación NO está cargando Y SÍ hay un usuario/perfil...
+    if (!authLoading && user && userProfile) {
+      // ...¡no deberíamos estar en el login! Redirigimos al dashboard correcto.
+      
+      console.log(`Usuario ya logueado (${userProfile.rol}). Redirigiendo...`);
+      
+      if (userProfile.rol === 'Jefe de Taller' || userProfile.rol === 'Supervisor' || userProfile.rol === 'Coordinador') {
+        router.push('/dashboard-admin');
+      } else if (userProfile.rol === 'Mecánico') {
+        router.push('/mis-tareas');
+      } else if (userProfile.rol === 'Guardia') {
+        router.push('/control-acceso');
+      }
+      // (Otros roles se quedan aquí por ahora, o podrías redirigirlos)
+    }
+  }, [user, userProfile, authLoading, router]);
+  // --- FIN DE LA NUEVA LÓGICA ---
 
-    // Intenta iniciar sesión con Firebase
-    try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
 
-      console.log("¡Inicio de sesión exitoso!", userCredential.user);
+  // --- LÓGICA DE LOGIN (Simplificada) ---
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // ¡YA NO REDIRIGIMOS DESDE AQUÍ!
+      // El 'useEffect' de arriba se dará cuenta del cambio
+      // y hará la redirección por rol automáticamente.
+      
+    } catch (err) {
+      console.error('Error en el login:', err);
+      setError('Error: Correo o contraseña incorrectos.');
+    }
+  };
 
-      // ¡Éxito! Redirige al usuario al dashboard
-      // (Vi que tenías una carpeta dashboard-admin, así que apuntamos ahí)
-      router.push("/dashboard-admin");
+  const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
 
-    } catch (err) {
-      // Si falla (mala clave, etc.), muestra un error
-      console.error("Error en el login:", err);
-      setError("Error: Correo o contraseña incorrectos.");
-    }
-  };
-  // --- FIN DE LA LÓGICA REAL ---
+  // --- LÓGICA DE RENDERIZADO ---
+  
+  // Si está validando la sesión O si ya hay un usuario (y está a punto de redirigir),
+  // muestra "Cargando..."
+  if (authLoading || user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-100 text-gray-900">
+        Validando sesión...
+      </div>
+    );
+  }
 
-  // Esta función ya la tenías, está perfecta
-  const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
+  // Si NO hay usuario y NO está cargando, SÍ muestra el login
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-100">
+      
+      {/* La caja blanca del formulario */}
+      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-xl">
+        
+        {/* Logo */}
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/pepsico-logo.png" 
+            alt="PepsiCo Logo"
+            width={150} 
+            height={150}
+            priority
+          />
+        </div>
 
-  // --- TU HTML / JSX (No se necesita cambiar NADA aquí) ---
-  return (
-    <div className={styles.container}>
-      {/* Lado Izquierdo - Formulario */}
-      <div className={styles.formContainer}>
-        <h1 className={styles.title}>Taller Mecánico - PepsiCo</h1>
-        <p className={styles.subtitle}>Por favor, ingresa tus datos</p>
+        {/* Títulos */}
+        <h1 className="text-2xl font-bold text-center text-gray-900">
+          Pepsi-Fleet
+        </h1>
+        <p className="text-center text-gray-600 mb-6">
+          Por favor, ingresa tus datos
+        </p>
 
-                        <form onSubmit={handleLogin} className={styles.form}>
-                              {/* Campo Email */}
-                              <div className={styles.formField}>
-                                    <label htmlFor="email" className={styles.label}>
-                                          Email:
-                                    </label>
-                                    <input
-                                          type="email"
-                                          id="email"
-                                          value={email}
-                                          onChange={(e) => setEmail(e.target.value)}
-                                          required
-                                          className={styles.input}
-                                    />
-                              </div>
+        {/* Formulario */}
+        <form onSubmit={handleLogin} className="space-y-4">
+          
+          {/* Email */}
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email:</label>
+            <input
+              type="email" id="email" value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900"
+            />
+          </div>
 
-                              {/* Campo Contraseña */}
-                              <div className={styles.formField}>
-                                    <label htmlFor="password" className={styles.label}>
-                                          Contraseña:
-                                    </label>
-                                    <div className={styles.passwordWrapper}>
-                                          <input
-                                                type={showPassword ? "text" : "password"}
-                                                id="password"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                                required
-                                                className={styles.input}
-                                          />
-                                          <button
-                                                type="button"
-                                                onClick={togglePasswordVisibility}
-                                                className={styles.toggleBtn}
-                                                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                                          >
-                                                {showPassword ? "Ocultar" : "Mostrar"}
-                                          </button>
-                                    </div>
-                              </div>
+          {/* Contraseña */}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Contraseña:</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="password" value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900"
+              />
+              <button
+                type="button"
+                onClick={togglePasswordVisibility}
+                className="absolute inset-y-0 right-0 px-3 py-2 text-sm text-gray-600"
+              >
+                {showPassword ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+          </div>
 
-          {/* Enlace Olvidé mi contraseña */}
-          <div className={styles.forgotContainer}>
-            <a href="#" className={styles.link}>
-              ¿Olvidaste tu contraseña?
-            </a>
-          </div>
+          {/* Olvidé contraseña */}
+          <div className="text-right text-sm">
+            <Link href="/recuperar-contrasena">
+              <span className="font-medium text-blue-600 hover:text-blue-500">
+                ¿Olvidaste tu contraseña?
+              </span>
+            </Link>
+          </div>
 
-          {/* Mensaje de error */}
-          {error && <p className={styles.error}>{error}</p>}
+          {error && <p className="text-red-500 text-center text-sm">{error}</p>}
 
-          {/* Botón de login */}
-          <button type="submit" className={styles.submitBtn}>
-            Iniciar Sesión
-          </button>
+          {/* Botón de login */}
+          <button
+            type="submit"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+          >
+            Iniciar Sesión
+          </button>
 
-          {/* Enlace de registro */}
-          <p className={styles.registerText}>
-            ¿No tienes una cuenta?{" "}
-            <a href="#" className={styles.link}>
-              Registrarse
-            </a>
-          </p>
-        </form>
-      </div>
-
-      {/* Lado Derecho - Imagen */}
-      <div className={styles.imageContainer}>
-        <Image
-          src="/pepsico-logo.png"
-          alt="PepsiCo Logo"
-          width={500}
-          height={500}
-          className={styles.image}
-          priority
-        />
-      </div>
-    </div>
-  );
+        </form>
+      </div>
+    </main>
+  );
 }
