@@ -1,10 +1,13 @@
 // frontend/app/registrar-salida/page.tsx
+// (CÓDIGO ACTUALIZADO CON NOTIFICACIONES TOAST)
+
 'use client'; 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; // <-- 1. Importar toast
 
+// Tipo para los registros que vienen de la API
 type RegistroIngreso = {
   id: string;
   patente: string;
@@ -14,6 +17,8 @@ type RegistroIngreso = {
 };
 
 export default function RegistrarSalidaPage() {
+  
+  // --- HOOKS ---
   const [registrosAbiertos, setRegistrosAbiertos] = useState<RegistroIngreso[]>([]);
   const [loading, setLoading] = useState(true);
   // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
@@ -21,13 +26,17 @@ export default function RegistrarSalidaPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  // --- LÓGICA DE PROTECCIÓN Y CARGA ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
         if (userProfile.rol === 'Guardia') {
           fetchRegistrosAbiertos();
         } else {
-          router.push('/');
+          // Redirige a otros roles
+          if (userProfile.rol === 'Mecánico') router.push('/mis-tareas');
+          else if (userProfile.rol === 'Jefe de Taller') router.push('/dashboard-admin');
+          else router.push('/');
         }
       } else if (!user) {
         router.push('/');
@@ -35,6 +44,7 @@ export default function RegistrarSalidaPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
+  // Función para cargar los vehículos que ESTÁN DENTRO
   const fetchRegistrosAbiertos = async () => {
     setLoading(true);
     try {
@@ -49,39 +59,51 @@ export default function RegistrarSalidaPage() {
     }
   };
 
+  // Función para el botón "Registrar Salida" de la tabla
   const handleRegistrarSalida = async (id: string, patente: string) => {
     if (!confirm(`¿Confirmar la SALIDA del vehículo patente ${patente}?`)) {
       return;
     }
+
     try {
+      // 2. Llama a la API (corregida) pasando el ID
       const response = await fetch('/api/control-salida', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: id }), 
+        body: JSON.stringify({ id: id }), // Envía el ID único
       });
+
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Falló el registro de la salida');
       }
-      setRegistrosAbiertos(reg => reg.filter(r => r.id !== id));
+
+      // 3. ¡Éxito! Refresca la lista y muestra el toast
+      setRegistrosAbiertos(registrosActuales =>
+        registrosActuales.filter(reg => reg.id !== id)
+      );
       toast.success(`¡Salida de ${patente} registrada!`); // <-- 3. Cambiado
+
     } catch (err) {
       if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
-      else toast.error('Un error desconocido ocurrió'); // <-- 3. Cambiado
+      else toast.error('Un error desconocido ocurrió');
     }
   };
 
+  // --- LÓGICA DE RETORNO TEMPRANO ---
   if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
+  // --- JSX (Ahora es una tabla) ---
   return (
     <div className="p-8 text-gray-900">
       <h1 className="text-3xl font-bold mb-6">Registrar Salida de Vehículo</h1>
       <p className="text-gray-600 mb-6">Lista de vehículos actualmente DENTRO del taller.</p>
       
-      {/* El error ahora es un Toast */}
+      {/* Los errores ahora se muestran como Toasts, no en la página */}
       
+      {/* Tabla de Vehículos Dentro */}
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -94,9 +116,11 @@ export default function RegistrarSalidaPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
+            
             {loading && (
               <tr><td colSpan={5} className="px-6 py-4 text-center">Cargando vehículos...</td></tr>
             )}
+
             {!loading && registrosAbiertos.length > 0 ? (
               registrosAbiertos.map(reg => (
                 <tr key={reg.id}>
