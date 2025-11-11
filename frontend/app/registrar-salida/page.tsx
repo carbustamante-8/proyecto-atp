@@ -1,5 +1,5 @@
 // frontend/app/registrar-salida/page.tsx
-// (CÓDIGO CORREGIDO: Tipo 'RegistroIngreso' mejorado)
+// (CÓDIGO CORREGIDO: Arreglo visual del modal y tipo de datos)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -7,17 +7,16 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; 
 
-// --- ¡TIPO CORREGIDO! ---
+// --- ¡TIPO CORREGIDO! (Añadidos campos faltantes) ---
 type RegistroIngreso = {
   id: string;
   patente: string;
   chofer: string;
   motivoIngreso: string;
-  numeroChasis: string; // <-- AÑADIDO
-  zonaOrigen: string;   // <-- AÑADIDO
+  numeroChasis: string;
+  zonaOrigen: string;
   fechaIngreso: { _seconds: number };
 };
-// --- FIN CORRECCIÓN ---
 
 export default function RegistrarSalidaPage() {
   
@@ -26,11 +25,11 @@ export default function RegistrarSalidaPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // (Modal States)
+  // Estados para el Modal
   const [modalAbierto, setModalAbierto] = useState(false);
   const [registroParaBorrar, setRegistroParaBorrar] = useState<{id: string, patente: string} | null>(null);
 
-  // (useEffect - Sin cambios)
+  // Lógica de Protección y Carga
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -47,7 +46,7 @@ export default function RegistrarSalidaPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // (fetchRegistrosAbiertos - Sin cambios)
+  // Función de Carga de Datos
   const fetchRegistrosAbiertos = async () => {
     setLoading(true);
     try {
@@ -62,7 +61,7 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  // (Lógica del Modal - Sin cambios)
+  // --- Lógica del Modal ---
   const handleAbrirModal = (id: string, patente: string) => {
     setRegistroParaBorrar({ id, patente });
     setModalAbierto(true);
@@ -95,21 +94,27 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  // (Retorno temprano - Sin cambios)
+  // --- Lógica de Retorno Temprano ---
   if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // (JSX - Sin cambios)
+  // --- JSX (CON EL MODAL ARREGLADO) ---
   return (
     <>
-      {/* --- EL MODAL (Sin cambios) --- */}
+      {/* --- EL MODAL (ESTRUCTURA CORREGIDA) --- */}
       {modalAbierto && registroParaBorrar && (
+        // Contenedor principal (fijo, z-50, centrado)
         <div className="fixed inset-0 z-50 flex items-center justify-center">
+          
+          {/* 1. El OVERLAY (fondo negro semitransparente) */}
           <div 
             className="absolute inset-0 bg-black bg-opacity-50" 
             onClick={handleCerrarModal}
           ></div>
+          
+          {/* 2. El CONTENIDO (caja blanca) */}
+          {/* 'relative' y 'z-10' lo ponen POR ENCIMA del overlay negro */}
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
             <p className="text-gray-700 mb-6">

@@ -1,122 +1,268 @@
-// frontend/app/dashboard-jefe-taller/page.tsx
+// frontend/app/tareas-detalle/[id]/page.tsx
+// (CÓDIGO CORREGIDO: Reemplaza 'router.refresh' por 'fetchDetalleOT')
+
 'use client'; 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation'; 
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; 
+import { put } from '@vercel/blob'; // (Asumo que está instalado)
 
-// ✅ TIPO CORREGIDO
-type RegistroIngreso = {
+type DetalleOrdenDeTrabajo = {
   id: string;
   patente: string;
-  chofer: string;
-  motivoIngreso: string;
-  numeroChasis: string;  // ✅ CORRECCIÓN: era "kilometraje"
-  zonaOrigen: string;
-  fechaIngreso: { _seconds: number };
+  descripcionProblema: string; 
+  estado: 'Pendiente' | 'En Progreso' | 'Finalizado';
+  fechaCreacion: any; 
+  repuestosUsados?: string;
+  fotos?: string[]; 
 };
 
-export default function DashboardJefeTallerPage() {
-  const [registros, setRegistros] = useState<RegistroIngreso[]>([]);
-  const [loading, setLoading] = useState(false);
-  const { user, userProfile, loading: authLoading } = useAuth();
+export default function DetalleOTPage() {
+  
+  const params = useParams();
+  const id = params.id as string; 
   const router = useRouter();
+  
+  const [ot, setOt] = useState<DetalleOrdenDeTrabajo | null>(null);
+  const [loading, setLoading] = useState(true); 
+  const [error, setError] = useState('');
+  
+  const [nuevoEstado, setNuevoEstado] = useState<'Pendiente' | 'En Progreso' | 'Finalizado'>('Pendiente');
+  const [repuestosUsados, setRepuestosUsados] = useState(''); 
+  const [isUpdating, setIsUpdating] = useState(false); 
+  
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false); 
+  
+  const { user, userProfile, loading: authLoading } = useAuth(); 
 
+  // --- LÓGICA DE CARGA Y PROTECCIÓN ---
+  
+  // 1. Define la función de carga (AFUERA, para poder re-usarla)
+  const fetchDetalleOT = async () => {
+    if (!id || id === 'undefined') {
+      setLoading(false);
+      return;
+    }
+    setLoading(true); // Mueve el setLoading aquí
+    try {
+      const response = await fetch(`/api/ordenes-trabajo/${id}`);
+      if (!response.ok) throw new Error('No se pudo cargar la OT');
+      const data = await response.json();
+      setOt(data); 
+      setNuevoEstado(data.estado);
+      if (data.repuestosUsados) setRepuestosUsados(data.repuestosUsados);
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // 2. useEffect (Protección y Carga Inicial)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        const rolesPermitidos = ['Mecánico', 'Jefe de Taller', 'Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
-          fetchRegistros();
+          fetchDetalleOT(); // Llama a la función
         } else {
-          router.push('/');
+          router.push('/'); 
         }
       } else if (!user) {
         router.push('/');
       }
     }
-  }, [user, userProfile, authLoading, router]);
+  }, [user, userProfile, authLoading, router, id]);
 
-  const fetchRegistros = async () => {
-    setLoading(true);
+  // (handleActualizar - Sin cambios)
+  const handleActualizar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdating(true);
     try {
-      const response = await fetch('/api/registros-acceso');
-      if (!response.ok) throw new Error('No se pudieron cargar los registros de ingreso');
-      const data = await response.json();
-      setRegistros(data); 
+      const response = await fetch(`/api/ordenes-trabajo/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado: nuevoEstado, 
+          repuestosUsados: repuestosUsados, 
+        }),
+      });
+      if (!response.ok) throw new Error('No se pudo actualizar el estado');
+      toast.success('¡OT actualizada exitosamente!'); 
+      router.push('/mis-tareas');
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
-      setLoading(false); 
+      setIsUpdating(false);
     }
   };
 
-  const handleCrearOT = (registro: RegistroIngreso) => {
-    toast.success('Redirigiendo para crear OT...');
-    const patente = encodeURIComponent(registro.patente);
-    const motivo = encodeURIComponent(registro.motivoIngreso);
-    router.push(`/crear-ot?patente=${patente}&motivo=${motivo}`);
+  // (handleFileChange - Sin cambios)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
   };
 
-  if (authLoading || !userProfile) {
-    return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
+  // --- ¡handleFileUpload CORREGIDO! ---
+  const handleFileUpload = async () => {
+    if (!selectedFile || !id) return;
+    setIsUploading(true);
+    try {
+      const filename = `ot-${id}/${Date.now()}-${selectedFile.name}`;
+      const response = await fetch(
+        `/api/upload-foto?filename=${filename}`, 
+        { method: 'POST', body: selectedFile }
+      );
+      if (!response.ok) throw new Error('Falló la subida del archivo a Vercel Blob');
+      
+      const newBlob = await response.json();
+      const downloadURL = newBlob.url; 
+      
+      const updateResponse = await fetch(`/api/ordenes-trabajo/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nuevaFotoURL: downloadURL }),
+      });
+      if (!updateResponse.ok) throw new Error('No se pudo guardar la URL de la foto en la OT');
+      
+      toast.success('¡Foto subida y guardada en la OT!');
+      setSelectedFile(null); 
+      
+      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+      // router.refresh(); // <-- Antes (Incorrecto)
+      await fetchDetalleOT(); // <-- Ahora (Correcto: Vuelve a cargar los datos)
+      // --- FIN DE LA CORRECCIÓN ---
+
+    } catch (err) {
+      console.error(err);
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // --- LÓGICA DE RETORNO TEMPRANO ---
+  if (authLoading || !userProfile || loading) {
+    return <div className="p-8 text-gray-900">Validando sesión y cargando OT...</div>;
   }
   
-  if (!['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
-     return <div className="p-8 text-gray-900">Acceso denegado.</div>;
-  }
+  if (error) return <div className="p-8 text-red-500">Error: {error}</div>;
+  if (!ot) return <div className="p-8 text-gray-900">OT no encontrada.</div>;
 
+  // --- RENDERIZADO DE LA PÁGINA (Sin cambios en el JSX) ---
   return (
-    <div className="p-8 text-gray-900"> 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Dashboard Jefe de Taller</h1>
-        <p className="text-gray-600">Vehículos pendientes de asignación</p>
-      </div>
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chofer</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motivo Ingreso</th>
-              {/* ✅ CORRECCIÓN: era "Kilometraje" */}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Número de Chasis</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Ingreso</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loading && (
-              <tr><td colSpan={6} className="px-6 py-4 text-center">Cargando ingresos...</td></tr>
-            )}
-            {!loading && registros.length > 0 ? (
-              registros.map(reg => (
-                <tr key={reg.id}>
-                  <td className="px-6 py-4 font-medium">{reg.patente}</td>
-                  <td className="px-6 py-4">{reg.chofer}</td>
-                  <td className="px-6 py-4">{reg.motivoIngreso}</td>
-                  {/* ✅ CORRECCIÓN: era "reg.kilometraje" */}
-                  <td className="px-6 py-4">{reg.numeroChasis}</td>
-                  <td className="px-6 py-4">
-                    {new Date(reg.fechaIngreso._seconds * 1000).toLocaleString('es-CL')}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium">
-                    <button 
-                      onClick={() => handleCrearOT(reg)}
-                      className="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700"
-                    >
-                      Crear OT
-                    </button>
-                  </td>
-                </tr>
-              ))
+    <div className="p-8 text-gray-900 grid grid-cols-3 gap-8">
+      
+      {/* Columna Izquierda */}
+      <div className="col-span-2 space-y-6">
+        <h1 className="text-3xl font-bold">Detalle de OT-{ot.id.substring(0, 6)}</h1>
+        {/* Info General */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-4">Información General</h2>
+          <div className="mt-4">
+            <span className="text-sm text-gray-500">Patente</span>
+            <p className="font-medium">{ot.patente}</p>
+          </div>
+          <div className="mt-4">
+            <span className="text-sm text-gray-500">Descripción del Problema</span>
+            <p>{ot.descripcionProblema}</p>
+          </div>
+          <div className="mt-4">
+            <span className="text-sm text-gray-500">Estado Actual</span>
+            <p className="font-bold text-yellow-600">{ot.estado}</p>
+          </div>
+        </div>
+        
+        {/* Registro de Trabajo */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-4">Registro de Trabajo</h2>
+          <div>
+            <label htmlFor="repuestos" className="block text-sm font-medium text-gray-700">Repuestos Utilizados</label>
+            <textarea
+              id="repuestos" rows={4}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50"
+              placeholder="Ej: 1x Filtro de aceite (Código 1234)..."
+              value={repuestosUsados}
+              onChange={(e) => setRepuestosUsados(e.target.value)}
+            />
+          </div>
+          
+          {/* Evidencia Fotográfica */}
+          <h2 className="text-xl font-semibold mt-6 mb-4">Evidencia Fotográfica</h2>
+          <div className="flex items-center space-x-4">
+            <input
+              type="file"
+              onChange={handleFileChange}
+              accept="image/png, image/jpeg"
+              className="block w-full text-sm text-gray-500
+                         file:mr-4 file:py-2 file:px-4
+                         file:rounded-full file:border-0
+                         file:text-sm file:font-semibold
+                         file:bg-blue-50 file:text-blue-700
+                         hover:file:bg-blue-100"
+            />
+            <button
+              type="button"
+              onClick={handleFileUpload}
+              disabled={isUploading || !selectedFile}
+              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {isUploading ? 'Subiendo...' : 'Subir Foto'}
+            </button>
+          </div>
+          
+          {/* Mostrar Fotos Subidas */}
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold">Fotos Subidas:</h3>
+            {ot && ot.fotos && ot.fotos.length > 0 ? (
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                {ot.fotos.map((fotoUrl, index) => (
+                  <div key={index} className="relative w-full h-40 rounded-lg overflow-hidden shadow-md">
+                    <Image
+                      src={fotoUrl}
+                      alt={`Evidencia ${index + 1}`}
+                      layout="fill"
+                      objectFit="cover"
+                    />
+                  </div>
+                ))}
+              </div>
             ) : (
-              !loading && registros.length === 0 && (
-                <tr><td colSpan={6} className="px-6 py-4 text-center">No hay vehículos pendientes de ingreso.</td></tr>
-              )
+              <p className="mt-2 text-sm text-gray-500">Aún no se han subido fotos para esta OT.</p>
             )}
-          </tbody>
-        </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Columna Derecha */}
+      <div className="col-span-1">
+        <form onSubmit={handleActualizar} className="bg-white p-6 rounded-lg shadow sticky top-8">
+          <h2 className="text-xl font-semibold mb-4">Acciones</h2>
+          <label htmlFor="estado" className="block text-sm font-medium text-gray-700">
+            Actualizar Estado
+          </label>
+          <select
+            id="estado"
+            value={nuevoEstado}
+            onChange={(e) => setNuevoEstado(e.target.value as any)}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
+          >
+            <option value="Pendiente">Pendiente</option>
+            <option value="En Progreso">En Progreso</option>
+            <option value="Finalizado">Finalizado</option>
+          </select>
+          <button
+            type="submit"
+            disabled={isUpdating}
+            className="mt-4 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+          >
+            {isUpdating ? 'Guardando...' : 'Guardar Cambios'}
+          </button>
+        </form>
       </div>
     </div>
   );
