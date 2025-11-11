@@ -10,7 +10,7 @@ type RegistroIngreso = {
   patente: string;
   chofer: string;
   motivoIngreso: string;
-  kilometraje: number;
+  numeroChasis: string;  // ✅ USAR ESTE
   zonaOrigen: string;
   fechaIngreso: { _seconds: number };
 };
@@ -97,7 +97,7 @@ export default function DashboardJefeTallerPage() {
                   <td className="px-6 py-4 font-medium">{reg.patente}</td>
                   <td className="px-6 py-4">{reg.chofer}</td>
                   <td className="px-6 py-4">{reg.motivoIngreso}</td>
-                  <td className="px-6 py-4">{reg.kilometraje}</td>
+                  <td className="px-6 py-4">{reg.numeroChasis}</td>
                   <td className="px-6 py-4">
                     {new Date(reg.fechaIngreso._seconds * 1000).toLocaleString('es-CL')}
                   </td>

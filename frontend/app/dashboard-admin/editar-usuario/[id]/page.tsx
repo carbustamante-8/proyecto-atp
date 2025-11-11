@@ -1,9 +1,11 @@
 // frontend/app/dashboard-admin/editar-usuario/[id]/page.tsx
+// (CÓDIGO CORREGIDO - LÓGICA DE 'useEffect' REFORZADA)
+
 'use client'; 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import toast from 'react-hot-toast';
 
 type UsuarioData = {
   nombre: string;
@@ -13,8 +15,10 @@ type UsuarioData = {
 };
 
 export default function EditarUsuarioPage() {
+  
+  // --- HOOKS ---
   const params = useParams();
-  const id = params.id as string; 
+  const id = params.id as string; // El 'id' de la URL
   const router = useRouter();
   
   const [formData, setFormData] = useState({
@@ -24,48 +28,70 @@ export default function EditarUsuarioPage() {
     estado: 'Activo' as 'Activo' | 'Inactivo',
   });
   
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(true); // Inicia en 'true'
   const [isUpdating, setIsUpdating] = useState(false); 
-  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   
   const { user, userProfile, loading: authLoading } = useAuth();
 
+  // --- ¡LÓGICA 'useEffect' CORREGIDA! ---
   useEffect(() => {
-    if (!authLoading) {
-      if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+    
+    // 1. Define la función de carga (pero no la llama todavía)
+    const fetchUsuario = async (usuarioId: string) => {
+      try {
+        const response = await fetch(`/api/usuarios/${usuarioId}`); 
+        if (!response.ok) throw new Error('No se pudo cargar este usuario');
+        const data: UsuarioData = await response.json();
+        setFormData(data); 
+      } catch (err) {
+        if (err instanceof Error) toast.error(err.message);
+      } finally {
+        setLoading(false); // Termina de cargar (éxito o error)
+      }
+    };
+
+    // 2. Lógica de Protección
+    if (!authLoading) { // Solo corre si la autenticación TERMINÓ
+      if (user && userProfile) { // Si SÍ hay un usuario
+        
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
         if (rolesPermitidos.includes(userProfile.rol)) {
-          const fetchUsuario = async () => {
-            try {
-              const response = await fetch(`/api/usuarios/${id}`);
-              if (!response.ok) throw new Error('No se pudo cargar este usuario');
-              const data: UsuarioData = await response.json();
-              setFormData(data); 
-            } catch (err) {
-              if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
-            } finally {
-              setLoading(false);
-            }
-          };
-          fetchUsuario();
+          
+          // --- ¡AQUÍ ESTÁ EL ARREGLO! ---
+          // 3. Comprueba que 'id' SÍ exista y NO sea la palabra "undefined"
+          //    ANTES de llamar a la API.
+          if (id && id !== 'undefined') {
+            fetchUsuario(id); // Llama a la función SÓLO si el id es válido
+          } else {
+            // Si el 'id' es inválido (lo que causa el error 404)
+            console.error("No se detectó un ID de usuario en la URL.");
+            setLoading(false); // Deja de cargar
+          }
+          // --- FIN DEL ARREGLO ---
+
         } else {
-          router.push('/'); 
+          router.push('/'); // No tiene permiso
         }
       } else if (!user) {
-        router.push('/');
+        router.push('/'); // No está logueado
       }
     }
-  }, [user, userProfile, authLoading, router, id]);
+  }, [user, userProfile, authLoading, router, id]); // 'id' es una dependencia clave
   
+  
+  // --- LÓGICA DE RETORNO TEMPRANO ---
+  // Muestra "Cargando..." si la autenticación está ocupada O si la página está cargando
   if (authLoading || loading) {
     return <div className="p-8 text-gray-900">Cargando datos del usuario...</div>;
   }
   
+  // --- (Función 'handleChange' - Sin cambios) ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prevData => ({ ...prevData, [name]: value }));
   };
   
+  // --- (Función 'handleActualizar' - Sin cambios) ---
   const handleActualizar = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
@@ -77,21 +103,24 @@ export default function EditarUsuarioPage() {
         body: JSON.stringify({ nombre, rol, estado }),
       });
       if (!response.ok) throw new Error('No se pudo actualizar el usuario');
-      toast.success('¡Usuario actualizado!'); // <-- 3. Cambiado
+      toast.success('¡Usuario actualizado!'); 
       router.push('/dashboard-admin'); 
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setIsUpdating(false);
     }
   };
 
+  // --- RENDERIZADO DEL FORMULARIO (Sin cambios) ---
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Editar Usuario</h1>
-        {/* El error ahora es un Toast */}
+        <h1 className="text-3xl font-bold text-gray-900 mb-6">
+          Editar Usuario
+        </h1>
         <form onSubmit={handleActualizar} className="space-y-6">
+          
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">
               Correo Electrónico (No se puede cambiar)
@@ -100,12 +129,14 @@ export default function EditarUsuarioPage() {
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-500 bg-gray-200"
             />
           </div>
+
           <div>
             <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre</label>
             <input type="text" name="nombre" id="nombre" value={formData.nombre} onChange={handleChange}
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
+
           <div>
             <label htmlFor="rol" className="block text-sm font-medium text-gray-700">Rol</label>
             <select name="rol" id="rol" value={formData.rol} onChange={handleChange}
@@ -121,6 +152,7 @@ export default function EditarUsuarioPage() {
               <option value="Gerente">Gerente</option> 
             </select>
           </div>
+
           <div>
             <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Estado</label>
             <select name="estado" id="estado" value={formData.estado} onChange={handleChange}
@@ -130,6 +162,7 @@ export default function EditarUsuarioPage() {
               <option value="Inactivo">Inactivo</option>
             </select>
           </div>
+
           <button
             type="submit"
             disabled={isUpdating}

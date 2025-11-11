@@ -1,4 +1,5 @@
 // frontend/app/registrar-salida/page.tsx
+// (CÓDIGO ACTUALIZADO CON ARREGLO VISUAL - Z-INDEX CORREGIDO)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -11,9 +12,10 @@ type RegistroIngreso = {
   patente: string;
   chofer: string;
   motivoIngreso: string;
+  numeroChasis: string;  // ✅ USAR ESTE
+  zonaOrigen: string;
   fechaIngreso: { _seconds: number };
 };
-
 export default function RegistrarSalidaPage() {
   
   // --- HOOKS ---
@@ -99,25 +101,25 @@ export default function RegistrarSalidaPage() {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // --- JSX (CON EL MODAL ARREGLADO - SIN OVERLAY NEGRO) ---
+  // --- JSX (CON EL MODAL ARREGLADO - Z-INDEX CORREGIDO) ---
   return (
     <>
-      {/* --- EL MODAL DE CONFIRMACIÓN (SIN OVERLAY NEGRO) --- */}
+      {/* --- EL MODAL DE CONFIRMACIÓN (¡ESTRUCTURA CORREGIDA!) --- */}
       {modalAbierto && registroParaBorrar && (
         
         // Contenedor principal (fijo, z-50, centrado)
-        // ¡CAMBIO! Se quita el overlay y se pone el 'onClick' aquí
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={handleCerrarModal} // <-- Cierra el modal si haces clic en el fondo (transparente)
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
           
-          {/* El CONTENIDO (caja blanca) */}
+          {/* 1. El OVERLAY (fondo negro semitransparente) */}
+          {/* Es un 'div' separado que cubre todo y cierra el modal al hacer clic */}
           <div 
-            className="bg-white p-8 rounded-lg shadow-xl max-w-sm w-full"
-            // ¡CAMBIO! Esto evita que el modal se cierre si haces clic DENTRO de la caja blanca
-            onClick={(e) => e.stopPropagation()} 
-          >
+            className="absolute inset-0 bg-black bg-opacity-50" 
+            onClick={handleCerrarModal}
+          ></div>
+          
+          {/* 2. El CONTENIDO (caja blanca) */}
+          {/* 'relative' y 'z-10' lo ponen POR ENCIMA del overlay negro */}
+          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
             <p className="text-gray-700 mb-6">
               ¿Estás seguro de que quieres registrar la salida del vehículo patente 
@@ -143,7 +145,6 @@ export default function RegistrarSalidaPage() {
       {/* --- FIN DEL MODAL --- */}
 
       {/* --- PÁGINA PRINCIPAL --- */}
-      {/* (Todo este código es idéntico al anterior) */}
       <div className="p-8 text-gray-900">
         <h1 className="text-3xl font-bold mb-6">Registrar Salida de Vehículo</h1>
         <p className="text-gray-600 mb-6">Lista de vehículos actualmente DENTRO del taller.</p>
