@@ -13,8 +13,8 @@ type RegistroIngreso = {
   patente: string;
   chofer: string;
   motivoIngreso: string;
-  numeroChasis: string;
-  zonaOrigen: string;
+  numeroChasis: string; // <-- AÑADIDO
+  zonaOrigen: string;   // <-- AÑADIDO
   fechaIngreso: { _seconds: number };
 };
 
