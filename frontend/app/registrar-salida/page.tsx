@@ -1,5 +1,5 @@
 // frontend/app/registrar-salida/page.tsx
-// (CÓDIGO CORREGIDO: Arreglo visual del modal)
+// (CÓDIGO CORREGIDO: Arreglo visual del modal y tipo de datos)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -7,13 +7,14 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; 
 
+// --- ¡TIPO CORREGIDO! (Añadidos campos faltantes) ---
 type RegistroIngreso = {
   id: string;
   patente: string;
   chofer: string;
   motivoIngreso: string;
-  numeroChasis: string; 
-  zonaOrigen: string;   
+  numeroChasis: string; // <-- AÑADIDO
+  zonaOrigen: string;   // <-- AÑADIDO
   fechaIngreso: { _seconds: number };
 };
 
@@ -24,9 +25,11 @@ export default function RegistrarSalidaPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  // Estados para el Modal
   const [modalAbierto, setModalAbierto] = useState(false);
   const [registroParaBorrar, setRegistroParaBorrar] = useState<{id: string, patente: string} | null>(null);
 
+  // Lógica de Protección y Carga
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -43,6 +46,7 @@ export default function RegistrarSalidaPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
+  // Función de Carga de Datos
   const fetchRegistrosAbiertos = async () => {
     setLoading(true);
     try {
@@ -57,6 +61,7 @@ export default function RegistrarSalidaPage() {
     }
   };
 
+  // --- Lógica del Modal ---
   const handleAbrirModal = (id: string, patente: string) => {
     setRegistroParaBorrar({ id, patente });
     setModalAbierto(true);
@@ -89,10 +94,12 @@ export default function RegistrarSalidaPage() {
     }
   };
 
+  // --- Lógica de Retorno Temprano ---
   if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
+  // --- JSX (CON EL MODAL ARREGLADO) ---
   return (
     <>
       {/* --- EL MODAL (ESTRUCTURA CORREGIDA) --- */}
@@ -107,6 +114,7 @@ export default function RegistrarSalidaPage() {
           ></div>
           
           {/* 2. El CONTENIDO (caja blanca) */}
+          {/* 'relative' y 'z-10' lo ponen POR ENCIMA del overlay */}
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
             <p className="text-gray-700 mb-6">

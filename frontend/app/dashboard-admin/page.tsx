@@ -106,7 +106,7 @@ export default function DashboardAdminPage() {
       {modalAbierto && usuarioParaBorrar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div 
-            className="absolute inset-0 bg-black bg-opacity-50" 
+            className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" 
             onClick={handleCerrarModalEliminar}
           ></div>
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
