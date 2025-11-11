@@ -1,25 +1,31 @@
 // frontend/app/dashboard-admin/crear-usuario/page.tsx
+// (CÓDIGO ACTUALIZADO: Roles de <select> limpiados)
+
 'use client'; 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import toast from 'react-hot-toast'; 
 
+// --- COMPONENTE DEL FORMULARIO ---
+// (Este archivo SÍ necesita el 'Suspense' porque /crear-ot usa un patrón
+// que afectó al build, así que mantenemos el wrapper por seguridad)
 function CrearUsuarioForm() {
+  
+  // --- HOOKS ---
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rol, setRol] = useState(''); 
-  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const [loading, setLoading] = useState(false);
   const router = useRouter(); 
   const { user, userProfile, loading: authLoading } = useAuth();
 
+  // --- LÓGICA DE PROTECCIÓN ---
   useEffect(() => {
-    // ... (la lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente']; // (Dejamos 'Gerente' aquí por ahora, lo limpiamos después)
         if (!rolesPermitidos.includes(userProfile.rol)) {
           router.push('/'); 
         }
@@ -29,18 +35,20 @@ function CrearUsuarioForm() {
     }
   }, [user, userProfile, authLoading, router]);
 
+  // --- LÓGICA DE RETORNO TEMPRANO ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
+  // --- Función de 'submit' ---
   const handleCrearUsuario = async (e: React.FormEvent) => {
     e.preventDefault(); 
     if (!nombre || !email || !password || !rol) {
-      toast.error('Por favor, completa todos los campos.'); // <-- 3. Cambiado
+      toast.error('Por favor, completa todos los campos.'); 
       return;
     }
     if (password.length < 6) {
-      toast.error('La contraseña debe tener al menos 6 caracteres.'); // <-- 3. Cambiado
+      toast.error('La contraseña debe tener al menos 6 caracteres.'); 
       return;
     }
     setLoading(true);
@@ -54,15 +62,16 @@ function CrearUsuarioForm() {
       if (!response.ok) {
         throw new Error(data.error || 'Falló la creación del usuario');
       }
-      toast.success(`Usuario "${nombre}" creado exitosamente.`); // <-- 3. Cambiado
+      toast.success(`Usuario "${nombre}" creado.`);
       router.push('/dashboard-admin');
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setLoading(false); 
     }
   };
 
+  // --- RENDERIZADO DEL FORMULARIO ---
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
@@ -89,6 +98,8 @@ function CrearUsuarioForm() {
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
+          
+          {/* --- ¡LISTA DE ROLES CORREGIDA! --- */}
           <div>
             <label htmlFor="rol" className="block text-sm font-medium text-gray-700">Rol</label>
             <select id="rol" value={rol} onChange={(e) => setRol(e.target.value)}
@@ -101,11 +112,12 @@ function CrearUsuarioForm() {
               <option value="Mecánico">Mecánico</option>
               <option value="Guardia">Guardia</option>
               <option value="Conductor">Conductor</option> 
-              <option value="Vendedor">Vendedor</option> 
-              <option value="Gerente">Gerente</option> 
+              {/* <option value="Vendedor">Vendedor</option>  <-- ELIMINADO */ }
+              {/* <option value="Gerente">Gerente</option>  <-- ELIMINADO */ }
             </select>
           </div>
-          {/* El error ahora es un Toast */}
+          {/* --- FIN DE LA CORRECCIÓN --- */}
+          
           <button
             type="submit"
             disabled={loading}

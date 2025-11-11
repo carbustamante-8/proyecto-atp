@@ -1,5 +1,5 @@
 // frontend/app/registrar-salida/page.tsx
-// (CÓDIGO ACTUALIZADO CON ARREGLO VISUAL - Z-INDEX CORREGIDO)
+// (CÓDIGO CORREGIDO: MODAL SIN FONDO NEGRO)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -12,24 +12,21 @@ type RegistroIngreso = {
   patente: string;
   chofer: string;
   motivoIngreso: string;
+  numeroChasis: string; 
+  zonaOrigen: string;   
   fechaIngreso: { _seconds: number };
 };
 
 export default function RegistrarSalidaPage() {
   
-  // --- HOOKS ---
   const [registrosAbiertos, setRegistrosAbiertos] = useState<RegistroIngreso[]>([]);
   const [loading, setLoading] = useState(true);
-  
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- ¡NUEVOS ESTADOS PARA EL MODAL! ---
   const [modalAbierto, setModalAbierto] = useState(false);
-  // Guarda el ID y Patente del vehículo que VAMOS a borrar
   const [registroParaBorrar, setRegistroParaBorrar] = useState<{id: string, patente: string} | null>(null);
 
-  // --- LÓGICA DE PROTECCIÓN Y CARGA (Sin cambios) ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -46,7 +43,6 @@ export default function RegistrarSalidaPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // Función de carga (Sin cambios)
   const fetchRegistrosAbiertos = async () => {
     setLoading(true);
     try {
@@ -61,69 +57,56 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  // --- LÓGICA DEL MODAL ACTUALIZADA (Sin cambios en la lógica, solo en el JSX) ---
+  // --- Lógica del Modal ---
   const handleAbrirModal = (id: string, patente: string) => {
-    setRegistroParaBorrar({ id, patente }); // Guarda los datos del vehículo
-    setModalAbierto(true); // Abre el modal
+    setRegistroParaBorrar({ id, patente });
+    setModalAbierto(true);
   };
-
   const handleCerrarModal = () => {
     setModalAbierto(false);
-    setRegistroParaBorrar(null); // Limpia los datos
+    setRegistroParaBorrar(null);
   };
-
   const handleConfirmarSalida = async () => {
     if (!registroParaBorrar) return;
-
     try {
       const response = await fetch('/api/control-salida', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: registroParaBorrar.id }), 
       });
-
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Falló el registro de la salida');
       }
-
       setRegistrosAbiertos(registrosActuales =>
         registrosActuales.filter(reg => reg.id !== registroParaBorrar.id)
       );
       toast.success(`¡Salida de ${registroParaBorrar.patente} registrada!`); 
-
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
       else toast.error('Un error desconocido ocurrió');
     } finally {
-      handleCerrarModal(); // Cierra el modal (tanto en éxito como en error)
+      handleCerrarModal();
     }
   };
 
-  // --- LÓGICA DE RETORNO TEMPRANO (Sin cambios) ---
+  // --- Lógica de Retorno Temprano ---
   if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // --- JSX (CON EL MODAL ARREGLADO - Z-INDEX CORREGIDO) ---
+  // --- JSX (CON EL MODAL ARREGLADO) ---
   return (
     <>
-      {/* --- EL MODAL DE CONFIRMACIÓN (¡ESTRUCTURA CORREGIDA!) --- */}
+      {/* --- EL MODAL (SIN OVERLAY NEGRO) --- */}
       {modalAbierto && registroParaBorrar && (
         
         // Contenedor principal (fijo, z-50, centrado)
+        // ¡SIN FONDO NEGRO!
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           
-          {/* 1. El OVERLAY (fondo negro semitransparente) */}
-          {/* Es un 'div' separado que cubre todo y cierra el modal al hacer clic */}
-          <div 
-            className="absolute inset-0 bg-black bg-opacity-50" 
-            onClick={handleCerrarModal}
-          ></div>
-          
-          {/* 2. El CONTENIDO (caja blanca) */}
-          {/* 'relative' y 'z-10' lo ponen POR ENCIMA del overlay negro */}
-          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
+          {/* El CONTENIDO (caja blanca) */}
+          <div className="bg-white p-8 rounded-lg shadow-xl max-w-sm w-full border border-gray-300">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
             <p className="text-gray-700 mb-6">
               ¿Estás seguro de que quieres registrar la salida del vehículo patente 
@@ -178,7 +161,6 @@ export default function RegistrarSalidaPage() {
                       {new Date(reg.fechaIngreso._seconds * 1000).toLocaleString('es-CL')}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium">
-                      {/* El botón ahora abre el modal */}
                       <button 
                         onClick={() => handleAbrirModal(reg.id, reg.patente)}
                         className="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700"

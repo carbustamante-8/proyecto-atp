@@ -1,5 +1,5 @@
 // frontend/app/gestion-repuestos/page.tsx
-// (CÓDIGO ACTUALIZADO CON MODAL DE CONFIRMACIÓN Y TOASTS)
+// (CÓDIGO ACTUALIZADO CON MODAL SIN FONDO NEGRO)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -23,11 +23,9 @@ export default function GestionRepuestosPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   
-  // --- ¡ESTADOS PARA EL MODAL DE ELIMINAR! ---
   const [modalAbierto, setModalAbierto] = useState(false);
   const [repuestoParaBorrar, setRepuestoParaBorrar] = useState<{id: string, nombre: string} | null>(null);
 
-  // Lógica de Protección y Carga
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -43,7 +41,6 @@ export default function GestionRepuestosPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // Función de carga
   const fetchRepuestos = async () => {
     setLoading(true);
     try {
@@ -58,7 +55,7 @@ export default function GestionRepuestosPage() {
     }
   };
   
-  // --- LÓGICA DEL MODAL DE ELIMINAR ---
+  // --- Lógica del Modal ---
   const handleAbrirModalEliminar = (id: string, nombre: string) => {
     setRepuestoParaBorrar({ id, nombre });
     setModalAbierto(true);
@@ -80,7 +77,6 @@ export default function GestionRepuestosPage() {
       handleCerrarModalEliminar();
     }
   };
-  // --- FIN LÓGICA DEL MODAL ---
 
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
@@ -88,14 +84,14 @@ export default function GestionRepuestosPage() {
   
   return (
     <>
-      {/* --- MODAL DE CONFIRMACIÓN DE ELIMINAR --- */}
+      {/* --- MODAL (SIN FONDO NEGRO) --- */}
       {modalAbierto && repuestoParaBorrar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div 
-            className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" 
+            className="absolute inset-0" 
             onClick={handleCerrarModalEliminar}
           ></div>
-          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
+          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full border border-gray-300">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
             <p className="text-gray-700 mb-6">
               ¿Estás seguro de que quieres eliminar el repuesto
@@ -153,7 +149,6 @@ export default function GestionRepuestosPage() {
                     <td className="px-6 py-4">{repuesto.descripcion}</td>
                     <td className="px-6 py-4 text-sm font-medium">
                       <button className="text-blue-600 hover:text-blue-900 disabled:text-gray-400" disabled>Editar</button>
-                      {/* --- ¡BOTÓN ACTUALIZADO! --- */}
                       <button onClick={() => handleAbrirModalEliminar(repuesto.id, repuesto.nombre)} className="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
                     </td>
                   </tr>

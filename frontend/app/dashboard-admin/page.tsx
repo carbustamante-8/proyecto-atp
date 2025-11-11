@@ -1,5 +1,5 @@
 // frontend/app/dashboard-admin/page.tsx
-// (CÓDIGO ACTUALIZADO CON MODAL DE CONFIRMACIÓN Y TOASTS)
+// (CÓDIGO ACTUALIZADO: "Gerente" eliminado de la seguridad)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast'; 
-// (Ya no importamos 'signOut' ni 'auth' porque la Navbar se encarga)
 
 type Usuario = {
   id: string;
@@ -29,25 +28,31 @@ export default function DashboardAdminPage() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [usuarioParaBorrar, setUsuarioParaBorrar] = useState<{id: string, nombre: string} | null>(null);
 
-  // --- LÓGICA DE PROTECCIÓN Y CARGA (Sin cambios) ---
+  // --- LÓGICA DE PROTECCIÓN Y CARGA ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
+        
+        // --- ¡LISTA DE SEGURIDAD CORREGIDA! ---
+        // (Roles que SÍ pueden ver esta página)
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        // --- FIN DE LA CORRECCIÓN ---
+
         if (rolesPermitidos.includes(userProfile.rol)) {
-          fetchUsuarios();
+          fetchUsuarios(); // ¡Permitido! Carga los datos
         } else {
+          // ¡No permitido! Redirige
           if (userProfile.rol === 'Mecánico') router.push('/mis-tareas');
           else if (userProfile.rol === 'Guardia') router.push('/control-acceso');
           else router.push('/');
         }
       } else if (!user) {
-        router.push('/');
+        router.push('/'); // Si no hay usuario, al login
       }
     }
   }, [user, userProfile, authLoading, router]);
   
-  // Función de carga (Sin cambios)
+  // --- (Función 'fetchUsuarios' - Sin cambios) ---
   const fetchUsuarios = async () => {
     setDataLoading(true);
     try {
@@ -62,7 +67,7 @@ export default function DashboardAdminPage() {
     }
   };
 
-  // --- LÓGICA DEL MODAL DE ELIMINAR ---
+  // --- (Lógica del Modal - Sin cambios) ---
   const handleAbrirModalEliminar = (id: string, nombre: string) => {
     setUsuarioParaBorrar({ id, nombre });
     setModalAbierto(true);
@@ -89,13 +94,13 @@ export default function DashboardAdminPage() {
       handleCerrarModalEliminar();
     }
   };
-  // --- FIN LÓGICA DEL MODAL ---
 
-  // --- LÓGICA DE RETORNO TEMPRANO (Sin cambios) ---
+  // --- LÓGICA DE RETORNO TEMPRANO ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
-  if (!['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'].includes(userProfile.rol)) {
+  // (Guardia final por si acaso)
+  if (!['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
      return <div className="p-8 text-gray-900">Acceso denegado.</div>;
   }
 
@@ -114,7 +119,6 @@ export default function DashboardAdminPage() {
             <p className="text-gray-700 mb-6">
               ¿Estás seguro de que quieres eliminar al usuario 
               <strong className="text-red-600"> {usuarioParaBorrar.nombre}</strong>?
-              <br/>Esta acción no se puede deshacer.
             </p>
             <div className="flex justify-end space-x-4">
               <button
@@ -184,7 +188,6 @@ export default function DashboardAdminPage() {
                       <Link href={`/dashboard-admin/editar-usuario/${user.id}`}>
                         <button className="text-blue-600 hover:text-blue-900">Editar</button>
                       </Link>
-                      {/* --- ¡BOTÓN ACTUALIZADO! --- */}
                       <button onClick={() => handleAbrirModalEliminar(user.id, user.nombre)} className="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
                     </td>
                   </tr>

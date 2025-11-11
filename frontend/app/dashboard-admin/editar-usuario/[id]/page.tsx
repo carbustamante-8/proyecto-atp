@@ -1,11 +1,11 @@
 // frontend/app/dashboard-admin/editar-usuario/[id]/page.tsx
-// (CÓDIGO CORREGIDO - LÓGICA DE 'useEffect' REFORZADA)
+// (CÓDIGO ACTUALIZADO: "Gerente" eliminado de la seguridad)
 
 'use client'; 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; 
 
 type UsuarioData = {
   nombre: string;
@@ -18,7 +18,7 @@ export default function EditarUsuarioPage() {
   
   // --- HOOKS ---
   const params = useParams();
-  const id = params.id as string; // El 'id' de la URL
+  const id = params.id as string; 
   const router = useRouter();
   
   const [formData, setFormData] = useState({
@@ -28,15 +28,14 @@ export default function EditarUsuarioPage() {
     estado: 'Activo' as 'Activo' | 'Inactivo',
   });
   
-  const [loading, setLoading] = useState(true); // Inicia en 'true'
+  const [loading, setLoading] = useState(true); 
   const [isUpdating, setIsUpdating] = useState(false); 
   
   const { user, userProfile, loading: authLoading } = useAuth();
 
-  // --- ¡LÓGICA 'useEffect' CORREGIDA! ---
+  // --- LÓGICA DE PROTECCIÓN Y CARGA ---
   useEffect(() => {
-    
-    // 1. Define la función de carga (pero no la llama todavía)
+    // 1. Define la función de carga
     const fetchUsuario = async (usuarioId: string) => {
       try {
         const response = await fetch(`/api/usuarios/${usuarioId}`); 
@@ -46,41 +45,38 @@ export default function EditarUsuarioPage() {
       } catch (err) {
         if (err instanceof Error) toast.error(err.message);
       } finally {
-        setLoading(false); // Termina de cargar (éxito o error)
+        setLoading(false); 
       }
     };
 
     // 2. Lógica de Protección
-    if (!authLoading) { // Solo corre si la autenticación TERMINÓ
-      if (user && userProfile) { // Si SÍ hay un usuario
+    if (!authLoading) {
+      if (user && userProfile) {
         
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
+        // --- ¡LISTA DE SEGURIDAD CORREGIDA! ---
+        // (Roles que SÍ pueden ver esta página)
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        // --- FIN DE LA CORRECCIÓN ---
+
         if (rolesPermitidos.includes(userProfile.rol)) {
           
-          // --- ¡AQUÍ ESTÁ EL ARREGLO! ---
-          // 3. Comprueba que 'id' SÍ exista y NO sea la palabra "undefined"
-          //    ANTES de llamar a la API.
           if (id && id !== 'undefined') {
-            fetchUsuario(id); // Llama a la función SÓLO si el id es válido
+            fetchUsuario(id); 
           } else {
-            // Si el 'id' es inválido (lo que causa el error 404)
-            console.error("No se detectó un ID de usuario en la URL.");
-            setLoading(false); // Deja de cargar
+            setLoading(false); 
           }
-          // --- FIN DEL ARREGLO ---
-
         } else {
-          router.push('/'); // No tiene permiso
+          // Si no es un Admin (ej: es Gerente, Mecánico, etc), lo patea
+          router.push('/'); 
         }
       } else if (!user) {
-        router.push('/'); // No está logueado
+        router.push('/');
       }
     }
-  }, [user, userProfile, authLoading, router, id]); // 'id' es una dependencia clave
+  }, [user, userProfile, authLoading, router, id]);
   
   
   // --- LÓGICA DE RETORNO TEMPRANO ---
-  // Muestra "Cargando..." si la autenticación está ocupada O si la página está cargando
   if (authLoading || loading) {
     return <div className="p-8 text-gray-900">Cargando datos del usuario...</div>;
   }
@@ -112,7 +108,7 @@ export default function EditarUsuarioPage() {
     }
   };
 
-  // --- RENDERIZADO DEL FORMULARIO (Sin cambios) ---
+  // --- RENDERIZADO DEL FORMULARIO ---
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
@@ -137,6 +133,7 @@ export default function EditarUsuarioPage() {
             />
           </div>
 
+          {/* (Lista de <select> roles ya corregida) */}
           <div>
             <label htmlFor="rol" className="block text-sm font-medium text-gray-700">Rol</label>
             <select name="rol" id="rol" value={formData.rol} onChange={handleChange}
@@ -148,8 +145,6 @@ export default function EditarUsuarioPage() {
               <option value="Mecánico">Mecánico</option>
               <option value="Guardia">Guardia</option>
               <option value="Conductor">Conductor</option> 
-              <option value="Vendedor">Vendedor</option> 
-              <option value="Gerente">Gerente</option> 
             </select>
           </div>
 

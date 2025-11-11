@@ -1,12 +1,13 @@
 // frontend/app/generador-reportes/page.tsx
+// (Este archivo ya está correcto)
+
 'use client'; 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext'; 
 import { useRouter } from 'next/navigation';   
 import * as XLSX from 'xlsx'; 
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import toast from 'react-hot-toast'; 
 
-// (Los 'type' no cambian)
 type ReporteOT = {
   id: string;
   patente: string;
@@ -16,42 +17,57 @@ type ReporteOT = {
   mecanicoAsignado: string; 
   estado: string;
 };
+
+// (Este tipo es para el 'fetch', para que TypeScript sepa de la fecha)
 type OT_Desde_API = {
   id: string;
   patente: string;
   estado: string;
   mecanicoAsignado?: string;
-  fechaCreacion: { _seconds: number; _nanoseconds: number; }
+  fechaCreacion: {
+    _seconds: number;
+    _nanoseconds: number;
+  }
 }
 
 export default function ReportesPage() {
+  
   const [reporteData, setReporteData] = useState<ReporteOT[]>([]);
   const [loading, setLoading] = useState(false); 
-  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [estado, setEstado] = useState('Todos');
   const [patente, setPatente] = useState('');
+  
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  // --- LÓGICA DE PROTECCIÓN (El Guardia) ---
   useEffect(() => {
-    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
+        
+        // --- ¡ESTA LISTA ES CORRECTA! ---
+        // (Admins + Gerente pueden ver esta página)
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
+        
         if (!rolesPermitidos.includes(userProfile.rol)) {
+          console.warn(`Acceso denegado a /reportes. Rol: ${userProfile.rol}`);
           router.push('/'); 
         }
+        
       } else if (!user) {
         router.push('/');
       }
     }
   }, [user, userProfile, authLoading, router]);
+
   
+  // --- Función para "Generar Reporte" ---
   const handleGenerarReporte = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
       const params = new URLSearchParams();
       if (estado && estado !== 'Todos') params.append('estado', estado);
@@ -62,7 +78,7 @@ export default function ReportesPage() {
       const response = await fetch(`/api/reportes?${params.toString()}`);
       if (!response.ok) throw new Error('No se pudo generar el reporte');
       
-      const data: OT_Desde_API[] = await response.json();
+      const data: OT_Desde_API[] = await response.json(); 
       
       const dataFormateada = data.map((ot) => ({
         id: ot.id,
@@ -75,13 +91,15 @@ export default function ReportesPage() {
         mecanicoAsignado: ot.mecanicoAsignado || 'N/A',
         estado: ot.estado || 'N/A',
       }));
+      
       setReporteData(dataFormateada);
       if(dataFormateada.length > 0) {
-        toast.success(`¡Reporte generado! ${dataFormateada.length} resultados.`); // <-- 3. Cambiado
+        toast.success(`¡Reporte generado! ${dataFormateada.length} resultados.`);
       }
+      
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
-      else toast.error('Un error desconocido ocurrió'); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
+      else toast.error('Un error desconocido ocurrió');
     } finally {
       setLoading(false); 
     }
@@ -89,7 +107,7 @@ export default function ReportesPage() {
 
    const handleExportExcel = () => {
     if (reporteData.length === 0) {
-      toast.error("No hay datos para exportar. Genera un reporte primero."); // <-- 3. Cambiado
+      toast.error("No hay datos para exportar. Genera un reporte primero.");
       return;
     }
     const datosParaExcel = reporteData.map(ot => ({
@@ -110,16 +128,20 @@ export default function ReportesPage() {
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
+  
   if (!['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'].includes(userProfile.rol)) {
      return <div className="p-8 text-gray-900">Acceso denegado.</div>;
   }
   
   return (
     <div className="p-8 text-gray-900"> 
+      
       <h1 className="text-3xl font-bold mb-6">Generador de Reportes</h1>
       <p className="text-gray-600 mb-6">Seleccione los filtros para extraer los datos de la operación.</p>
-      {/* ... (Formulario de Filtros no cambia) ... */}
-      <form onSubmit={handleGenerarReporte} className="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+
+      {/* Formulario de Filtros */}
+       <form onSubmit={handleGenerarReporte} className="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        {/* ... (Filtros) ... */}
         <div>
           <label htmlFor="fechaInicio" className="block text-sm font-medium text-gray-700">Fecha de Inicio</label>
           <input
@@ -178,10 +200,10 @@ export default function ReportesPage() {
           Exportar Datos a Excel
         </button>
       </div>
+      
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
-            {/* ... (thead no cambia) ... */}
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID OT</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
@@ -193,14 +215,14 @@ export default function ReportesPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
+            
             {loading && (
               <tr><td colSpan={7} className="px-6 py-4 text-center">Generando reporte...</td></tr>
             )}
-            {/* El error ahora es un Toast */}
+
             {!loading && reporteData.length > 0 ? (
               reporteData.map(ot => (
                 <tr key={ot.id}>
-                  {/* ... (tbody no cambia) ... */}
                   <td className="px-6 py-4">{ot.id.substring(0, 6)}</td>
                   <td className="px-6 py-4 font-medium">{ot.patente}</td>
                   <td className="px-6 py-4">{ot.fechaIngreso}</td>
