@@ -1,12 +1,12 @@
 // frontend/app/gestion-repuestos/page.tsx
+// (CÓDIGO ACTUALIZADO CON MODAL DE CONFIRMACIÓN Y TOASTS)
 
 'use client'; 
-
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext'; // Importar
-import { useRouter } from 'next/navigation';   // Importar
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast'; 
 
 type Repuesto = {
   id: string;
@@ -20,18 +20,18 @@ export default function GestionRepuestosPage() {
   
   const [repuestos, setRepuestos] = useState<Repuesto[]>([]);
   const [loading, setLoading] = useState(false); 
-  
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
+  
+  // --- ¡ESTADOS PARA EL MODAL DE ELIMINAR! ---
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [repuestoParaBorrar, setRepuestoParaBorrar] = useState<{id: string, nombre: string} | null>(null);
 
-  // --- LÓGICA DE PROTECCIÓN Y CARGA ---
+  // Lógica de Protección y Carga
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // (Aunque el cliente pausó este módulo, si lo van a usar, 
-        // lo lógico es que solo los Admins puedan verlo)
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
-        
         if (rolesPermitidos.includes(userProfile.rol)) {
           fetchRepuestos();
         } else {
@@ -52,82 +52,121 @@ export default function GestionRepuestosPage() {
       const data = await response.json();
       setRepuestos(data); 
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setLoading(false); 
     }
   };
   
-  // --- Función de Eliminar (¡NUEVA!) ---
-  // (Añadimos esta lógica para que sea consistente con los otros módulos)
-  const handleEliminar = async (repuestoId: string, nombre: string) => {
-    if (!confirm(`¿Seguro que quieres eliminar el repuesto "${nombre}"?`)) return;
+  // --- LÓGICA DEL MODAL DE ELIMINAR ---
+  const handleAbrirModalEliminar = (id: string, nombre: string) => {
+    setRepuestoParaBorrar({ id, nombre });
+    setModalAbierto(true);
+  };
+  const handleCerrarModalEliminar = () => {
+    setModalAbierto(false);
+    setRepuestoParaBorrar(null);
+  };
+  const handleConfirmarEliminar = async () => {
+    if (!repuestoParaBorrar) return;
     try {
-      const response = await fetch(`/api/repuestos?id=${repuestoId}`, { method: 'DELETE' });
+      const response = await fetch(`/api/repuestos?id=${repuestoParaBorrar.id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Error al eliminar el repuesto');
-      setRepuestos(r => r.filter(rep => rep.id !== repuestoId));
-      toast.success(`Repuesto "${nombre}" eliminado.`); // <-- 3. Cambiado
+      setRepuestos(r => r.filter(rep => rep.id !== repuestoParaBorrar.id));
+      toast.success(`Repuesto "${repuestoParaBorrar.nombre}" eliminado.`);
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      handleCerrarModalEliminar();
     }
   };
+  // --- FIN LÓGICA DEL MODAL ---
 
-  // --- LÓGICA DE RETORNO TEMPRANO ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // --- RENDERIZADO DE LA PÁGINA ---
   return (
-    <div className="p-8 text-gray-900"> 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Gestión de Catálogo de Repuestos</h1>
-        <Link href="/gestion-repuestos/crear"> 
-          <button className="bg-blue-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-blue-700">
-            + Añadir Nuevo Repuesto
-          </button>
-        </Link>
-      </div>
+    <>
+      {/* --- MODAL DE CONFIRMACIÓN DE ELIMINAR --- */}
+      {modalAbierto && repuestoParaBorrar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" 
+            onClick={handleCerrarModalEliminar}
+          ></div>
+          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
+            <p className="text-gray-700 mb-6">
+              ¿Estás seguro de que quieres eliminar el repuesto
+              <strong className="text-red-600"> {repuestoParaBorrar.nombre}</strong>?
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={handleCerrarModalEliminar}
+                className="px-4 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarEliminar}
+                className="px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 font-medium"
+              >
+                Sí, Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- FIN DEL MODAL --- */}
 
-      {/* Tabla de Repuestos */}
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loading && (
-              <tr><td colSpan={5} className="px-6 py-4 text-center">Cargando repuestos...</td></tr>
-            )}
-            {/* El error ahora es un Toast */}
-            {!loading && repuestos.length > 0 ? (
-              repuestos.map(repuesto => (
-                <tr key={repuesto.id}>
-                  <td className="px-6 py-4">{repuesto.codigo}</td>
-                  <td className="px-6 py-4">{repuesto.nombre}</td>
-                  <td className="px-6 py-4">{repuesto.marca}</td>
-                  <td className="px-6 py-4">{repuesto.descripcion}</td>
-                  <td className="px-6 py-4 text-sm font-medium">
-                    {/* (El botón de Editar aún no lo hemos conectado) */}
-                    <button className="text-blue-600 hover:text-blue-900 disabled:text-gray-400" disabled>Editar</button>
-                    <button onClick={() => handleEliminar(repuesto.id, repuesto.nombre)} className="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              !loading && repuestos.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-4 text-center">No se encontraron repuestos.</td></tr>
-              )
-            )}
-          </tbody>
-        </table>
+      <div className="p-8 text-gray-900"> 
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">Gestión de Catálogo de Repuestos</h1>
+          <Link href="/gestion-repuestos/crear"> 
+            <button className="bg-blue-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-blue-700">
+              + Añadir Nuevo Repuesto
+            </button>
+          </Link>
+        </div>
+        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading && (
+                <tr><td colSpan={5} className="px-6 py-4 text-center">Cargando repuestos...</td></tr>
+              )}
+              {!loading && repuestos.length > 0 ? (
+                repuestos.map(repuesto => (
+                  <tr key={repuesto.id}>
+                    <td className="px-6 py-4">{repuesto.codigo}</td>
+                    <td className="px-6 py-4">{repuesto.nombre}</td>
+                    <td className="px-6 py-4">{repuesto.marca}</td>
+                    <td className="px-6 py-4">{repuesto.descripcion}</td>
+                    <td className="px-6 py-4 text-sm font-medium">
+                      <button className="text-blue-600 hover:text-blue-900 disabled:text-gray-400" disabled>Editar</button>
+                      {/* --- ¡BOTÓN ACTUALIZADO! --- */}
+                      <button onClick={() => handleAbrirModalEliminar(repuesto.id, repuesto.nombre)} className="text-red-600 hover:text-red-900 ml-4">Eliminar</button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                !loading && repuestos.length === 0 && (
+                  <tr><td colSpan={5} className="px-6 py-4 text-center">No se encontraron repuestos.</td></tr>
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

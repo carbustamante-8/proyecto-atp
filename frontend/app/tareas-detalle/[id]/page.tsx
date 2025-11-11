@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; 
-import { put } from '@vercel/blob'; // (Asumo que está instalado)
+import { put } from '@vercel/blob'; 
 
 type DetalleOrdenDeTrabajo = {
   id: string;
@@ -39,18 +39,15 @@ export default function DetalleOTPage() {
   const { user, userProfile, loading: authLoading } = useAuth(); 
 
   // --- LÓGICA DE CARGA Y PROTECCIÓN ---
-  // (¡Necesitamos mover la función de carga AFUERA del useEffect para poder re-usarla!)
   
-  // 1. Define la función de carga
+  // 1. Define la función de carga (AFUERA, para poder re-usarla)
   const fetchDetalleOT = async () => {
-    // Asegúrate de que 'id' es válido antes de hacer fetch
     if (!id || id === 'undefined') {
       setLoading(false);
       return;
     }
-    
+    setLoading(true); 
     try {
-      setLoading(true);
       const response = await fetch(`/api/ordenes-trabajo/${id}`);
       if (!response.ok) throw new Error('No se pudo cargar la OT');
       const data = await response.json();
@@ -58,7 +55,7 @@ export default function DetalleOTPage() {
       setNuevoEstado(data.estado);
       if (data.repuestosUsados) setRepuestosUsados(data.repuestosUsados);
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setLoading(false);
     }

@@ -20,7 +20,6 @@ type Vehiculo = {
 
 export default function GestionVehiculosPage() {
   
-  // --- HOOKS ---
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [loading, setLoading] = useState(false);
   const { user, userProfile, loading: authLoading } = useAuth();
@@ -30,7 +29,7 @@ export default function GestionVehiculosPage() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [vehiculoParaBorrar, setVehiculoParaBorrar] = useState<{id: string, patente: string} | null>(null);
 
-  // --- LÓGICA DE PROTECCIÓN Y CARGA (Sin cambios) ---
+  // Lógica de Protección y Carga
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -46,7 +45,7 @@ export default function GestionVehiculosPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // Función de carga (Sin cambios)
+  // Función de carga
   const fetchVehiculos = async () => {
     setLoading(true);
     try {
@@ -85,7 +84,6 @@ export default function GestionVehiculosPage() {
   };
   // --- FIN LÓGICA DEL MODAL ---
   
-  // --- LÓGICA DE RETORNO TEMPRANO (Sin cambios) ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
@@ -93,16 +91,18 @@ export default function GestionVehiculosPage() {
      return <div className="p-8 text-gray-900">Acceso denegado.</div>;
   }
 
-  // --- RENDERIZADO DE LA PÁGINA ---
   return (
     <>
       {/* --- MODAL DE CONFIRMACIÓN DE ELIMINAR --- */}
       {modalAbierto && vehiculoParaBorrar && (
+        // Contenedor (fijo, z-50, centrado)
         <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* 1. El OVERLAY (fondo borroso y semitransparente) */}
           <div 
-            className="absolute inset-0 bg-black bg-opacity-50" 
+            className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" 
             onClick={handleCerrarModalEliminar}
           ></div>
+          {/* 2. El CONTENIDO (caja blanca) */}
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
             <p className="text-gray-700 mb-6">
