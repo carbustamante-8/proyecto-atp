@@ -1,5 +1,5 @@
 // frontend/app/registrar-salida/page.tsx
-// (CÓDIGO ACTUALIZADO CON ARREGLO VISUAL - Z-INDEX CORREGIDO)
+// (CÓDIGO CORREGIDO: Tipo 'RegistroIngreso' mejorado)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -7,29 +7,30 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; 
 
+// --- ¡TIPO CORREGIDO! ---
 type RegistroIngreso = {
   id: string;
   patente: string;
   chofer: string;
   motivoIngreso: string;
-  numeroChasis: string;  // ✅ USAR ESTE
-  zonaOrigen: string;
+  numeroChasis: string; // <-- AÑADIDO
+  zonaOrigen: string;   // <-- AÑADIDO
   fechaIngreso: { _seconds: number };
 };
+// --- FIN CORRECCIÓN ---
+
 export default function RegistrarSalidaPage() {
   
-  // --- HOOKS ---
   const [registrosAbiertos, setRegistrosAbiertos] = useState<RegistroIngreso[]>([]);
   const [loading, setLoading] = useState(true);
-  
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- ESTADOS PARA EL MODAL ---
+  // (Modal States)
   const [modalAbierto, setModalAbierto] = useState(false);
   const [registroParaBorrar, setRegistroParaBorrar] = useState<{id: string, patente: string} | null>(null);
 
-  // --- LÓGICA DE PROTECCIÓN Y CARGA (Sin cambios) ---
+  // (useEffect - Sin cambios)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -46,7 +47,7 @@ export default function RegistrarSalidaPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // Función de carga (Sin cambios)
+  // (fetchRegistrosAbiertos - Sin cambios)
   const fetchRegistrosAbiertos = async () => {
     setLoading(true);
     try {
@@ -61,17 +62,15 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  // --- LÓGICA DEL MODAL (Sin cambios en la lógica) ---
+  // (Lógica del Modal - Sin cambios)
   const handleAbrirModal = (id: string, patente: string) => {
     setRegistroParaBorrar({ id, patente });
     setModalAbierto(true);
   };
-
   const handleCerrarModal = () => {
     setModalAbierto(false);
     setRegistroParaBorrar(null);
   };
-
   const handleConfirmarSalida = async () => {
     if (!registroParaBorrar) return;
     try {
@@ -96,29 +95,21 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  // --- LÓGICA DE RETORNO TEMPRANO (Sin cambios) ---
+  // (Retorno temprano - Sin cambios)
   if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // --- JSX (CON EL MODAL ARREGLADO - Z-INDEX CORREGIDO) ---
+  // (JSX - Sin cambios)
   return (
     <>
-      {/* --- EL MODAL DE CONFIRMACIÓN (¡ESTRUCTURA CORREGIDA!) --- */}
+      {/* --- EL MODAL (Sin cambios) --- */}
       {modalAbierto && registroParaBorrar && (
-        
-        // Contenedor principal (fijo, z-50, centrado)
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          
-          {/* 1. El OVERLAY (fondo negro semitransparente) */}
-          {/* Es un 'div' separado que cubre todo y cierra el modal al hacer clic */}
           <div 
             className="absolute inset-0 bg-black bg-opacity-50" 
             onClick={handleCerrarModal}
           ></div>
-          
-          {/* 2. El CONTENIDO (caja blanca) */}
-          {/* 'relative' y 'z-10' lo ponen POR ENCIMA del overlay negro */}
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
             <p className="text-gray-700 mb-6">

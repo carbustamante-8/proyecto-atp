@@ -3,14 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import toast from 'react-hot-toast';
 
+// ✅ TIPO CORREGIDO
 type RegistroIngreso = {
   id: string;
   patente: string;
   chofer: string;
   motivoIngreso: string;
-  numeroChasis: string;  // ✅ USAR ESTE
+  numeroChasis: string;  // ✅ CORRECCIÓN: era "kilometraje"
   zonaOrigen: string;
   fechaIngreso: { _seconds: number };
 };
@@ -18,12 +19,10 @@ type RegistroIngreso = {
 export default function DashboardJefeTallerPage() {
   const [registros, setRegistros] = useState<RegistroIngreso[]>([]);
   const [loading, setLoading] = useState(false);
-  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
@@ -46,14 +45,14 @@ export default function DashboardJefeTallerPage() {
       const data = await response.json();
       setRegistros(data); 
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setLoading(false); 
     }
   };
 
   const handleCrearOT = (registro: RegistroIngreso) => {
-    toast.success('Redirigiendo para crear OT...'); // <-- 3. Cambiado
+    toast.success('Redirigiendo para crear OT...');
     const patente = encodeURIComponent(registro.patente);
     const motivo = encodeURIComponent(registro.motivoIngreso);
     router.push(`/crear-ot?patente=${patente}&motivo=${motivo}`);
@@ -75,13 +74,13 @@ export default function DashboardJefeTallerPage() {
       </div>
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
-          {/* ... (thead no cambia) ... */}
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chofer</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motivo Ingreso</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kilometraje</th>
+              {/* ✅ CORRECCIÓN: era "Kilometraje" */}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Número de Chasis</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Ingreso</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
             </tr>
@@ -90,13 +89,13 @@ export default function DashboardJefeTallerPage() {
             {loading && (
               <tr><td colSpan={6} className="px-6 py-4 text-center">Cargando ingresos...</td></tr>
             )}
-            {/* El error ahora es un Toast */}
             {!loading && registros.length > 0 ? (
               registros.map(reg => (
                 <tr key={reg.id}>
                   <td className="px-6 py-4 font-medium">{reg.patente}</td>
                   <td className="px-6 py-4">{reg.chofer}</td>
                   <td className="px-6 py-4">{reg.motivoIngreso}</td>
+                  {/* ✅ CORRECCIÓN: era "reg.kilometraje" */}
                   <td className="px-6 py-4">{reg.numeroChasis}</td>
                   <td className="px-6 py-4">
                     {new Date(reg.fechaIngreso._seconds * 1000).toLocaleString('es-CL')}
