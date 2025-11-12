@@ -1,5 +1,5 @@
 // frontend/components/Navbar.tsx
-// (CÓDIGO ACTUALIZADO: Enlaces de Admin unificados)
+// (CÓDIGO ACTUALIZADO: Añadido enlace a "Cierre de OTs")
 
 'use client'; 
 
@@ -41,12 +41,10 @@ export default function Navbar() {
           {/* --- ¡BLOQUE ADMIN ACTUALIZADO! --- */}
           {['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol) && (
             <>
-              {/* Este es el nuevo enlace unificado */}
-              <Link href="/pendientes-diagnostico" className="hover:text-blue-600">Bandeja de Taller</Link>
-
-              {/* Los enlaces antiguos 'Solicitudes' e 'Ingresos Pendientes' se eliminan */}
-              {/* <Link href="/solicitudes-pendientes" ... >Solicitudes</Link> */}
-              {/* <Link href="/dashboard-jefe-taller" ... >Ingresos Pendientes</Link> */}
+              <Link href="/solicitudes-pendientes" className="hover:text-blue-600">Bandeja de Taller</Link>
+              
+              {/* --- ¡NUEVO ENLACE! --- */}
+              <Link href="/cierre-ots" className="hover:text-blue-600">Cierre de OTs</Link>
 
               <Link href="/dashboard-admin" className="hover:text-blue-600">Usuarios</Link>
               <Link href="/gestion-vehiculos" className="hover:text-blue-600">Vehículos</Link>

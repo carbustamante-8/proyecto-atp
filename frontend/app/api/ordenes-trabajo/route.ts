@@ -1,5 +1,5 @@
 // app/api/ordenes-trabajo/route.ts
-// (CÓDIGO ACTUALIZADO: POST ahora solo crea la OT en estado "Pendiente Diagnóstico")
+// (CÓDIGO ACTUALIZADO: POST ahora crea OTs en estado 'Agendado')
 
 import { NextResponse, NextRequest } from 'next/server'; 
 import { adminDb } from '@/lib/firebase-admin';
@@ -7,7 +7,7 @@ import * as admin from 'firebase-admin';
 
 /**
  * Función GET: (Sin cambios)
- * Se usa para el tablero del mecánico (filtrado)
+ * Se usa para el tablero del mecánico (filtrado) y ahora para el Guardia.
  */
 export async function GET(request: NextRequest) { 
   try {
@@ -34,15 +34,13 @@ export async function GET(request: NextRequest) {
 
 /**
  * Función POST: (¡MODIFICADA!)
- * Ahora solo registra la OT, sin asignar mecánico.
+ * El estado inicial ahora es 'Agendado'.
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json(); 
-    console.log('POST /api/ordenes-trabajo: Creando nueva OT...');
+    console.log('POST /api/ordenes-trabajo: Creando nueva OT (Agendada)...');
     
-    // --- ¡MODIFICACIÓN! ---
-    // Ya no pedimos los datos del mecánico, solo lo básico.
     if (!body.patente || !body.descripcionProblema) {
       return NextResponse.json({ error: 'Faltan datos (Patente y Descripción)' }, { status: 400 });
     }
@@ -51,10 +49,10 @@ export async function POST(request: Request) {
       patente: body.patente,
       descripcionProblema: body.descripcionProblema,
       
-      // Valores por defecto para el nuevo flujo de diagnóstico
+      // Valores por defecto para el nuevo flujo de Agendamiento
       mecanicoAsignadoId: null, 
       mecanicoAsignadoNombre: null, 
-      estado: 'Pendiente Diagnóstico', // <-- ¡NUEVO ESTADO INICIAL!
+      estado: 'Agendado', // <-- ¡NUEVO ESTADO INICIAL!
       
       fechaCreacion: admin.firestore.FieldValue.serverTimestamp(),
       fotos: [], 
@@ -62,7 +60,6 @@ export async function POST(request: Request) {
     };
     
     const nuevaOtRef = await adminDb.collection('ordenes-trabajo').add(datosOT);
-    // --- FIN DE LA MODIFICACIÓN ---
 
     return NextResponse.json({ id: nuevaOtRef.id, ...datosOT }, { status: 201 });
 

@@ -1,5 +1,5 @@
 // app/api/ordenes-trabajo/[id]/route.ts
-// (CÓDIGO ACTUALIZADO: PUT ahora maneja el flujo de APROBACIÓN)
+// (CÓDIGO ACTUALIZADO: PUT ahora maneja el Cierre Administrativo)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -29,11 +29,12 @@ export async function GET(request: NextRequest, context: Context) {
 }
 
 /**
- * Función PUT: (¡MODIFICADA PARA CU-06!)
- * Maneja 3 casos:
- * 1. Asignación (Jefe de Taller): Pasa a 'Pendiente Aprobación'.
- * 2. Aprobación (Supervisor): Pasa a 'Pendiente'.
- * 3. Gestión (Mecánico): Cambia estado, repuestos, fotos.
+ * Función PUT: (¡MODIFICADA!)
+ * Maneja 4 casos de estado:
+ * 1. Validación del Guardia: 'Agendado' -> 'Pendiente'
+ * 2. Auto-Asignación (Mecánico): 'Pendiente' -> 'En Progreso'
+ * 3. Gestión Normal (Mecánico): 'En Progreso' -> 'Finalizado'
+ * 4. Cierre (Admin): 'Finalizado' -> 'Cerrado'
  */
 export async function PUT(request: NextRequest, context: Context) {
   let id: string = 'ID_DESCONOCIDO'; 
@@ -47,49 +48,56 @@ export async function PUT(request: NextRequest, context: Context) {
       repuestosUsados?: string,
       fotos?: admin.firestore.FieldValue,
       mecanicoAsignadoId?: string | null,
-      mecanicoAsignadoNombre?: string | null
+      mecanicoAsignadoNombre?: string | null,
+      fechaIngresoTaller?: admin.firestore.FieldValue,
+      fechaCierreAdministrativo?: admin.firestore.FieldValue // ¡Nuevo campo de auditoría!
     } = {};
 
     // --- ¡LÓGICA DE ESTADOS ACTUALIZADA! ---
-
-    // CASO 1: El Jefe de Taller está ASIGNANDO (CU-05)
-    if (body.mecanicoAsignadoId && body.mecanicoAsignadoNombre) {
+    
+    // CASO 1: El Guardia está "Registrando Llegada"
+    if (body.estado === 'Pendiente' && body.accion === 'registrarLlegada') {
+      datosActualizados.estado = 'Pendiente'; 
+      datosActualizados.fechaIngresoTaller = admin.firestore.FieldValue.serverTimestamp(); 
+    }
+    
+    // CASO 2: El mecánico está "reclamando" la tarea
+    else if (body.estado === 'En Progreso' && body.mecanicoAsignadoId && body.mecanicoAsignadoNombre) {
       datosActualizados.mecanicoAsignadoId = body.mecanicoAsignadoId;
       datosActualizados.mecanicoAsignadoNombre = body.mecanicoAsignadoNombre;
-      // ¡Pasa a Aprobación!
-      datosActualizados.estado = 'Pendiente Aprobación'; 
+      datosActualizados.estado = 'En Progreso';
+    } 
+    
+    // CASO 3: El mecánico está "Finalizando" la tarea
+    else if (body.estado === 'Finalizado' && !body.accion) {
+      datosActualizados.estado = 'Finalizado';
     }
     
-    // CASO 2: El Supervisor está APROBANDO (CU-06)
-    else if (body.accion === 'aprobar') {
-      // El Supervisor aprueba, pasa a "Pendiente" (visible para el mecánico)
-      datosActualizados.estado = 'Pendiente';
+    // --- ¡NUEVO! CASO 4: El Admin está "Cerrando" la OT ---
+    else if (body.estado === 'Cerrado' && body.accion === 'cierreAdministrativo') {
+      datosActualizados.estado = 'Cerrado';
+      datosActualizados.fechaCierreAdministrativo = admin.firestore.FieldValue.serverTimestamp(); // ¡Auditoría!
     }
     
-    // CASO 3: El Supervisor está RECHAZANDO (CU-06 Alterno)
-    else if (body.accion === 'rechazar') {
-      // El Supervisor rechaza, vuelve a "Pendiente Diagnóstico" y limpia la asignación
-      datosActualizados.estado = 'Pendiente Diagnóstico';
-      datosActualizados.mecanicoAsignadoId = null;
-      datosActualizados.mecanicoAsignadoNombre = null;
+    // CASO 5: El mecánico solo actualiza repuestos (sin cambiar estado)
+    else if (body.repuestosUsados !== undefined && !body.estado) {
+       // No hacer nada de estados, solo permitir que se guarden los repuestos
+    }
+
+    // --- FIN DE LA LÓGICA ---
+    
+    // Lógica de repuestos y fotos (se aplica en todos los casos)
+    if (body.repuestosUsados !== undefined) {
+      datosActualizados.repuestosUsados = body.repuestosUsados;
+    }
+    if (body.nuevaFotoURL) {
+      datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
     }
     
-    // CASO 4: El Mecánico está GESTIONANDO (CU-08)
-    else {
-      if (body.estado) {
-        datosActualizados.estado = body.estado; // (En Progreso, Finalizado)
-      }
-      if (body.repuestosUsados !== undefined) {
-        datosActualizados.repuestosUsados = body.repuestosUsados;
-      }
-      if (body.nuevaFotoURL) {
-        datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
-      }
-    }
-    // --- FIN DE LA LÓGICA DE ESTADOS ---
-    
-    if (Object.keys(datosActualizados).length === 0) {
-      throw new Error('No se enviaron datos para actualizar.');
+    // Si no hay nada que actualizar (ej. solo se mandó 'estado: Finalizado' pero ya estaba 'Finalizado')
+    if (Object.keys(datosActualizados).length === 0 && !body.repuestosUsados && !body.nuevaFotoURL) {
+      // Permitimos que la llamada termine OK sin hacer nada
+      return NextResponse.json({ message: 'Sin cambios necesarios.' });
     }
 
     const otRef = adminDb.collection('ordenes-trabajo').doc(id);

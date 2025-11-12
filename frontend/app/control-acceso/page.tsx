@@ -1,36 +1,41 @@
 // frontend/app/control-acceso/page.tsx
-// (CÓDIGO ACTUALIZADO CON NOTIFICACIONES TOAST)
+// (CÓDIGO ACTUALIZADO: Rediseñado a "Lista de Verificación de Agendados")
 
 'use client'; 
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import toast from 'react-hot-toast'; 
+
+// --- Tipo de Dato ---
+type OrdenAgendada = {
+  id: string;
+  patente: string;
+  descripcionProblema: string;
+  fechaCreacion: { _seconds: number };
+};
 
 export default function ControlAccesoPage() {
   
-  // --- ¡ESTADOS ACTUALIZADOS! ---
-  const [patente, setPatente] = useState('');
-  const [chofer, setChofer] = useState('');
-  const [motivoIngreso, setMotivoIngreso] = useState('');
-  const [numeroChasis, setNumeroChasis] = useState(''); 
-  const [zonaOrigen, setZonaOrigen] = useState('');
-  
-  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
-  const [loading, setLoading] = useState(false);
-  // const [success, setSuccess] = useState(false); // <-- 2. Ya no lo usamos
+  // --- Estados ---
+  const [otsAgendadas, setOtsAgendadas] = useState<OrdenAgendada[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState(''); // Estado para el filtro de búsqueda
+  const [actualizandoId, setActualizandoId] = useState<string | null>(null); // Para deshabilitar botón
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // (El 'useEffect' de protección no cambia)
+  // --- Lógica de Protección y Carga ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        if (userProfile.rol !== 'Guardia') {
-          if (userProfile.rol === 'Mecánico') router.push('/mis-tareas');
-          else if (userProfile.rol === 'Jefe de Taller') router.push('/dashboard-admin');
-          else router.push('/');
+        if (userProfile.rol === 'Guardia') {
+          // Carga las OTs pendientes de llegada
+          fetchOtsAgendadas();
+        } else {
+          router.push('/'); 
         }
       } else if (!user) {
         router.push('/');
@@ -38,129 +43,121 @@ export default function ControlAccesoPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // --- ¡FUNCIÓN handleRegistrarIngreso ACTUALIZADA! ---
-  const handleRegistrarIngreso = async (e: React.FormEvent) => {
-    e.preventDefault(); 
-    
-    // Validación actualizada
-    if (!patente || !chofer || !motivoIngreso || !numeroChasis || !zonaOrigen) {
-      toast.error('Por favor, completa todos los campos.'); // <-- 3. Cambiado
-      return;
-    }
-
+  // --- Función de Carga de Datos ---
+  const fetchOtsAgendadas = async () => {
     setLoading(true);
     try {
-      // Body actualizado
-      const response = await fetch('/api/registros-acceso', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patente,
-          chofer,
-          motivoIngreso,
-          numeroChasis, 
-          zonaOrigen,
-        }),
-      });
-      if (!response.ok) throw new Error('Falló el registro del ingreso');
+      const response = await fetch('/api/ordenes-trabajo'); // Trae todas las OTs
+      if (!response.ok) throw new Error('No se pudieron cargar las OTs agendadas');
       
-      toast.success('¡Ingreso registrado exitosamente!'); // <-- 3. Cambiado
+      const data: any[] = await response.json();
       
-      // Limpia el formulario
-      setPatente('');
-      setChofer('');
-      setMotivoIngreso('');
-      setNumeroChasis(''); 
-      setZonaOrigen('');
+      // Filtra solo las que están 'Agendado'
+      const agendadas = data.filter(ot => ot.estado === 'Agendado');
+      setOtsAgendadas(agendadas);
+
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
     } finally {
-      setLoading(false); 
+      setLoading(false);
     }
   };
 
-  // (El 'if (authLoading...)' no cambia)
-  if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
-    return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
+  // --- Acción del Botón "Registrar Llegada" ---
+  const handleRegistrarLlegada = async (otId: string) => {
+    setActualizandoId(otId); // Bloquea este botón
+    try {
+      const response = await fetch(`/api/ordenes-trabajo/${otId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado: 'Pendiente', // El nuevo estado
+          accion: 'registrarLlegada' // El flag de seguridad de la API
+        }),
+      });
+
+      if (!response.ok) throw new Error('Error al registrar la llegada');
+      
+      toast.success('¡Llegada registrada! La OT fue enviada al pool del taller.');
+      
+      // Refresca la lista (quitando la OT que acaba de registrar)
+      setOtsAgendadas(actuales => actuales.filter(ot => ot.id !== otId));
+
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setActualizandoId(null); // Desbloquea el botón (en caso de error)
+    }
+  };
+
+  // --- Lógica de Renderizado ---
+  if (authLoading || !userProfile) {
+    return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
   
-  // --- ¡JSX ACTUALIZADO! ---
+  // Filtra las OTs según la búsqueda (en mayúsculas y sin espacios)
+  const otsFiltradas = otsAgendadas.filter(ot => 
+    ot.patente.replace(/\s+/g, '').toUpperCase()
+    .includes(busqueda.replace(/\s+/g, '').toUpperCase())
+  );
+
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 text-center">
-          Control de Acceso Vehicular
-        </h1>
-        <p className="text-center text-gray-500 mb-6">Rol: Guardia de Seguridad</p>
-        <form onSubmit={handleRegistrarIngreso} className="space-y-4">
-          
-          {/* Patente */}
-          <div>
-            <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
-            <input
-              type="text" id="patente" value={patente}
-              onChange={(e) => setPatente(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-            />
-          </div>
+    <div className="p-8 text-gray-900">
+      
+      <h1 className="text-3xl font-bold mb-4">Control de Acceso (Vehículos Agendados)</h1>
+      <p className="text-gray-600 mb-6">Lista de OTs creadas por un Admin que están pendientes de llegar al taller.</p>
 
-          {/* Chofer */}
-          <div>
-            <label htmlFor="chofer" className="block text-sm font-medium text-gray-700">Nombre del Chofer</label>
-            <input
-              type="text" id="chofer" value={chofer}
-              onChange={(e) => setChofer(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-            />
-          </div>
+      {/* Barra de Búsqueda por Patente */}
+      <div className="mb-6">
+        <label htmlFor="busqueda" className="block text-sm font-medium text-gray-700">Buscar Patente</label>
+        <input
+          type="text"
+          id="busqueda"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Ej: AB-CD-12"
+          className="mt-1 block w-full max-w-md px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
+        />
+      </div>
 
-          {/* Número de Chasis */}
-          <div>
-            <label htmlFor="numeroChasis" className="block text-sm font-medium text-gray-700">
-              Número de Chasis
-            </label>
-            <input
-              type="text"
-              id="numeroChasis"
-              value={numeroChasis}
-              onChange={(e) => setNumeroChasis(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-              placeholder="Últimos 6 dígitos"
-            />
-          </div>
-
-          {/* Zona de Origen */}
-          <div>
-            <label htmlFor="zonaOrigen" className="block text-sm font-medium text-gray-700">Zona de Origen</label>
-            <input
-              type="text" id="zonaOrigen" value={zonaOrigen}
-              onChange={(e) => setZonaOrigen(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-            />
-          </div>
-
-          {/* Motivo de Ingreso */}
-          <div>
-            <label htmlFor="motivoIngreso" className="block text-sm font-medium text-gray-700">Motivo de Ingreso</label>
-            <textarea
-              id="motivoIngreso" value={motivoIngreso}
-              onChange={(e) => setMotivoIngreso(e.target.value)}
-              rows={3}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-            />
-          </div>
-
-          {/* Los mensajes de error/éxito ahora son Toasts (se quitan del HTML) */}
-
-          {/* Botón de Registrar */}
-          <button
-            type="submit"
-            disabled={loading} 
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loading ? 'Registrando...' : 'Registrar Ingreso'}
-          </button>
-        </form>
+      {/* --- Tabla de OTs Agendadas --- */}
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción / Motivo</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Agendamiento</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {loading ? (
+              <tr><td colSpan={4} className="px-6 py-4 text-center">Cargando OTs agendadas...</td></tr>
+            ) : otsFiltradas.length > 0 ? (
+              otsFiltradas.map(ot => (
+                <tr key={ot.id}>
+                  <td className="px-6 py-4 font-medium">{ot.patente}</td>
+                  <td className="px-6 py-4">{ot.descripcionProblema}</td>
+                  <td className="px-6 py-4">{new Date(ot.fechaCreacion._seconds * 1000).toLocaleString('es-CL')}</td>
+                  <td className="px-6 py-4">
+                    <button 
+                      onClick={() => handleRegistrarLlegada(ot.id)}
+                      disabled={actualizandoId === ot.id} // Deshabilita mientras se procesa
+                      className="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700 disabled:bg-gray-400"
+                    >
+                      {actualizandoId === ot.id ? 'Registrando...' : 'Registrar Llegada'}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr><td colSpan={4} className="px-6 py-4 text-center">
+                {busqueda ? 'No se encontraron OTs con esa patente.' : 'No hay OTs pendientes de llegada.'}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
