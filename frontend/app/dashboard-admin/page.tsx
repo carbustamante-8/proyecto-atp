@@ -1,5 +1,5 @@
 // frontend/app/dashboard-admin/page.tsx
-// (CÓDIGO ACTUALIZADO: "Gerente" eliminado de la seguridad)
+// (CÓDIGO ACTUALIZADO CON MODAL SIN FONDO NEGRO)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -18,41 +18,32 @@ type Usuario = {
 
 export default function DashboardAdminPage() {
   
-  // --- HOOKS ---
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [dataLoading, setDataLoading] = useState(false); 
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   
-  // --- ESTADOS PARA EL MODAL DE ELIMINAR ---
   const [modalAbierto, setModalAbierto] = useState(false);
   const [usuarioParaBorrar, setUsuarioParaBorrar] = useState<{id: string, nombre: string} | null>(null);
 
-  // --- LÓGICA DE PROTECCIÓN Y CARGA ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        
-        // --- ¡LISTA DE SEGURIDAD CORREGIDA! ---
-        // (Roles que SÍ pueden ver esta página)
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
-        // --- FIN DE LA CORRECCIÓN ---
-
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador']; // Sin Gerente
         if (rolesPermitidos.includes(userProfile.rol)) {
-          fetchUsuarios(); // ¡Permitido! Carga los datos
+          fetchUsuarios();
         } else {
-          // ¡No permitido! Redirige
           if (userProfile.rol === 'Mecánico') router.push('/mis-tareas');
           else if (userProfile.rol === 'Guardia') router.push('/control-acceso');
+          else if (userProfile.rol === 'Gerente') router.push('/generador-reportes');
           else router.push('/');
         }
       } else if (!user) {
-        router.push('/'); // Si no hay usuario, al login
+        router.push('/');
       }
     }
   }, [user, userProfile, authLoading, router]);
   
-  // --- (Función 'fetchUsuarios' - Sin cambios) ---
   const fetchUsuarios = async () => {
     setDataLoading(true);
     try {
@@ -67,7 +58,7 @@ export default function DashboardAdminPage() {
     }
   };
 
-  // --- (Lógica del Modal - Sin cambios) ---
+  // --- Lógica del Modal ---
   const handleAbrirModalEliminar = (id: string, nombre: string) => {
     setUsuarioParaBorrar({ id, nombre });
     setModalAbierto(true);
@@ -95,26 +86,23 @@ export default function DashboardAdminPage() {
     }
   };
 
-  // --- LÓGICA DE RETORNO TEMPRANO ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
-  // (Guardia final por si acaso)
   if (!['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
      return <div className="p-8 text-gray-900">Acceso denegado.</div>;
   }
 
-  // --- RENDERIZADO DE LA PÁGINA ---
   return (
     <>
-      {/* --- MODAL DE CONFIRMACIÓN DE ELIMINAR --- */}
+      {/* --- MODAL (SIN FONDO NEGRO) --- */}
       {modalAbierto && usuarioParaBorrar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div 
-            className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" 
+            className="absolute inset-0" 
             onClick={handleCerrarModalEliminar}
           ></div>
-          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
+          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full border border-gray-300">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
             <p className="text-gray-700 mb-6">
               ¿Estás seguro de que quieres eliminar al usuario 
@@ -140,8 +128,6 @@ export default function DashboardAdminPage() {
       {/* --- FIN DEL MODAL --- */}
       
       <div className="p-8 text-gray-900">
-        
-        {/* Cabecera (Limpia) */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Administración de Usuarios</h1>
           <div>
@@ -152,8 +138,6 @@ export default function DashboardAdminPage() {
             </Link>
           </div>
         </div>
-
-        {/* Tabla de Usuarios */}
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

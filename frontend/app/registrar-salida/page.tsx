@@ -1,5 +1,5 @@
 // frontend/app/registrar-salida/page.tsx
-// (CÓDIGO CORREGIDO: MODAL SIN FONDO NEGRO)
+// (CÓDIGO CORREGIDO: MODAL SIN NINGÚN FONDO NEGRO)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -34,7 +34,7 @@ export default function RegistrarSalidaPage() {
           fetchRegistrosAbiertos();
         } else {
           if (userProfile.rol === 'Mecánico') router.push('/mis-tareas');
-          else if (userProfile.rol === 'Jefe de Taller') router.push('/dashboard-admin');
+          else if (['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'].includes(userProfile.rol)) router.push('/dashboard-admin');
           else router.push('/');
         }
       } else if (!user) {
@@ -57,7 +57,6 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  // --- Lógica del Modal ---
   const handleAbrirModal = (id: string, patente: string) => {
     setRegistroParaBorrar({ id, patente });
     setModalAbierto(true);
@@ -90,23 +89,28 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  // --- Lógica de Retorno Temprano ---
   if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // --- JSX (CON EL MODAL ARREGLADO) ---
   return (
     <>
       {/* --- EL MODAL (SIN OVERLAY NEGRO) --- */}
       {modalAbierto && registroParaBorrar && (
         
         // Contenedor principal (fijo, z-50, centrado)
-        // ¡SIN FONDO NEGRO!
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           
-          {/* El CONTENIDO (caja blanca) */}
-          <div className="bg-white p-8 rounded-lg shadow-xl max-w-sm w-full border border-gray-300">
+          {/* 1. EL OVERLAY (¡TRANSPARENTE!) */}
+          {/* Sigue aquí para capturar el clic "fuera del modal" */}
+          <div 
+            className="absolute inset-0" 
+            onClick={handleCerrarModal}
+          ></div>
+          
+          {/* 2. El CONTENIDO (caja blanca) */}
+          {/* 'relative' lo pone por encima del overlay transparente */}
+          <div className="relative bg-white p-8 rounded-lg shadow-xl max-w-sm w-full border border-gray-300">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
             <p className="text-gray-700 mb-6">
               ¿Estás seguro de que quieres registrar la salida del vehículo patente 
