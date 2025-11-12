@@ -77,7 +77,12 @@ export default function Navbar() {
               <Link href="/registrar-salida" className="hover:text-blue-600">Registrar Salida</Link>
             </>
           )}
-
+          {/* --- ¡AÑADE ESTE BLOQUE PARA CONDUCTORES! --- */}
+          {userProfile.rol === 'Conductor' && (
+            <>
+              <Link href="/portal-conductor" className="hover:text-blue-600">Mi Portal</Link>
+            </>
+          )}
         </div>
 
         {/* 3. Información de Usuario y Logout (Sin cambios) */}
