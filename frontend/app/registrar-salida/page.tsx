@@ -1,5 +1,5 @@
 // frontend/app/registrar-salida/page.tsx
-// (CÓDIGO CORREGIDO: MODAL SIN NINGÚN FONDO NEGRO)
+// (CÓDIGO ACTUALIZADO: Ahora gestiona salidas de OTs Finalizadas)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -7,49 +7,46 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; 
 
-type RegistroIngreso = {
+type OTFinalizada = {
   id: string;
   patente: string;
-  chofer: string;
-  motivoIngreso: string;
-  numeroChasis: string; 
-  zonaOrigen: string;   
-  fechaIngreso: { _seconds: number };
+  nombre_conductor?: string;
+  mecanicoAsignadoNombre?: string;
+  fechaIngresoTaller?: { _seconds: number };
+  fechaSalidaTaller?: any; // Para filtrar
+  estado: string;
 };
 
 export default function RegistrarSalidaPage() {
   
-  const [registrosAbiertos, setRegistrosAbiertos] = useState<RegistroIngreso[]>([]);
+  const [otsParaSalida, setOtsParaSalida] = useState<OTFinalizada[]>([]);
   const [loading, setLoading] = useState(true);
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [registroParaBorrar, setRegistroParaBorrar] = useState<{id: string, patente: string} | null>(null);
-
   useEffect(() => {
     if (!authLoading) {
-      if (user && userProfile) {
-        if (userProfile.rol === 'Guardia') {
-          fetchRegistrosAbiertos();
-        } else {
-          if (userProfile.rol === 'Mecánico') router.push('/mis-tareas');
-          else if (['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'].includes(userProfile.rol)) router.push('/dashboard-admin');
-          else router.push('/');
-        }
-      } else if (!user) {
+      if (user && userProfile && userProfile.rol === 'Guardia') {
+        fetchOtsParaSalida();
+      } else if (user) {
         router.push('/');
       }
     }
   }, [user, userProfile, authLoading, router]);
 
-  const fetchRegistrosAbiertos = async () => {
+  const fetchOtsParaSalida = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/registros-acceso');
-      if (!response.ok) throw new Error('No se pudieron cargar los vehículos');
-      const data = await response.json();
-      setRegistrosAbiertos(data);
+      const response = await fetch('/api/ordenes-trabajo');
+      if (!response.ok) throw new Error('Error al cargar vehículos');
+      const data: OTFinalizada[] = await response.json();
+      
+      // Filtra: Estado Finalizado/Cerrado Y que NO tenga fecha de salida aún
+      const salidaPendiente = data.filter(ot => 
+        (ot.estado === 'Finalizado' || ot.estado === 'Cerrado') && 
+        !ot.fechaSalidaTaller
+      );
+      setOtsParaSalida(salidaPendiente);
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -57,132 +54,59 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  const handleAbrirModal = (id: string, patente: string) => {
-    setRegistroParaBorrar({ id, patente });
-    setModalAbierto(true);
-  };
-  const handleCerrarModal = () => {
-    setModalAbierto(false);
-    setRegistroParaBorrar(null);
-  };
-  const handleConfirmarSalida = async () => {
-    if (!registroParaBorrar) return;
+  const handleRegistrarSalida = async (otId: string) => {
+    if(!confirm("¿Confirmar salida del vehículo?")) return;
     try {
-      const response = await fetch('/api/control-salida', {
+      const response = await fetch(`/api/ordenes-trabajo/${otId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: registroParaBorrar.id }), 
+        body: JSON.stringify({ accion: 'registrarSalida' }),
       });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Falló el registro de la salida');
-      }
-      setRegistrosAbiertos(registrosActuales =>
-        registrosActuales.filter(reg => reg.id !== registroParaBorrar.id)
-      );
-      toast.success(`¡Salida de ${registroParaBorrar.patente} registrada!`); 
+      if (!response.ok) throw new Error('Falló el registro de salida');
+      
+      toast.success('¡Salida registrada!');
+      setOtsParaSalida(prev => prev.filter(ot => ot.id !== otId));
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
-      else toast.error('Un error desconocido ocurrió');
-    } finally {
-      handleCerrarModal();
     }
   };
 
-  if (authLoading || !userProfile || userProfile.rol !== 'Guardia') {
-    return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
-  }
+  if (authLoading || !userProfile) return <div className="p-8">Cargando...</div>;
   
   return (
-    <>
-      {/* --- EL MODAL (SIN OVERLAY NEGRO) --- */}
-      {modalAbierto && registroParaBorrar && (
-        
-        // Contenedor principal (fijo, z-50, centrado)
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          
-          {/* 1. EL OVERLAY (¡TRANSPARENTE!) */}
-          {/* Sigue aquí para capturar el clic "fuera del modal" */}
-          <div 
-            className="absolute inset-0" 
-            onClick={handleCerrarModal}
-          ></div>
-          
-          {/* 2. El CONTENIDO (caja blanca) */}
-          {/* 'relative' lo pone por encima del overlay transparente */}
-          <div className="relative bg-white p-8 rounded-lg shadow-xl max-w-sm w-full border border-gray-300">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
-            <p className="text-gray-700 mb-6">
-              ¿Estás seguro de que quieres registrar la salida del vehículo patente 
-              <strong className="text-blue-600"> {registroParaBorrar.patente}</strong>?
-            </p>
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={handleCerrarModal}
-                className="px-4 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmarSalida}
-                className="px-4 py-2 rounded-md text-white bg-green-600 hover:bg-green-700 font-medium"
-              >
-                Confirmar Salida
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* --- FIN DEL MODAL --- */}
-
-      {/* --- PÁGINA PRINCIPAL --- */}
-      <div className="p-8 text-gray-900">
-        <h1 className="text-3xl font-bold mb-6">Registrar Salida de Vehículo</h1>
-        <p className="text-gray-600 mb-6">Lista de vehículos actualmente DENTRO del taller.</p>
-        
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chofer</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motivo Ingreso</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Ingreso</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
+    <div className="p-8 text-gray-900">
+      <h1 className="text-3xl font-bold mb-6">Registrar Salida de Vehículo</h1>
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Patente</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Conductor</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Mecánico</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Ingreso</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Acción</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {loading ? <tr><td colSpan={5} className="p-4 text-center">Cargando...</td></tr> : 
+             otsParaSalida.length > 0 ? otsParaSalida.map(ot => (
+              <tr key={ot.id}>
+                <td className="px-6 py-4 font-bold">{ot.patente}</td>
+                <td className="px-6 py-4">{ot.nombre_conductor || 'N/A'}</td>
+                <td className="px-6 py-4">{ot.mecanicoAsignadoNombre}</td>
+                <td className="px-6 py-4">
+                  {ot.fechaIngresoTaller ? new Date(ot.fechaIngresoTaller._seconds * 1000).toLocaleString() : '-'}
+                </td>
+                <td className="px-6 py-4">
+                  <button onClick={() => handleRegistrarSalida(ot.id)} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">
+                    Registrar Salida
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {loading && (
-                <tr><td colSpan={5} className="px-6 py-4 text-center">Cargando vehículos...</td></tr>
-              )}
-              {!loading && registrosAbiertos.length > 0 ? (
-                registrosAbiertos.map(reg => (
-                  <tr key={reg.id}>
-                    <td className="px-6 py-4 font-medium">{reg.patente}</td>
-                    <td className="px-6 py-4">{reg.chofer}</td>
-                    <td className="px-6 py-4">{reg.motivoIngreso}</td>
-                    <td className="px-6 py-4">
-                      {new Date(reg.fechaIngreso._seconds * 1000).toLocaleString('es-CL')}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium">
-                      <button 
-                        onClick={() => handleAbrirModal(reg.id, reg.patente)}
-                        className="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700"
-                      >
-                        Registrar Salida
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                !loading && registrosAbiertos.length === 0 && (
-                  <tr><td colSpan={5} className="px-6 py-4 text-center">No hay vehículos dentro del taller.</td></tr>
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
+            )) : <tr><td colSpan={5} className="p-4 text-center">No hay vehículos listos para salir.</td></tr>}
+          </tbody>
+        </table>
       </div>
-    </>
+    </div>
   );
 }

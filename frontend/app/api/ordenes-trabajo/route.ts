@@ -1,14 +1,10 @@
 // app/api/ordenes-trabajo/route.ts
-// (CÓDIGO ACTUALIZADO: POST ahora crea OTs en estado 'Agendado')
+// (CÓDIGO ACTUALIZADO: POST ahora guarda 'nombre_conductor')
 
 import { NextResponse, NextRequest } from 'next/server'; 
 import { adminDb } from '@/lib/firebase-admin';
 import * as admin from 'firebase-admin'; 
 
-/**
- * Función GET: (Sin cambios)
- * Se usa para el tablero del mecánico (filtrado) y ahora para el Guardia.
- */
 export async function GET(request: NextRequest) { 
   try {
     const { searchParams } = new URL(request.url);
@@ -16,12 +12,10 @@ export async function GET(request: NextRequest) {
     let query = adminDb.collection('ordenes-trabajo');
     
     if (mecanicoId) {
-      console.log(`GET /api/ordenes-trabajo: Filtrando para mecanicoId: ${mecanicoId}`);
       const otSnapshot = await query.where('mecanicoAsignadoId', '==', mecanicoId).get();
       const ordenes = otSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       return NextResponse.json(ordenes);
     } else {
-      console.log('GET /api/ordenes-trabajo: Obteniendo TODAS las OTs...');
       const otSnapshot = await query.get();
       const ordenes = otSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       return NextResponse.json(ordenes);
@@ -32,27 +26,24 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * Función POST: (¡MODIFICADA!)
- * El estado inicial ahora es 'Agendado'.
- */
 export async function POST(request: Request) {
   try {
     const body = await request.json(); 
-    console.log('POST /api/ordenes-trabajo: Creando nueva OT (Agendada)...');
     
     if (!body.patente || !body.descripcionProblema) {
-      return NextResponse.json({ error: 'Faltan datos (Patente y Descripción)' }, { status: 400 });
+      return NextResponse.json({ error: 'Faltan datos' }, { status: 400 });
     }
     
     const datosOT = {
       patente: body.patente,
       descripcionProblema: body.descripcionProblema,
       
-      // Valores por defecto para el nuevo flujo de Agendamiento
+      // ¡NUEVO CAMPO!
+      nombre_conductor: body.nombre_conductor || 'No registrado', 
+      
       mecanicoAsignadoId: null, 
       mecanicoAsignadoNombre: null, 
-      estado: 'Agendado', // <-- ¡NUEVO ESTADO INICIAL!
+      estado: 'Agendado', 
       
       fechaCreacion: admin.firestore.FieldValue.serverTimestamp(),
       fotos: [], 

@@ -1,5 +1,5 @@
 // frontend/app/mis-tareas/page.tsx
-// (CÓDIGO ACTUALIZADO: Implementa la lógica de "Pool de Tareas")
+// (CÓDIGO CORREGIDO: El "Pool" vuelve a ser la columna "Pendiente")
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -11,9 +11,8 @@ import toast from 'react-hot-toast';
 type OrdenDeTrabajo = {
   id: string;
   descripcionProblema: string; 
-  estado: 'Pendiente' | 'En Progreso' | 'Finalizado';
+  estado: 'Agendado' | 'Pendiente' | 'En Progreso' | 'Finalizado' | 'Cerrado' | 'Anulado';
   patente: string;
-  // ¡Campos necesarios para el filtro!
   mecanicoAsignadoId?: string | null; 
 };
 
@@ -23,15 +22,13 @@ export default function MisTareasPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- useEffect (Simplificado) ---
   useEffect(() => {
+    // ... (Protección y Carga - sin cambios) ...
     if (!authLoading) {
       if (user && userProfile) {
         if (userProfile.rol === 'Mecánico') {
-          // Llama a fetchOrdenes (ahora carga todo)
           fetchOrdenes();
         } else {
-          // Lógica de redirección (sin cambios)
           if (userProfile.rol === 'Jefe de Taller') router.push('/dashboard-admin');
           else if (userProfile.rol === 'Guardia') router.push('/control-acceso');
           else router.push('/');
@@ -42,12 +39,10 @@ export default function MisTareasPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // --- fetchOrdenes (Modificado) ---
-  // Ahora carga TODAS las OTs para filtrar en el cliente
   const fetchOrdenes = async () => {
+    // ... (Carga de Datos - sin cambios) ...
     setLoading(true);
     try {
-      // ¡Ya no pasa el ID del mecánico! Trae todo.
       const response = await fetch('/api/ordenes-trabajo');
       if (!response.ok) throw new Error('No se pudieron cargar las órdenes de trabajo');
       const data = await response.json();
@@ -63,19 +58,21 @@ export default function MisTareasPage() {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // --- ¡LÓGICA DE FILTRADO (POOL)! ---
+  // --- ¡LÓGICA DE FILTRADO (POOL) CORREGIDA! ---
   const mecanicoIdActual = userProfile.id;
 
-  // 1. "Pendiente" (El Pool): Muestra TODAS las OTs 'Pendiente'
-  const pendientes = ordenes.filter(ot => ot.estado === 'Pendiente');
+  // 1. "Pool" (Pendiente / Sin Asignar):
+  const poolTareas = ordenes.filter(ot => 
+    ot.estado === 'Pendiente' // <-- CORREGIDO
+  );
   
-  // 2. "En Progreso": Muestra solo las MÍAS 'En Progreso'
-  const enProgreso = ordenes.filter(ot => 
+  // 2. "Mis Tareas En Progreso":
+  const misTareasEnProgreso = ordenes.filter(ot => 
     ot.estado === 'En Progreso' && ot.mecanicoAsignadoId === mecanicoIdActual
   );
   
-  // 3. "Finalizado": Muestra solo las MÍAS 'Finalizado'
-  const finalizadas = ordenes.filter(ot => 
+  // 3. "Mis Tareas Finalizadas":
+  const misFinalizadas = ordenes.filter(ot => 
     ot.estado === 'Finalizado' && ot.mecanicoAsignadoId === mecanicoIdActual
   );
   // --- FIN DE LA LÓGICA ---
@@ -83,16 +80,16 @@ export default function MisTareasPage() {
   return (
     <div className="p-8 text-gray-900">
       <h1 className="text-3xl font-bold">Mi Tablero</h1>
-      <p className="text-gray-600 mb-6">Vista personal de las órdenes de trabajo asignadas</p>
+      <p className="text-gray-600 mb-6">Vista personal de las órdenes de trabajo.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* Columna Pendientes (El Pool) */}
+        {/* Columna 1: El "Pool" (Pendiente) */}
         <div className="bg-gray-100 p-4 rounded-lg shadow">
           <h2 className="font-bold text-xl mb-4 text-red-600">Pool de Tareas (Pendiente)</h2>
           <div className="space-y-3">
-            {loading ? <p>Cargando...</p> : pendientes.length > 0 ? (
-              pendientes.map(ot => (
+            {loading ? <p>Cargando...</p> : poolTareas.length > 0 ? (
+              poolTareas.map(ot => (
                 <Link href={`/tareas-detalle/${ot.id}`} key={ot.id}>
                   <div className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
                     <p className="font-semibold">{ot.descripcionProblema}</p>
@@ -106,12 +103,12 @@ export default function MisTareasPage() {
           </div>
         </div>
         
-        {/* Columna En Progreso (Mis Tareas) */}
+        {/* Columna 2: Mis Tareas En Progreso */}
         <div className="bg-gray-100 p-4 rounded-lg shadow">
           <h2 className="font-bold text-xl mb-4 text-yellow-600">Mis Tareas (En Progreso)</h2>
           <div className="space-y-3">
-             {loading ? <p>Cargando...</p> : enProgreso.length > 0 ? (
-              enProgreso.map(ot => (
+             {loading ? <p>Cargando...</p> : misTareasEnProgreso.length > 0 ? (
+              misTareasEnProgreso.map(ot => (
                 <Link href={`/tareas-detalle/${ot.id}`} key={ot.id}>
                   <div className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
                     <p className="font-semibold">{ot.descripcionProblema}</p>
@@ -125,12 +122,12 @@ export default function MisTareasPage() {
           </div>
         </div>
         
-        {/* Columna Finalizadas (Mis Tareas) */}
+        {/* Columna 3: Mis Tareas Finalizadas */}
         <div className="bg-gray-100 p-4 rounded-lg shadow">
           <h2 className="font-bold text-xl mb-4 text-green-600">Mis Tareas (Finalizadas)</h2>
            <div className="space-y-3">
-            {loading ? <p>Cargando...</p> : finalizadas.length > 0 ? (
-              finalizadas.map(ot => (
+            {loading ? <p>Cargando...</p> : misFinalizadas.length > 0 ? (
+              misFinalizadas.map(ot => (
                 <Link href={`/tareas-detalle/${ot.id}`} key={ot.id}>
                   <div className="bg-white p-3 rounded shadow cursor-pointer hover:shadow-md">
                     <p className="font-semibold">{ot.descripcionProblema}</p>

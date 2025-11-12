@@ -1,13 +1,14 @@
 // frontend/app/portal-conductor/page.tsx
+// (CÓDIGO ACTUALIZADO: Añadida la tabla "Estado de mis Solicitudes")
 
 'use client'; 
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext'; // Importar el "Cerebro"
-import toast from 'react-hot-toast'; // Para notificaciones
+import { useAuth } from '@/context/AuthContext'; 
+import toast from 'react-hot-toast'; 
 
-// Tipo para el vehículo asignado
+// (Tipo VehiculoAsignado sin cambios)
 type VehiculoAsignado = {
   id: string;
   patente: string;
@@ -17,57 +18,62 @@ type VehiculoAsignado = {
   estado: string;
 };
 
+// --- ¡NUEVO! Tipo para el Panel de Estado ---
+type SolicitudConEstado = {
+  id: string;
+  descripcion: string;
+  fechaSolicitud: { _seconds: number };
+  estadoSolicitud: 'Pendiente' | 'Procesado';
+  estadoOT: 'Agendado' | 'En Progreso' | 'Finalizado' | 'Cerrado' | 'Anulado' | null;
+  fechaIngresoTaller?: { _seconds: number } | null;
+};
+// --- Fin Tipo ---
+
 export default function PortalConductorPage() {
   
-  // --- HOOKS ---
+  // --- Estados (sin cambios) ---
   const [miVehiculo, setMiVehiculo] = useState<VehiculoAsignado | null>(null);
   const [loadingVehiculo, setLoadingVehiculo] = useState(true);
-  
-  // Estados para el formulario de solicitud
   const [descripcionFalla, setDescripcionFalla] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // --- ¡NUEVO! Estados para el Panel ---
+  const [misSolicitudes, setMisSolicitudes] = useState<SolicitudConEstado[]>([]);
+  const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
+  // --- Fin Nuevo ---
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- LÓGICA DE PROTECCIÓN Y CARGA DE DATOS ---
+  // --- useEffect (ACTUALIZADO) ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        
-        // --- ¡EL GUARDIA! ---
         if (userProfile.rol === 'Conductor') {
-          // 1. ¡PERMITIDO! Carga los datos
-          fetchMiVehiculo(userProfile.id); // Pasa el ID del conductor
+          // 1. Carga el vehículo (sin cambios)
+          fetchMiVehiculo(userProfile.id); 
+          // 2. ¡NUEVO! Carga el panel de solicitudes
+          fetchMisSolicitudes(userProfile.id);
         } else {
-          // 2. ¡NO PERMITIDO! Redirige
-          console.warn(`Acceso denegado a /portal-conductor. Rol: ${userProfile.rol}`);
           router.push('/'); 
         }
-        // --- FIN DEL GUARDIA ---
-        
       } else if (!user) {
         router.push('/');
       }
     }
   }, [user, userProfile, authLoading, router]);
 
-  // Función para buscar el vehículo del conductor
+  // (fetchMiVehiculo sin cambios)
   const fetchMiVehiculo = async (conductorId: string) => {
     setLoadingVehiculo(true);
     try {
-      // Llama a la API que acabamos de crear
       const response = await fetch(`/api/vehiculos/por-conductor/${conductorId}`);
-      if (!response.ok) {
-        // Si da 404 (No asignado), no es un error, solo no hay vehículo
-        if (response.status === 404) {
-          setMiVehiculo(null);
-        } else {
-          throw new Error('No se pudo cargar tu vehículo');
-        }
+      if (response.status === 404) {
+        setMiVehiculo(null);
+      } else if (response.ok) {
+        setMiVehiculo(await response.json());
       } else {
-        const data = await response.json();
-        setMiVehiculo(data);
+        throw new Error('No se pudo cargar tu vehículo');
       }
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
@@ -75,22 +81,28 @@ export default function PortalConductorPage() {
       setLoadingVehiculo(false);
     }
   };
+  
+  // --- ¡NUEVA FUNCIÓN! ---
+  const fetchMisSolicitudes = async (conductorId: string) => {
+    setLoadingSolicitudes(true);
+    try {
+      const response = await fetch(`/api/solicitudes/por-conductor/${conductorId}`);
+      if (!response.ok) throw new Error('No se pudieron cargar tus solicitudes');
+      const data = await response.json();
+      setMisSolicitudes(data);
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setLoadingSolicitudes(false);
+    }
+  };
 
-  // --- Función para ENVIAR LA SOLICITUD ---
+  // --- handleSolicitud (ACTUALIZADO) ---
   const handleSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!descripcionFalla) {
-      toast.error('Por favor, describe la falla o el motivo.');
-      return;
-    }
-    if (!userProfile || !miVehiculo) {
-      toast.error('No se pudo cargar tu perfil o vehículo.');
-      return;
-    }
-
+    if (!descripcionFalla || !userProfile || !miVehiculo) return;
     setIsSubmitting(true);
     try {
-      // Llama a la API que creamos en el PASO 1 de la propuesta
       const response = await fetch('/api/solicitudes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -101,13 +113,13 @@ export default function PortalConductorPage() {
           descripcion_falla: descripcionFalla,
         }),
       });
-
-      if (!response.ok) {
-        throw new Error('Falló el envío de la solicitud');
-      }
+      if (!response.ok) throw new Error('Falló el envío de la solicitud');
 
       toast.success('¡Solicitud enviada exitosamente!');
       setDescripcionFalla(''); // Limpia el formulario
+      
+      // ¡NUEVO! Refresca la lista de solicitudes
+      fetchMisSolicitudes(userProfile.id); 
 
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
@@ -115,8 +127,34 @@ export default function PortalConductorPage() {
       setIsSubmitting(false);
     }
   };
+  
+  // --- ¡NUEVA FUNCIÓN! ---
+  // Traduce los estados de la OT a mensajes claros para el Conductor
+  const getEstadoConductor = (sol: SolicitudConEstado): { texto: string, color: string } => {
+    if (sol.estadoOT === 'Anulado') {
+      return { texto: 'Solicitud Anulada', color: 'text-red-600' };
+    }
+    if (sol.estadoOT === 'Cerrado') {
+      return { texto: 'Retirado y Cerrado', color: 'text-gray-500' };
+    }
+    if (sol.estadoOT === 'Finalizado') {
+      // ¡Tu requisito!
+      return { texto: '¡LISTO PARA RETIRO!', color: 'text-green-600 font-bold' };
+    }
+    if (sol.estadoOT === 'En Progreso') {
+      return { texto: 'En Taller (En Progreso)', color: 'text-yellow-600' };
+    }
+    if (sol.estadoOT === 'Agendado') {
+      // ¡Tu requisito!
+      return { texto: 'Agendado (Pendiente de llegada)', color: 'text-blue-600' };
+    }
+    if (sol.estadoSolicitud === 'Pendiente') {
+      return { texto: 'Pendiente de Aprobación', color: 'text-gray-500' };
+    }
+    return { texto: 'Procesado', color: 'text-gray-500' };
+  };
 
-  // --- LÓGICA DE RETORNO TEMPRANO ---
+  // (Renderizado temprano sin cambios)
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
@@ -124,70 +162,104 @@ export default function PortalConductorPage() {
     return <div className="p-8 text-gray-900">Acceso denegado.</div>;
   }
 
-  // --- RENDERIZADO DE LA PÁGINA ---
+  // --- RENDERIZADO DE LA PÁGINA (ACTUALIZADO) ---
   return (
-    <div className="p-8 text-gray-900 max-w-4xl mx-auto"> 
+    <div className="p-8 text-gray-900 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8"> 
       
-      <h1 className="text-3xl font-bold mb-6">Portal del Conductor</h1>
-      
-      {/* --- SECCIÓN 1: MI VEHÍCULO --- */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-2xl font-semibold mb-4 text-blue-600">Mi Vehículo Asignado</h2>
-        {loadingVehiculo ? (
-          <p>Buscando tu vehículo...</p>
-        ) : miVehiculo ? (
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <span className="text-sm text-gray-500">Patente</span>
-              <p className="font-medium text-lg">{miVehiculo.patente}</p>
+      {/* Columna Izquierda (Acciones) */}
+      <div className="md:col-span-1 space-y-8">
+        
+        {/* --- SECCIÓN 1: MI VEHÍCULO --- */}
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-2xl font-semibold mb-4 text-blue-600">Mi Vehículo Asignado</h2>
+          {loadingVehiculo ? (
+            <p>Buscando tu vehículo...</p>
+          ) : miVehiculo ? (
+            <div className="space-y-3">
+              <div>
+                <span className="text-sm text-gray-500">Patente</span>
+                <p className="font-medium text-lg">{miVehiculo.patente}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">Modelo</span>
+                <p className="font-medium text-lg">{miVehiculo.modelo} ({miVehiculo.año})</p>
+              </div>
             </div>
-            <div>
-              <span className="text-sm text-gray-500">Modelo</span>
-              <p className="font-medium text-lg">{miVehiculo.modelo} ({miVehiculo.año})</p>
-            </div>
-            <div>
-              <span className="text-sm text-gray-500">Estado Actual</span>
-              <p className={`font-bold text-lg ${
-                miVehiculo.estado === 'Activo' ? 'text-green-600' : 'text-yellow-600'
-              }`}>
-                {miVehiculo.estado}
-              </p>
-            </div>
+          ) : (
+            <p className="text-gray-700">No tienes un vehículo asignado.</p>
+          )}
+        </div>
+
+        {/* --- SECCIÓN 2: SOLICITAR MANTENIMIENTO --- */}
+        {miVehiculo && (
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-2xl font-semibold mb-4 text-blue-600">Solicitar Mantenimiento</h2>
+            <form onSubmit={handleSolicitud} className="space-y-4">
+              <div>
+                <label htmlFor="descripcionFalla" className="block text-sm font-medium text-gray-700">
+                  Describe la falla o el mantenimiento requerido:
+                </label>
+                <textarea
+                  id="descripcionFalla"
+                  rows={4}
+                  value={descripcionFalla}
+                  onChange={(e) => setDescripcionFalla(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50"
+                  placeholder="Ej: Ruido extraño en el motor..."
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
+              </button>
+            </form>
           </div>
-        ) : (
-          <p className="text-gray-700">Actualmente no tienes un vehículo asignado en el sistema.</p>
         )}
       </div>
 
-      {/* --- SECCIÓN 2: SOLICITAR MANTENIMIENTO --- */}
-      {/* (Solo se muestra si SÍ tiene un vehículo asignado) */}
-      {miVehiculo && (
+      {/* --- ¡NUEVA! Columna Derecha (Estado de Solicitudes) --- */}
+      <div className="md:col-span-2">
         <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-semibold mb-4 text-blue-600">Solicitar Mantenimiento</h2>
-          <form onSubmit={handleSolicitud} className="space-y-4">
-            <div>
-              <label htmlFor="descripcionFalla" className="block text-sm font-medium text-gray-700">
-                Describe la falla o el mantenimiento requerido:
-              </label>
-              <textarea
-                id="descripcionFalla"
-                rows={4}
-                value={descripcionFalla}
-                onChange={(e) => setDescripcionFalla(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50"
-                placeholder="Ej: Ruido extraño en el motor al frenar, luz de check engine encendida, mantención de 100.000 km..."
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
-            >
-              {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
-            </button>
-          </form>
+          <h2 className="text-2xl font-semibold mb-4 text-blue-600">Estado de mis Solicitudes</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Solicitud</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loadingSolicitudes ? (
+                  <tr><td colSpan={3} className="px-6 py-4 text-center">Cargando solicitudes...</td></tr>
+                ) : misSolicitudes.length > 0 ? (
+                  misSolicitudes.map(sol => {
+                    const estado = getEstadoConductor(sol); // Llama a la función de traducción
+                    return (
+                      <tr key={sol.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {new Date(sol.fechaSolicitud._seconds * 1000).toLocaleString('es-CL')}
+                        </td>
+                        <td className="px-6 py-4">{sol.descripcion}</td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${estado.color}`}>
+                          {estado.texto}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr><td colSpan={3} className="px-6 py-4 text-center">No tienes solicitudes activas.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
+      </div>
+
     </div>
   );
 }

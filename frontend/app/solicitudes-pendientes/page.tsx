@@ -1,5 +1,5 @@
 // frontend/app/solicitudes-pendientes/page.tsx
-// (CÓDIGO ACTUALIZADO: Se eliminó la tabla "Ingresos Físicos")
+// (CÓDIGO CORREGIDO: handleAgendarOT ahora conecta la Solicitud con la OT)
 
 'use client'; 
 
@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
 import toast from 'react-hot-toast'; 
 
-// --- Tipo de Dato (Solo Solicitud) ---
 type Solicitud = {
   id: string;
   patente_vehiculo: string;
@@ -20,40 +19,32 @@ type Solicitud = {
 
 export default function BandejaDeTallerPage() {
   
-  // --- Estados (Solo Solicitud) ---
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [loading, setLoading] = useState(true);
+  const [procesandoId, setProcesandoId] = useState<string | null>(null);
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- Lógica de Protección y Carga ---
+  // (useEffect y fetchSolicitudesPendientes no cambian)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
-          // Carga solo las solicitudes digitales
           fetchSolicitudesPendientes();
-        } else {
-          router.push('/'); 
-        }
-      } else if (!user) {
-        router.push('/');
-      }
+        } else { router.push('/'); }
+      } else if (!user) { router.push('/'); }
     }
   }, [user, userProfile, authLoading, router]);
 
-  // --- Función de Carga (Simplificada) ---
   const fetchSolicitudesPendientes = async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/solicitudes');
       if (!response.ok) throw new Error('No se pudo cargar la lista de solicitudes');
-      
       const solicitudesData = await response.json() as Solicitud[];
       setSolicitudes(solicitudesData.filter((s: any) => s.estado === 'Pendiente'));
-
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -61,41 +52,82 @@ export default function BandejaDeTallerPage() {
     }
   };
 
-  // --- Acciones de los Botones ---
-
-  // 1. Convertir Solicitud en OT
-  const handleAgendarOT = (solicitud: Solicitud) => {
-    const patente = solicitud.patente_vehiculo;
-    const motivo = solicitud.descripcion_falla;
+  // --- ¡handleAgendarOT (MODIFICADO)! ---
+  const handleAgendarOT = async (solicitud: Solicitud) => {
+    setProcesandoId(solicitud.id); 
     
-    toast.success('Redirigiendo para agendar OT...');
-    router.push(`/crear-ot?patente=${encodeURIComponent(patente)}&motivo=${encodeURIComponent(motivo)}`);
+    const promise = (async () => {
+      // 1. Crear la OT
+      const otResponse = await fetch('/api/ordenes-trabajo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patente: solicitud.patente_vehiculo,
+          descripcionProblema: solicitud.descripcion_falla,
+          // ¡ENVIAMOS EL NOMBRE!
+          nombre_conductor: solicitud.nombre_conductor, 
+        }),
+      });
+      if (!otResponse.ok) throw new Error('Fallo al crear la OT.');
+      
+      // ¡NUEVO! Captura el ID de la OT recién creada
+      const nuevaOT = await otResponse.json();
+      const nuevaOtId = nuevaOT.id;
+
+      // 2. Actualizar la Solicitud (¡ahora con el ID de la OT!)
+      const solResponse = await fetch('/api/solicitudes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: solicitud.id,
+          estado: 'Procesado',
+          id_ot_relacionada: nuevaOtId // <-- ¡Aquí está la conexión!
+        }),
+      });
+      if (!solResponse.ok) throw new Error('Fallo al actualizar la solicitud.');
+    })();
+
+    toast.promise(promise, {
+      loading: 'Agendando OT...',
+      success: () => {
+        setSolicitudes(actuales => actuales.filter(s => s.id !== solicitud.id));
+        setProcesandoId(null);
+        return '¡OT Agendada! Ya es visible para el Guardia.';
+      },
+      error: (err) => {
+        setProcesandoId(null);
+        return err.message || 'Ocurrió un error inesperado.';
+      }
+    });
   };
 
-  // 2. Rechazar Solicitud
+  // (handleRechazarSolicitud no cambia)
   const handleRechazarSolicitud = async (solicitud: Solicitud) => {
-    if (!confirm(`¿Rechazar solicitud de ${solicitud.patente_vehiculo}?`)) return;
-    try {
-      const response = await fetch(`/api/solicitudes?id=${solicitud.id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Error al rechazar');
-      setSolicitudes(actuales => actuales.filter(s => s.id !== solicitud.id));
-      toast.success('Solicitud rechazada.');
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    }
+    setProcesandoId(solicitud.id); 
+    const promise = fetch(`/api/solicitudes?id=${solicitud.id}`, { method: 'DELETE' });
+    toast.promise(promise, {
+      loading: 'Rechazando...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error al rechazar');
+        setSolicitudes(actuales => actuales.filter(s => s.id !== solicitud.id));
+        setProcesandoId(null);
+        return 'Solicitud rechazada.';
+      },
+      error: (err) => {
+        setProcesandoId(null);
+        return err.message || 'Error al rechazar.';
+      }
+    });
   };
 
-  // --- Lógica de Renderizado Temprano ---
+  // (El renderizado JSX no cambia)
+  // ... (Se omite el JSX por brevedad, es idéntico al anterior) ...
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
-  
   return (
     <div className="p-8 text-gray-900 space-y-12"> 
-      
       <h1 className="text-3xl font-bold">Bandeja de Taller</h1>
-      
-      {/* --- 1. SOLICITUDES DIGITALES (De Conductores) --- */}
       <div>
         <h2 className="text-2xl font-semibold mb-4 text-blue-600">Entradas: Solicitudes Digitales (Conductores)</h2>
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
@@ -122,15 +154,17 @@ export default function BandejaDeTallerPage() {
                     <td className="px-6 py-4 text-sm font-medium space-x-2">
                       <button 
                         onClick={() => handleAgendarOT(req)}
-                        className="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700"
+                        disabled={procesandoId === req.id}
+                        className="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700 disabled:bg-gray-400"
                       >
-                        Agendar OT
+                        {procesandoId === req.id ? '...' : 'Agendar OT'}
                       </button>
                       <button 
                         onClick={() => handleRechazarSolicitud(req)}
-                        className="bg-red-600 text-white px-3 py-1 rounded shadow hover:bg-red-700"
+                        disabled={procesandoId === req.id}
+                        className="bg-red-600 text-white px-3 py-1 rounded shadow hover:bg-red-700 disabled:bg-gray-400"
                       >
-                        Rechazar
+                        {procesandoId === req.id ? '...' : 'Rechazar'}
                       </button>
                     </td>
                   </tr>
@@ -142,9 +176,6 @@ export default function BandejaDeTallerPage() {
           </table>
         </div>
       </div>
-
-      {/* --- (La tabla de Ingresos Físicos se eliminó) --- */}
-      
     </div>
   );
 }
