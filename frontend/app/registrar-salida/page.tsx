@@ -1,5 +1,5 @@
 // frontend/app/registrar-salida/page.tsx
-// (CÓDIGO ACTUALIZADO: Ahora gestiona salidas de OTs Finalizadas)
+// (CÓDIGO ACTUALIZADO: Reemplazado confirm() por toast.promise)
 
 'use client'; 
 import { useState, useEffect } from 'react';
@@ -13,7 +13,7 @@ type OTFinalizada = {
   nombre_conductor?: string;
   mecanicoAsignadoNombre?: string;
   fechaIngresoTaller?: { _seconds: number };
-  fechaSalidaTaller?: any; // Para filtrar
+  fechaSalidaTaller?: any; 
   estado: string;
 };
 
@@ -21,6 +21,8 @@ export default function RegistrarSalidaPage() {
   
   const [otsParaSalida, setOtsParaSalida] = useState<OTFinalizada[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actualizandoId, setActualizandoId] = useState<string | null>(null); // ¡Restaurado!
+  
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -28,7 +30,10 @@ export default function RegistrarSalidaPage() {
     if (!authLoading) {
       if (user && userProfile && userProfile.rol === 'Guardia') {
         fetchOtsParaSalida();
-      } else if (user) {
+      } else if (user && userProfile) {
+        // Redirige a otros roles si no son Guardia
+        router.push('/');
+      } else if (!user) {
         router.push('/');
       }
     }
@@ -41,7 +46,6 @@ export default function RegistrarSalidaPage() {
       if (!response.ok) throw new Error('Error al cargar vehículos');
       const data: OTFinalizada[] = await response.json();
       
-      // Filtra: Estado Finalizado/Cerrado Y que NO tenga fecha de salida aún
       const salidaPendiente = data.filter(ot => 
         (ot.estado === 'Finalizado' || ot.estado === 'Cerrado') && 
         !ot.fechaSalidaTaller
@@ -54,21 +58,30 @@ export default function RegistrarSalidaPage() {
     }
   };
 
+  // --- ¡handleRegistrarSalida (MODIFICADO)! ---
   const handleRegistrarSalida = async (otId: string) => {
-    if(!confirm("¿Confirmar salida del vehículo?")) return;
-    try {
-      const response = await fetch(`/api/ordenes-trabajo/${otId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'registrarSalida' }),
-      });
-      if (!response.ok) throw new Error('Falló el registro de salida');
-      
-      toast.success('¡Salida registrada!');
-      setOtsParaSalida(prev => prev.filter(ot => ot.id !== otId));
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    }
+    // ¡Ya no hay confirm()!
+    setActualizandoId(otId); // Bloquea el botón
+
+    const promise = fetch(`/api/ordenes-trabajo/${otId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'registrarSalida' }),
+    });
+
+    toast.promise(promise, {
+      loading: 'Registrando salida...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Falló el registro de salida');
+        setOtsParaSalida(prev => prev.filter(ot => ot.id !== otId));
+        setActualizandoId(null);
+        return '¡Salida registrada!';
+      },
+      error: (err) => {
+        setActualizandoId(null);
+        return err.message || 'Error al registrar la salida';
+      }
+    });
   };
 
   if (authLoading || !userProfile) return <div className="p-8">Cargando...</div>;
@@ -95,11 +108,15 @@ export default function RegistrarSalidaPage() {
                 <td className="px-6 py-4">{ot.nombre_conductor || 'N/A'}</td>
                 <td className="px-6 py-4">{ot.mecanicoAsignadoNombre}</td>
                 <td className="px-6 py-4">
-                  {ot.fechaIngresoTaller ? new Date(ot.fechaIngresoTaller._seconds * 1000).toLocaleString() : '-'}
+                  {ot.fechaIngresoTaller ? new Date(ot.fechaIngresoTaller._seconds * 1000).toLocaleString('es-CL') : '-'}
                 </td>
                 <td className="px-6 py-4">
-                  <button onClick={() => handleRegistrarSalida(ot.id)} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">
-                    Registrar Salida
+                  <button 
+                    onClick={() => handleRegistrarSalida(ot.id)}
+                    disabled={actualizandoId === ot.id} // Deshabilita mientras procesa
+                    className="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700 disabled:bg-gray-400"
+                  >
+                    {actualizandoId === ot.id ? 'Registrando...' : 'Registrar Salida'}
                   </button>
                 </td>
               </tr>

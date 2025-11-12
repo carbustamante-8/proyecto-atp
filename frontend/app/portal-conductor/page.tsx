@@ -1,5 +1,5 @@
 // frontend/app/portal-conductor/page.tsx
-// (CÓDIGO ACTUALIZADO: Añadida la tabla "Estado de mis Solicitudes")
+// (CÓDIGO ACTUALIZADO: Filtra la tabla para mostrar solo solicitudes "activas")
 
 'use client'; 
 
@@ -18,7 +18,7 @@ type VehiculoAsignado = {
   estado: string;
 };
 
-// --- ¡NUEVO! Tipo para el Panel de Estado ---
+// (Tipo SolicitudConEstado sin cambios)
 type SolicitudConEstado = {
   id: string;
   descripcion: string;
@@ -27,32 +27,26 @@ type SolicitudConEstado = {
   estadoOT: 'Agendado' | 'En Progreso' | 'Finalizado' | 'Cerrado' | 'Anulado' | null;
   fechaIngresoTaller?: { _seconds: number } | null;
 };
-// --- Fin Tipo ---
 
 export default function PortalConductorPage() {
   
-  // --- Estados (sin cambios) ---
+  // (Estados sin cambios)
   const [miVehiculo, setMiVehiculo] = useState<VehiculoAsignado | null>(null);
   const [loadingVehiculo, setLoadingVehiculo] = useState(true);
   const [descripcionFalla, setDescripcionFalla] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // --- ¡NUEVO! Estados para el Panel ---
   const [misSolicitudes, setMisSolicitudes] = useState<SolicitudConEstado[]>([]);
   const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
-  // --- Fin Nuevo ---
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- useEffect (ACTUALIZADO) ---
+  // (useEffect sin cambios)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
         if (userProfile.rol === 'Conductor') {
-          // 1. Carga el vehículo (sin cambios)
           fetchMiVehiculo(userProfile.id); 
-          // 2. ¡NUEVO! Carga el panel de solicitudes
           fetchMisSolicitudes(userProfile.id);
         } else {
           router.push('/'); 
@@ -82,14 +76,27 @@ export default function PortalConductorPage() {
     }
   };
   
-  // --- ¡NUEVA FUNCIÓN! ---
+  // --- ¡fetchMisSolicitudes (ACTUALIZADO CON FILTRO)! ---
   const fetchMisSolicitudes = async (conductorId: string) => {
     setLoadingSolicitudes(true);
     try {
       const response = await fetch(`/api/solicitudes/por-conductor/${conductorId}`);
       if (!response.ok) throw new Error('No se pudieron cargar tus solicitudes');
-      const data = await response.json();
-      setMisSolicitudes(data);
+      
+      const data: SolicitudConEstado[] = await response.json();
+      
+      // --- ¡FILTRO DE LIMPIEZA! ---
+      // Muestra solo las solicitudes que NO estén Cerradas o Anuladas.
+      const solicitudesActivas = data.filter(sol => {
+        if (sol.estadoOT === 'Cerrado' || sol.estadoOT === 'Anulado') {
+          return false; // No mostrar (ya están archivadas)
+        }
+        return true; // Mostrar 'Pendiente', 'Agendado', 'En Progreso', 'Finalizado'
+      });
+      // --- FIN DEL FILTRO ---
+      
+      setMisSolicitudes(solicitudesActivas); // ¡Solo guarda las activas!
+
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -97,7 +104,7 @@ export default function PortalConductorPage() {
     }
   };
 
-  // --- handleSolicitud (ACTUALIZADO) ---
+  // (handleSolicitud sin cambios)
   const handleSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!descripcionFalla || !userProfile || !miVehiculo) return;
@@ -116,10 +123,8 @@ export default function PortalConductorPage() {
       if (!response.ok) throw new Error('Falló el envío de la solicitud');
 
       toast.success('¡Solicitud enviada exitosamente!');
-      setDescripcionFalla(''); // Limpia el formulario
-      
-      // ¡NUEVO! Refresca la lista de solicitudes
-      fetchMisSolicitudes(userProfile.id); 
+      setDescripcionFalla(''); 
+      fetchMisSolicitudes(userProfile.id); // Refresca la lista
 
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
@@ -128,9 +133,9 @@ export default function PortalConductorPage() {
     }
   };
   
-  // --- ¡NUEVA FUNCIÓN! ---
-  // Traduce los estados de la OT a mensajes claros para el Conductor
+  // (getEstadoConductor sin cambios)
   const getEstadoConductor = (sol: SolicitudConEstado): { texto: string, color: string } => {
+    // (Esta función ya maneja 'Anulado' y 'Cerrado', pero ahora nunca los recibirá)
     if (sol.estadoOT === 'Anulado') {
       return { texto: 'Solicitud Anulada', color: 'text-red-600' };
     }
@@ -138,14 +143,12 @@ export default function PortalConductorPage() {
       return { texto: 'Retirado y Cerrado', color: 'text-gray-500' };
     }
     if (sol.estadoOT === 'Finalizado') {
-      // ¡Tu requisito!
       return { texto: '¡LISTO PARA RETIRO!', color: 'text-green-600 font-bold' };
     }
     if (sol.estadoOT === 'En Progreso') {
       return { texto: 'En Taller (En Progreso)', color: 'text-yellow-600' };
     }
     if (sol.estadoOT === 'Agendado') {
-      // ¡Tu requisito!
       return { texto: 'Agendado (Pendiente de llegada)', color: 'text-blue-600' };
     }
     if (sol.estadoSolicitud === 'Pendiente') {
@@ -154,27 +157,20 @@ export default function PortalConductorPage() {
     return { texto: 'Procesado', color: 'text-gray-500' };
   };
 
-  // (Renderizado temprano sin cambios)
+  // (Renderizado JSX sin cambios)
+  // ... (se omite por brevedad, es idéntico al anterior) ...
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
   if (userProfile.rol !== 'Conductor') {
     return <div className="p-8 text-gray-900">Acceso denegado.</div>;
   }
-
-  // --- RENDERIZADO DE LA PÁGINA (ACTUALIZADO) ---
   return (
     <div className="p-8 text-gray-900 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8"> 
-      
-      {/* Columna Izquierda (Acciones) */}
       <div className="md:col-span-1 space-y-8">
-        
-        {/* --- SECCIÓN 1: MI VEHÍCULO --- */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-blue-600">Mi Vehículo Asignado</h2>
-          {loadingVehiculo ? (
-            <p>Buscando tu vehículo...</p>
-          ) : miVehiculo ? (
+          {loadingVehiculo ? (<p>Buscando...</p>) : miVehiculo ? (
             <div className="space-y-3">
               <div>
                 <span className="text-sm text-gray-500">Patente</span>
@@ -185,12 +181,8 @@ export default function PortalConductorPage() {
                 <p className="font-medium text-lg">{miVehiculo.modelo} ({miVehiculo.año})</p>
               </div>
             </div>
-          ) : (
-            <p className="text-gray-700">No tienes un vehículo asignado.</p>
-          )}
+          ) : (<p className="text-gray-700">No tienes un vehículo asignado.</p>)}
         </div>
-
-        {/* --- SECCIÓN 2: SOLICITAR MANTENIMIENTO --- */}
         {miVehiculo && (
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-2xl font-semibold mb-4 text-blue-600">Solicitar Mantenimiento</h2>
@@ -219,8 +211,6 @@ export default function PortalConductorPage() {
           </div>
         )}
       </div>
-
-      {/* --- ¡NUEVA! Columna Derecha (Estado de Solicitudes) --- */}
       <div className="md:col-span-2">
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-blue-600">Estado de mis Solicitudes</h2>
@@ -238,7 +228,7 @@ export default function PortalConductorPage() {
                   <tr><td colSpan={3} className="px-6 py-4 text-center">Cargando solicitudes...</td></tr>
                 ) : misSolicitudes.length > 0 ? (
                   misSolicitudes.map(sol => {
-                    const estado = getEstadoConductor(sol); // Llama a la función de traducción
+                    const estado = getEstadoConductor(sol); 
                     return (
                       <tr key={sol.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -259,7 +249,6 @@ export default function PortalConductorPage() {
           </div>
         </div>
       </div>
-
     </div>
   );
 }
