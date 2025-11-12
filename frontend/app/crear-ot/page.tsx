@@ -54,7 +54,7 @@ function CrearOTForm() {
         }),
       });
       if (!response.ok) throw new Error('Falló la creación de la OT');
-      toast.success('¡OT Creada! Redirigiendo al tablero del mecánico...'); // <-- 3. Cambiado
+      toast.success('¡Orden de Trabajo creada exitosamente!'); // <-- 3. Cambiado
       router.push('/mis-tareas');
     } catch (err) {
       if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado

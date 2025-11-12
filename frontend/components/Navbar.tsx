@@ -44,9 +44,12 @@ export default function Navbar() {
         {/* 2. Enlaces de Navegación (¡INTELIGENTES!) */}
         <div className="space-x-6">
           
-          {/* --- ¡BLOQUE ADMIN CORREGIDO! (Sin Gerente) --- */}
-          {userProfile && ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol) && (
+          {/* --- ENLACES PARA ROLES ADMIN (Jefe, Supervisor, Coordinador) --- */}
+          {['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol) && (
             <>
+              {/* --- ¡AÑADE ESTA LÍNEA! --- */}
+              <Link href="/solicitudes-pendientes" className="hover:text-blue-600">Solicitudes</Link>
+
               <Link href="/dashboard-admin" className="hover:text-blue-600">Usuarios</Link>
               <Link href="/gestion-vehiculos" className="hover:text-blue-600">Vehículos</Link>
               <Link href="/dashboard-jefe-taller" className="hover:text-blue-600">Ingresos Pendientes</Link>
