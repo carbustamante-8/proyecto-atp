@@ -1,5 +1,5 @@
 // app/api/ordenes-trabajo/[id]/route.ts
-// (CÓDIGO ACTUALIZADO: PUT ahora maneja el Cierre Administrativo)
+// (CÓDIGO ACTUALIZADO: PUT ahora maneja el estado 'Anulado')
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -30,11 +30,12 @@ export async function GET(request: NextRequest, context: Context) {
 
 /**
  * Función PUT: (¡MODIFICADA!)
- * Maneja 4 casos de estado:
+ * Maneja 5 casos de estado:
  * 1. Validación del Guardia: 'Agendado' -> 'Pendiente'
  * 2. Auto-Asignación (Mecánico): 'Pendiente' -> 'En Progreso'
- * 3. Gestión Normal (Mecánico): 'En Progreso' -> 'Finalizado'
+ * 3. Gestión (Mecánico): 'En Progreso' -> 'Finalizado'
  * 4. Cierre (Admin): 'Finalizado' -> 'Cerrado'
+ * 5. Anulación (Admin): 'Agendado' -> 'Anulado'
  */
 export async function PUT(request: NextRequest, context: Context) {
   let id: string = 'ID_DESCONOCIDO'; 
@@ -50,43 +51,49 @@ export async function PUT(request: NextRequest, context: Context) {
       mecanicoAsignadoId?: string | null,
       mecanicoAsignadoNombre?: string | null,
       fechaIngresoTaller?: admin.firestore.FieldValue,
-      fechaCierreAdministrativo?: admin.firestore.FieldValue // ¡Nuevo campo de auditoría!
+      fechaCierreAdministrativo?: admin.firestore.FieldValue,
+      fechaAnulacion?: admin.firestore.FieldValue // ¡Nuevo campo de auditoría!
     } = {};
 
     // --- ¡LÓGICA DE ESTADOS ACTUALIZADA! ---
     
-    // CASO 1: El Guardia está "Registrando Llegada"
+    // CASO 1: Guardia "Registra Llegada"
     if (body.estado === 'Pendiente' && body.accion === 'registrarLlegada') {
       datosActualizados.estado = 'Pendiente'; 
       datosActualizados.fechaIngresoTaller = admin.firestore.FieldValue.serverTimestamp(); 
     }
     
-    // CASO 2: El mecánico está "reclamando" la tarea
+    // CASO 2: Mecánico "Toma Tarea"
     else if (body.estado === 'En Progreso' && body.mecanicoAsignadoId && body.mecanicoAsignadoNombre) {
       datosActualizados.mecanicoAsignadoId = body.mecanicoAsignadoId;
       datosActualizados.mecanicoAsignadoNombre = body.mecanicoAsignadoNombre;
       datosActualizados.estado = 'En Progreso';
     } 
     
-    // CASO 3: El mecánico está "Finalizando" la tarea
+    // CASO 3: Mecánico "Finaliza Tarea"
     else if (body.estado === 'Finalizado' && !body.accion) {
       datosActualizados.estado = 'Finalizado';
     }
     
-    // --- ¡NUEVO! CASO 4: El Admin está "Cerrando" la OT ---
+    // CASO 4: Admin "Cierra OT"
     else if (body.estado === 'Cerrado' && body.accion === 'cierreAdministrativo') {
       datosActualizados.estado = 'Cerrado';
-      datosActualizados.fechaCierreAdministrativo = admin.firestore.FieldValue.serverTimestamp(); // ¡Auditoría!
+      datosActualizados.fechaCierreAdministrativo = admin.firestore.FieldValue.serverTimestamp(); 
     }
     
-    // CASO 5: El mecánico solo actualiza repuestos (sin cambiar estado)
-    else if (body.repuestosUsados !== undefined && !body.estado) {
-       // No hacer nada de estados, solo permitir que se guarden los repuestos
+    // --- ¡NUEVO! CASO 5: El Admin está "Anulando" la OT ---
+    else if (body.estado === 'Anulado' && body.accion === 'anularOT') {
+      datosActualizados.estado = 'Anulado';
+      datosActualizados.fechaAnulacion = admin.firestore.FieldValue.serverTimestamp(); // ¡Auditoría!
     }
-
+    
+    // CASO 6: Mecánico actualiza repuestos (sin cambiar estado)
+    else if (body.repuestosUsados !== undefined && !body.estado) {
+       // No hacer nada de estados
+    }
+    
     // --- FIN DE LA LÓGICA ---
     
-    // Lógica de repuestos y fotos (se aplica en todos los casos)
     if (body.repuestosUsados !== undefined) {
       datosActualizados.repuestosUsados = body.repuestosUsados;
     }
@@ -94,9 +101,8 @@ export async function PUT(request: NextRequest, context: Context) {
       datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
     }
     
-    // Si no hay nada que actualizar (ej. solo se mandó 'estado: Finalizado' pero ya estaba 'Finalizado')
+    // Validar si hay algo que actualizar
     if (Object.keys(datosActualizados).length === 0 && !body.repuestosUsados && !body.nuevaFotoURL) {
-      // Permitimos que la llamada termine OK sin hacer nada
       return NextResponse.json({ message: 'Sin cambios necesarios.' });
     }
 

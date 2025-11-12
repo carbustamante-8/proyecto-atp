@@ -1,249 +1,213 @@
 // frontend/app/generador-reportes/page.tsx
-// (Este archivo ya está correcto)
+// (CÓDIGO ACTUALIZADO: Ahora es el "Panel Maestro" con botón de Anular)
 
 'use client'; 
+
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
-import { useRouter } from 'next/navigation';   
-import * as XLSX from 'xlsx'; 
 import toast from 'react-hot-toast'; 
 
-type ReporteOT = {
+// --- Tipo de Dato ---
+type OrdenDeTrabajo = {
   id: string;
   patente: string;
-  fechaIngreso: any; 
-  fechaSalida: any; 
-  tiempoEstancia: string; 
-  mecanicoAsignado: string; 
-  estado: string;
+  descripcionProblema: string;
+  estado: string; // Agendado, Pendiente, En Progreso, Finalizado, Cerrado, Anulado
+  mecanicoAsignadoNombre?: string | null;
+  fechaCreacion: { _seconds: number };
+  // (Podríamos añadir más campos)
 };
 
-// (Este tipo es para el 'fetch', para que TypeScript sepa de la fecha)
-type OT_Desde_API = {
-  id: string;
-  patente: string;
-  estado: string;
-  mecanicoAsignado?: string;
-  fechaCreacion: {
-    _seconds: number;
-    _nanoseconds: number;
-  }
-}
-
-export default function ReportesPage() {
+export default function GeneradorReportesPage() {
   
-  const [reporteData, setReporteData] = useState<ReporteOT[]>([]);
-  const [loading, setLoading] = useState(false); 
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
-  const [estado, setEstado] = useState('Todos');
-  const [patente, setPatente] = useState('');
+  // --- Estados ---
+  const [ordenes, setOrdenes] = useState<OrdenDeTrabajo[]>([]); // Todas las OTs
+  const [ordenesFiltradas, setOrdenesFiltradas] = useState<OrdenDeTrabajo[]>([]); // OTs a mostrar
+  const [loading, setLoading] = useState(true);
+  const [filtroEstado, setFiltroEstado] = useState('Todos'); // Filtro por estado
+  const [anulandoId, setAnulandoId] = useState<string | null>(null);
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- LÓGICA DE PROTECCIÓN (El Guardia) ---
+  // --- Lógica de Protección y Carga ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        
-        // --- ¡ESTA LISTA ES CORRECTA! ---
-        // (Admins + Gerente pueden ver esta página)
+        // Roles que pueden ver reportes
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
-        
-        if (!rolesPermitidos.includes(userProfile.rol)) {
-          console.warn(`Acceso denegado a /reportes. Rol: ${userProfile.rol}`);
+        if (rolesPermitidos.includes(userProfile.rol)) {
+          fetchTodasLasOrdenes();
+        } else {
           router.push('/'); 
         }
-        
       } else if (!user) {
         router.push('/');
       }
     }
   }, [user, userProfile, authLoading, router]);
 
-  
-  // --- Función para "Generar Reporte" ---
-  const handleGenerarReporte = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // --- Carga de Datos ---
+  const fetchTodasLasOrdenes = async () => {
     setLoading(true);
-    
     try {
-      const params = new URLSearchParams();
-      if (estado && estado !== 'Todos') params.append('estado', estado);
-      if (patente) params.append('patente', patente);
-      if (fechaInicio) params.append('fechaInicio', fechaInicio);
-      if (fechaFin) params.append('fechaFin', fechaFin);
+      const response = await fetch('/api/ordenes-trabajo'); // Trae todas las OTs
+      if (!response.ok) throw new Error('No se pudieron cargar las órdenes');
+      
+      const data: OrdenDeTrabajo[] = await response.json();
+      
+      // Ordena por fecha de creación descendente
+      data.sort((a, b) => b.fechaCreacion._seconds - a.fechaCreacion._seconds);
+      
+      setOrdenes(data);
+      setOrdenesFiltradas(data); // Inicialmente muestra todas
 
-      const response = await fetch(`/api/reportes?${params.toString()}`);
-      if (!response.ok) throw new Error('No se pudo generar el reporte');
-      
-      const data: OT_Desde_API[] = await response.json(); 
-      
-      const dataFormateada = data.map((ot) => ({
-        id: ot.id,
-        patente: ot.patente || 'N/A',
-        fechaIngreso: ot.fechaCreacion && ot.fechaCreacion._seconds 
-                      ? new Date(ot.fechaCreacion._seconds * 1000).toLocaleDateString('es-CL') 
-                      : 'N/A',
-        fechaSalida: 'N/A', 
-        tiempoEstancia: 'N/A',
-        mecanicoAsignado: ot.mecanicoAsignado || 'N/A',
-        estado: ot.estado || 'N/A',
-      }));
-      
-      setReporteData(dataFormateada);
-      if(dataFormateada.length > 0) {
-        toast.success(`¡Reporte generado! ${dataFormateada.length} resultados.`);
-      }
-      
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
-      else toast.error('Un error desconocido ocurrió');
     } finally {
-      setLoading(false); 
+      setLoading(false);
     }
   };
+  
+  // --- Lógica de Filtros (¡NUEVO!) ---
+  useEffect(() => {
+    let filtradas = ordenes;
+    if (filtroEstado !== 'Todos') {
+      filtradas = filtradas.filter(ot => ot.estado === filtroEstado);
+    }
+    // (Aquí podríamos añadir más filtros de fecha, patente, etc.)
+    setOrdenesFiltradas(filtradas);
+  }, [filtroEstado, ordenes]);
 
-   const handleExportExcel = () => {
-    if (reporteData.length === 0) {
-      toast.error("No hay datos para exportar. Genera un reporte primero.");
+  // --- ¡NUEVA ACCIÓN! Anular OT ---
+  const handleAnularOT = async (otId: string) => {
+    if (!confirm('¿Estás seguro de que quieres ANULAR esta OT? Esta acción no se puede deshacer.')) {
       return;
     }
-    const datosParaExcel = reporteData.map(ot => ({
-      "ID OT": ot.id.substring(0, 6),
-      "Patente": ot.patente,
-      "Fecha Ingreso": ot.fechaIngreso,
-      "Fecha Salida": ot.fechaSalida,
-      "Tiempo Estancia (H)": ot.tiempoEstancia,
-      "Mecánico Asignado": ot.mecanicoAsignado,
-      "Estado Final": ot.estado,
-    }));
-    const ws = XLSX.utils.json_to_sheet(datosParaExcel);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte OTs");
-    XLSX.writeFile(wb, "ReportePepsiFleet.xlsx");
-  };
+    setAnulandoId(otId);
+    try {
+      const response = await fetch(`/api/ordenes-trabajo/${otId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estado: 'Anulado', // El nuevo estado final
+          accion: 'anularOT' // El flag de seguridad de la API
+        }),
+      });
 
-  if (authLoading || !userProfile) {
-    return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
-  }
-  
-  if (!['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'].includes(userProfile.rol)) {
-     return <div className="p-8 text-gray-900">Acceso denegado.</div>;
-  }
-  
-  return (
-    <div className="p-8 text-gray-900"> 
+      if (!response.ok) throw new Error('Error al anular la OT');
       
-      <h1 className="text-3xl font-bold mb-6">Generador de Reportes</h1>
-      <p className="text-gray-600 mb-6">Seleccione los filtros para extraer los datos de la operación.</p>
+      toast.success('¡OT Anulada!');
+      
+      // Refresca la lista actualizando solo el item cambiado
+      setOrdenes(prev => prev.map(ot => 
+        ot.id === otId ? { ...ot, estado: 'Anulado' } : ot
+      ));
 
-      {/* Formulario de Filtros */}
-       <form onSubmit={handleGenerarReporte} className="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-        {/* ... (Filtros) ... */}
-        <div>
-          <label htmlFor="fechaInicio" className="block text-sm font-medium text-gray-700">Fecha de Inicio</label>
-          <input
-            type="date" id="fechaInicio" value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-          />
-        </div>
-        <div>
-          <label htmlFor="fechaFin" className="block text-sm font-medium text-gray-700">Fecha de Fin</label>
-          <input
-            type="date" id="fechaFin" value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-          />
-        </div>
-        <div>
-          <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Estado de OT</label>
-          <select
-            id="estado" value={estado}
-            onChange={(e) => setEstado(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-          >
-            <option value="Todos">Todos</option>
-            <option value="Pendiente">Pendiente</option>
-            <option value="En Progreso">En Progreso</option>
-            <option value="Finalizado">Finalizado</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
-          <input
-            type="text" id="patente" value={patente}
-            onChange={(e) => setPatente(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-            placeholder="Ingresar patente"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg shadow font-semibold hover:bg-blue-700 disabled:bg-gray-400"
-        >
-          {loading ? 'Generando...' : 'Generar Reporte'}
-        </button>
-      </form>
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setAnulandoId(null);
+    }
+  };
+  
+  // (Función de Exportar a Excel - se mantiene, pero la quitamos por ahora para simplificar)
+  // const handleExportar = () => { ... }
 
-      {/* Tabla de Resultados */}
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Vista Previa del Reporte</h2>
-        <button
-          onClick={handleExportExcel}
-          disabled={reporteData.length === 0 || loading} 
-          className="bg-green-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-green-700 disabled:bg-gray-400"
+  // --- Lógica de Renderizado ---
+  if (authLoading || !userProfile) {
+    return <div className="p-8 text-gray-900">Validando sesión...</div>;
+  }
+  
+  // Solo Admins (no Gerente) pueden anular OTs
+  const puedeAnular = ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol);
+
+  return (
+    <div className="p-8 text-gray-900">
+      
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Panel Maestro de OTs / Reportes</h1>
+        <button 
+          // onClick={handleExportar} 
+          disabled={true} // (Deshabilitado por ahora)
+          className="bg-green-700 text-white px-5 py-2 rounded shadow hover:bg-green-800 disabled:bg-gray-400"
         >
-          Exportar Datos a Excel
+          Exportar a Excel
         </button>
       </div>
       
+      {/* --- Controles de Filtros --- */}
+      <div className="bg-white p-4 rounded-lg shadow-md mb-6">
+        <label htmlFor="filtroEstado" className="block text-sm font-medium text-gray-700">Filtrar por Estado:</label>
+        <select
+          id="filtroEstado"
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          className="mt-1 block w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
+        >
+          <option value="Todos">Todos los Estados</option>
+          <option value="Agendado">Agendado</option>
+          <option value="Pendiente">Pendiente (En Pool)</option>
+          <option value="En Progreso">En Progreso</option>
+          <option value="Finalizado">Finalizado</option>
+          <option value="Cerrado">Cerrado</option>
+          <option value="Anulado">Anulado</option>
+        </select>
+      </div>
+
+      {/* --- Tabla Maestra de OTs --- */}
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID OT</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Ingreso</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Salida</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tiempo Estancia (H)</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mecánico Asignado</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado Final</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mecánico</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            
-            {loading && (
-              <tr><td colSpan={7} className="px-6 py-4 text-center">Generando reporte...</td></tr>
-            )}
-
-            {!loading && reporteData.length > 0 ? (
-              reporteData.map(ot => (
-                <tr key={ot.id}>
-                  <td className="px-6 py-4">{ot.id.substring(0, 6)}</td>
+            {loading ? (
+              <tr><td colSpan={5} className="px-6 py-4 text-center">Cargando OTs...</td></tr>
+            ) : ordenesFiltradas.length > 0 ? (
+              ordenesFiltradas.map(ot => (
+                <tr key={ot.id} className={`${ot.estado === 'Anulado' ? 'bg-red-50 opacity-60' : ''}`}>
                   <td className="px-6 py-4 font-medium">{ot.patente}</td>
-                  <td className="px-6 py-4">{ot.fechaIngreso}</td>
-                  <td className="px-6 py-4">{ot.fechaSalida}</td>
-                  <td className="px-6 py-4">{ot.tiempoEstancia}</td>
-                  <td className="px-6 py-4">{ot.mecanicoAsignado}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      ot.estado === 'Finalizado' ? 'bg-green-100 text-green-800' :
-                      ot.estado === 'En Progreso' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      ot.estado === 'Agendado' ? 'bg-gray-200 text-gray-800' :
+                      ot.estado === 'Pendiente' ? 'bg-red-200 text-red-800' :
+                      ot.estado === 'En Progreso' ? 'bg-yellow-200 text-yellow-800' :
+                      ot.estado === 'Finalizado' ? 'bg-blue-200 text-blue-800' :
+                      ot.estado === 'Cerrado' ? 'bg-green-200 text-green-800' :
+                      ot.estado === 'Anulado' ? 'bg-red-300 text-red-900' :
+                      ''
                     }`}>
                       {ot.estado}
                     </span>
                   </td>
+                  <td className="px-6 py-4">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
+                  <td className="px-6 py-4">{ot.descripcionProblema}</td>
+                  <td className="px-6 py-4">
+                    {/* El botón de Anular solo aparece si la OT está Agendada y el usuario puede anular */}
+                    {puedeAnular && ot.estado === 'Agendado' && (
+                      <button
+                        onClick={() => handleAnularOT(ot.id)}
+                        disabled={anulandoId === ot.id}
+                        className="bg-red-600 text-white px-3 py-1 rounded shadow hover:bg-red-700 disabled:bg-gray-400"
+                      >
+                        {anulandoId === ot.id ? '...' : 'Anular'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))
             ) : (
-              !loading && reporteData.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-4 text-center">No se encontraron datos para este reporte. Use el filtro y presione "Generar Reporte".</td></tr>
-              )
+              <tr><td colSpan={5} className="px-6 py-4 text-center">
+                No se encontraron OTs con esos filtros.
+              </td></tr>
             )}
           </tbody>
         </table>

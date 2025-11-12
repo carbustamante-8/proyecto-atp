@@ -1,12 +1,12 @@
 // app/api/control-salida/route.ts
-// (CÓDIGO ACTUALIZADO: Añade la validación de OTs)
+// (CÓDIGO CORREGIDO: Se cambia la consulta para evitar el error de índice)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '../../../lib/firebase-admin';
 import * as admin from 'firebase-admin';
 
 /**
- * Función PUT: (¡CORREGIDA CON VALIDACIÓN!)
+ * Función PUT: (¡CORREGIDA CON VALIDACIÓN SIN ÍNDICE!)
  * Ahora recibe un ID único y marca la salida, SÓLO SI no hay OTs abiertas.
  */
 export async function PUT(request: NextRequest) {
@@ -28,28 +28,33 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Registro de ingreso no encontrado.' }, { status: 404 });
     }
     
-    // Obtenemos la patente del vehículo que intenta salir
     const patenteVehiculo = registroDoc.data()?.patente;
     if (!patenteVehiculo) {
       return NextResponse.json({ error: 'El registro de ingreso no tiene patente.' }, { status: 400 });
     }
 
-    // 2. --- ¡NUEVA VALIDACIÓN (CU-02)! ---
-    // Busca en 'ordenes-trabajo' OTs para esta patente que NO estén "Finalizado"
+    // 2. --- ¡VALIDACIÓN CORREGIDA (Sin índice compuesto)! ---
     console.log(`Validando OTs activas para patente: ${patenteVehiculo}...`);
-    const otActivasSnapshot = await adminDb.collection('ordenes-trabajo')
+
+    // Paso 1: Trae TODAS las OTs de esa patente (esto usa un índice simple automático)
+    const otSnapshot = await adminDb.collection('ordenes-trabajo')
       .where('patente', '==', patenteVehiculo)
-      .where('estado', '!=', 'Finalizado') // Busca 'Pendiente' o 'En Progreso'
       .get();
 
-    if (!otActivasSnapshot.empty) {
+    // Paso 2: Filtra los estados activos en el código del servidor
+    const estadosActivos = ['Agendado', 'Pendiente', 'En Progreso'];
+    const otsActivas = otSnapshot.docs.filter(doc => {
+      const estado = doc.data().estado;
+      return estadosActivos.includes(estado);
+    });
+
+    if (otsActivas.length > 0) {
       // ¡Error! Se encontraron OTs activas.
-      const otActiva = otActivasSnapshot.docs[0].data();
+      const otActiva = otsActivas[0].data(); // Tomamos la primera
       const mecanico = otActiva.mecanicoAsignadoNombre || 'No asignado';
       
       console.warn(`SALIDA NO AUTORIZADA: La patente ${patenteVehiculo} tiene una OT en estado "${otActiva.estado}".`);
       
-      // Esto cumple con el Curso Alterno 2.a del CU-02 
       return NextResponse.json({ 
         error: `¡Salida NO AUTORIZADA! La OT sigue en estado "${otActiva.estado}" (Asignada a: ${mecanico}).` 
       }, { status: 403 }); // 403 = Prohibido
