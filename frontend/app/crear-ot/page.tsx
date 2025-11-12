@@ -1,46 +1,60 @@
 // frontend/app/crear-ot/page.tsx
+// (CÓDIGO ACTUALIZADO: Eliminado el selector de Mecánicos)
+
 'use client'; 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import toast from 'react-hot-toast'; 
+
+// Ya no necesitamos el tipo Mecanico
 
 function CrearOTForm() {
+  // Estados del formulario (simplificados)
   const [patente, setPatente] = useState('');
   const [descripcionProblema, setDescripcionProblema] = useState('');
-  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
+  
+  // (Estados de mecánico eliminados)
+
   const [loading, setLoading] = useState(false);
   const router = useRouter(); 
   const { user, userProfile, loading: authLoading } = useAuth();
   const searchParams = useSearchParams(); 
 
+  // --- useEffect (Simplificado) ---
   useEffect(() => {
-    // ... (lógica de protección no cambia) ...
+    // 1. Rellena el formulario (sin cambios)
     const patenteURL = searchParams.get('patente');
     const motivoURL = searchParams.get('motivo');
     if (patenteURL) setPatente(patenteURL);
     if (motivoURL) setDescripcionProblema(motivoURL);
 
+    // 2. Lógica de protección (sin cambios)
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
         if (!rolesPermitidos.includes(userProfile.rol)) {
           router.push('/');
         }
+        // (Ya no necesitamos cargar mecánicos aquí)
       } else if (!user) {
         router.push('/');
       }
     }
   }, [user, userProfile, authLoading, router, searchParams]);
   
+  // (Función fetchMecanicos eliminada)
+  
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
+  // --- ¡handleCrearOT ACTUALIZADO! ---
   const handleCrearOT = async (e: React.FormEvent) => {
     e.preventDefault(); 
+    // Validación simplificada
     if (!patente || !descripcionProblema) {
-      toast.error('Por favor, completa todos los campos.'); // <-- 3. Cambiado
+      toast.error('Por favor, completa la patente y la descripción.');
       return;
     }
     setLoading(true);
@@ -51,17 +65,25 @@ function CrearOTForm() {
         body: JSON.stringify({
           patente,
           descripcionProblema,
+          // (Ya no enviamos los datos del mecánico)
         }),
       });
       if (!response.ok) throw new Error('Falló la creación de la OT');
-      toast.success('¡Orden de Trabajo creada exitosamente!'); // <-- 3. Cambiado
-      router.push('/mis-tareas');
+      
+      toast.success('¡OT registrada! Pendiente de diagnóstico.'); 
+      
+      // Lo enviamos de vuelta a la bandeja de solicitudes,
+      // que será nuestro próximo punto de trabajo.
+      router.push('/solicitudes-pendientes'); 
+      
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setLoading(false); 
     }
   };
+
+  // (handleMecanicoChange eliminado)
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -70,7 +92,8 @@ function CrearOTForm() {
           Registrar Nueva Orden de Trabajo
         </h1>
         <form onSubmit={handleCrearOT} className="space-y-6">
-          {/* ... (inputs de patente y descripción) ... */}
+          
+          {/* Patente */}
           <div>
             <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
             <input
@@ -79,8 +102,10 @@ function CrearOTForm() {
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
+          
+          {/* Descripción */}
           <div>
-            <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700">Descripción</label>
+            <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700">Descripción / Motivo</label>
             <textarea
               id="descripcion" value={descripcionProblema}
               onChange={(e) => setDescripcionProblema(e.target.value)}
@@ -88,13 +113,15 @@ function CrearOTForm() {
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
             />
           </div>
-          {/* El error ahora es un Toast */}
+
+          {/* --- (Selector de Mecánico ELIMINADO) --- */}
+
           <button
             type="submit"
             disabled={loading}
             className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
           >
-            {loading ? 'Guardando...' : 'Crear OT'}
+            {loading ? 'Guardando...' : 'Registrar OT (Pendiente Diagnóstico)'}
           </button>
         </form>
       </div>
@@ -102,7 +129,7 @@ function CrearOTForm() {
   );
 }
 
-// --- ENVOLTORIO (no cambia) ---
+// --- ENVOLTORIO (sin cambios) ---
 export default function CrearOTPageWrapper() {
   return (
     <Suspense fallback={<div className="p-8">Cargando...</div>}>

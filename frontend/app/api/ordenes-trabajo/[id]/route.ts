@@ -1,86 +1,97 @@
 // app/api/ordenes-trabajo/[id]/route.ts
+// (CÓDIGO ACTUALIZADO: PUT ahora maneja el flujo de APROBACIÓN)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import * as admin from 'firebase-admin';
-// Define el tipo de 'context' que Vercel espera
+
 type Context = {
   params: Promise<{ id: string }>
 }
 
 /**
- * Función GET: Obtiene UNA Orden de Trabajo específica por su ID.
+ * Función GET: (Sin cambios)
  */
-export async function GET(
-  request: NextRequest, 
-  context: Context
-) {
+export async function GET(request: NextRequest, context: Context) {
   let id: string;
   try {
     const params = await context.params;
     id = params.id; 
-    
     const otDoc = await adminDb.collection('ordenes-trabajo').doc(id).get();
-
     if (!otDoc.exists) {
       return NextResponse.json({ error: 'OT no encontrada' }, { status: 404 });
     }
-
     return NextResponse.json({ id: otDoc.id, ...otDoc.data() });
-
   } catch (error) {
     console.error(`Error en GET /api/ordenes-trabajo/[id]:`, error); 
     return NextResponse.json({ error: 'Error al obtener la OT' }, { status: 500 });
   }
 }
 
-
 /**
- * Función PUT: Actualiza 'estado' y 'repuestosUsados' (¡SIN FOTOS!)
+ * Función PUT: (¡MODIFICADA PARA CU-06!)
+ * Maneja 3 casos:
+ * 1. Asignación (Jefe de Taller): Pasa a 'Pendiente Aprobación'.
+ * 2. Aprobación (Supervisor): Pasa a 'Pendiente'.
+ * 3. Gestión (Mecánico): Cambia estado, repuestos, fotos.
  */
-export async function PUT(
-  request: NextRequest, 
-  context: Context
-) {
+export async function PUT(request: NextRequest, context: Context) {
   let id: string = 'ID_DESCONOCIDO'; 
   try {
     const params = await context.params;
     id = params.id; 
-    
     const body = await request.json(); 
 
-    // --- ¡AQUÍ ESTÁ LA LÓGICA COMPLETA! ---
-    // Prepara los datos a actualizar
     const datosActualizados: { 
       estado?: string, 
       repuestosUsados?: string,
-      fotos?: admin.firestore.FieldValue // Para el array de fotos
+      fotos?: admin.firestore.FieldValue,
+      mecanicoAsignadoId?: string | null,
+      mecanicoAsignadoNombre?: string | null
     } = {};
 
-    // Si el body envió un 'estado', lo añade
-    if (body.estado) {
-      datosActualizados.estado = body.estado;
+    // --- ¡LÓGICA DE ESTADOS ACTUALIZADA! ---
+
+    // CASO 1: El Jefe de Taller está ASIGNANDO (CU-05)
+    if (body.mecanicoAsignadoId && body.mecanicoAsignadoNombre) {
+      datosActualizados.mecanicoAsignadoId = body.mecanicoAsignadoId;
+      datosActualizados.mecanicoAsignadoNombre = body.mecanicoAsignadoNombre;
+      // ¡Pasa a Aprobación!
+      datosActualizados.estado = 'Pendiente Aprobación'; 
     }
     
-    // Si el body envió 'repuestosUsados', lo añade
-    if (body.repuestosUsados !== undefined) {
-      datosActualizados.repuestosUsados = body.repuestosUsados;
+    // CASO 2: El Supervisor está APROBANDO (CU-06)
+    else if (body.accion === 'aprobar') {
+      // El Supervisor aprueba, pasa a "Pendiente" (visible para el mecánico)
+      datosActualizados.estado = 'Pendiente';
     }
     
-    // Si el body envió una 'nuevaFotoURL' (de Vercel Blob), la AÑADE a un array
-    if (body.nuevaFotoURL) {
-      // 'arrayUnion' añade un ítem a un array sin duplicarlo
-      // Esto crea el campo 'fotos' si no existe
-      datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
+    // CASO 3: El Supervisor está RECHAZANDO (CU-06 Alterno)
+    else if (body.accion === 'rechazar') {
+      // El Supervisor rechaza, vuelve a "Pendiente Diagnóstico" y limpia la asignación
+      datosActualizados.estado = 'Pendiente Diagnóstico';
+      datosActualizados.mecanicoAsignadoId = null;
+      datosActualizados.mecanicoAsignadoNombre = null;
     }
-    // --- FIN DE LA LÓGICA ---
     
-    // Revisa si el objeto de actualización está vacío
+    // CASO 4: El Mecánico está GESTIONANDO (CU-08)
+    else {
+      if (body.estado) {
+        datosActualizados.estado = body.estado; // (En Progreso, Finalizado)
+      }
+      if (body.repuestosUsados !== undefined) {
+        datosActualizados.repuestosUsados = body.repuestosUsados;
+      }
+      if (body.nuevaFotoURL) {
+        datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
+      }
+    }
+    // --- FIN DE LA LÓGICA DE ESTADOS ---
+    
     if (Object.keys(datosActualizados).length === 0) {
       throw new Error('No se enviaron datos para actualizar.');
     }
 
-    // Actualiza el documento en Firestore
     const otRef = adminDb.collection('ordenes-trabajo').doc(id);
     await otRef.update(datosActualizados);
 

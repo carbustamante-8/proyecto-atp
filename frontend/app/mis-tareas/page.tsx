@@ -1,10 +1,12 @@
 // frontend/app/mis-tareas/page.tsx
+// (CÓDIGO ACTUALIZADO: Ahora solo busca las OTs del mecánico logueado)
+
 'use client'; 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import toast from 'react-hot-toast'; 
 
 type OrdenDeTrabajo = {
   id: string;
@@ -16,17 +18,23 @@ type OrdenDeTrabajo = {
 export default function MisTareasPage() {
   const [ordenes, setOrdenes] = useState<OrdenDeTrabajo[]>([]);
   const [loading, setLoading] = useState(false);
-  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  // --- useEffect ACTUALIZADO ---
   useEffect(() => {
-    // ... (lógica de protección no cambia) ...
     if (!authLoading) {
       if (user && userProfile) {
+        
+        // --- ¡LÓGICA DE CARGA ACTUALIZADA! ---
         if (userProfile.rol === 'Mecánico') {
-          fetchOrdenes();
-        } else {
+          // Si es Mecánico, llama a fetchOrdenes CON SU ID
+          fetchOrdenes(userProfile.id); // userProfile.id es el UID
+        } 
+        // --- FIN DE LA ACTUALIZACIÓN ---
+        
+        else {
+          // Lógica de redirección (sin cambios)
           if (userProfile.rol === 'Jefe de Taller') router.push('/dashboard-admin');
           else if (userProfile.rol === 'Guardia') router.push('/control-acceso');
           else router.push('/');
@@ -37,28 +45,35 @@ export default function MisTareasPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  const fetchOrdenes = async () => {
+  // --- fetchOrdenes ACTUALIZADO ---
+  // Ahora acepta el ID del mecánico como argumento
+  const fetchOrdenes = async (mecanicoId: string) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/ordenes-trabajo');
+      // ¡Ahora pasa el ID del mecánico como un query param!
+      const response = await fetch(`/api/ordenes-trabajo?mecanicoId=${mecanicoId}`);
       if (!response.ok) throw new Error('No se pudieron cargar las órdenes de trabajo');
       const data = await response.json();
       setOrdenes(data); 
     } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
     } finally {
       setLoading(false);
     }
   };
+  // --- FIN DE LA ACTUALIZACIÓN ---
 
+  // (Retorno temprano por carga, sin cambios)
   if (authLoading || !userProfile || userProfile.rol !== 'Mecánico') {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
+  // (Lógica de filtrado de columnas, sin cambios)
   const pendientes = ordenes.filter(ot => ot.estado === 'Pendiente');
   const enProgreso = ordenes.filter(ot => ot.estado === 'En Progreso');
   const finalizadas = ordenes.filter(ot => ot.estado === 'Finalizado');
 
+  // (JSX de la página, sin cambios)
   return (
     <div className="p-8 text-gray-900">
       <h1 className="text-3xl font-bold">Mi Tablero</h1>
