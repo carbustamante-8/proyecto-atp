@@ -1,5 +1,5 @@
 // frontend/app/page.tsx
-// (CÓDIGO ACTUALIZADO: Redirección de Gerente y limpieza de "Registrarse")
+// (CÓDIGO ACTUALIZADO: Redirección de "Conductor" añadida)
 
 'use client'; 
 
@@ -31,21 +31,28 @@ export default function Home() {
       if (['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
         router.push('/dashboard-admin');
       
-      // ¡AQUÍ ESTÁ LA CORRECCIÓN!
-      // Redirige al Gerente a los Reportes
+      // Gerente
       } else if (userProfile.rol === 'Gerente') {
         router.push('/generador-reportes');
-      // --- FIN DE LA CORRECCIÓN ---
-
+      
+      // Mecánico
       } else if (userProfile.rol === 'Mecánico') {
         router.push('/mis-tareas');
+      
+      // Guardia
       } else if (userProfile.rol === 'Guardia') {
         router.push('/control-acceso');
+      
+      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+      } else if (userProfile.rol === 'Conductor') {
+        router.push('/portal-conductor');
+      // --- FIN DE LA CORRECCIÓN ---
+
       }
-      // (Otros roles como Conductor o Vendedor se quedan en el login)
+      // (Cualquier otro rol se queda en el login)
     }
   }, [user, userProfile, authLoading, router]);
-  // --- FIN DE LA NUEVA LÓGICA ---
+  // --- FIN DE LA LÓGICA ---
 
 
   // --- LÓGICA DE LOGIN (al hacer submit) ---
@@ -152,7 +159,7 @@ export default function Home() {
             Iniciar Sesión
           </button>
           
-          {/* --- ¡ENLACE "Registrarse" ELIMINADO! --- */}
+          {/* (Enlace "Registrarse" eliminado) */}
 
         </form>
       </div>
