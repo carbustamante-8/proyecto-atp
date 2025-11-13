@@ -1,5 +1,5 @@
 // frontend/app/portal-conductor/page.tsx
-// (CÓDIGO ACTUALIZADO: Filtra la tabla para mostrar solo solicitudes "activas")
+// (CÓDIGO CORREGIDO: Añadido 'Pendiente' al tipo SolicitudConEstado)
 
 'use client'; 
 
@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
 import toast from 'react-hot-toast'; 
 
-// (Tipo VehiculoAsignado sin cambios)
 type VehiculoAsignado = {
   id: string;
   patente: string;
@@ -18,19 +17,19 @@ type VehiculoAsignado = {
   estado: string;
 };
 
-// (Tipo SolicitudConEstado sin cambios)
+// --- ¡TIPO CORREGIDO! ---
 type SolicitudConEstado = {
   id: string;
   descripcion: string;
   fechaSolicitud: { _seconds: number };
   estadoSolicitud: 'Pendiente' | 'Procesado';
-  estadoOT: 'Agendado' | 'En Progreso' | 'Finalizado' | 'Cerrado' | 'Anulado' | null;
-  fechaIngresoTaller?: { _seconds: number } | null;
+  estadoOT: 'Agendado' | 'Pendiente' | 'En Progreso' | 'Finalizado' | 'Cerrado' | 'Anulado' | null; // <-- "Pendiente" AÑADIDO
+  fechaHoraAgendada?: { _seconds: number } | null; 
 };
+// --- FIN DE LA CORRECCIÓN ---
 
 export default function PortalConductorPage() {
   
-  // (Estados sin cambios)
   const [miVehiculo, setMiVehiculo] = useState<VehiculoAsignado | null>(null);
   const [loadingVehiculo, setLoadingVehiculo] = useState(true);
   const [descripcionFalla, setDescripcionFalla] = useState('');
@@ -41,7 +40,7 @@ export default function PortalConductorPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // (useEffect sin cambios)
+  // (useEffect y fetchMiVehiculo no cambian)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -57,7 +56,6 @@ export default function PortalConductorPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // (fetchMiVehiculo sin cambios)
   const fetchMiVehiculo = async (conductorId: string) => {
     setLoadingVehiculo(true);
     try {
@@ -76,27 +74,20 @@ export default function PortalConductorPage() {
     }
   };
   
-  // --- ¡fetchMisSolicitudes (ACTUALIZADO CON FILTRO)! ---
+  // (fetchMisSolicitudes no cambia)
   const fetchMisSolicitudes = async (conductorId: string) => {
     setLoadingSolicitudes(true);
     try {
       const response = await fetch(`/api/solicitudes/por-conductor/${conductorId}`);
       if (!response.ok) throw new Error('No se pudieron cargar tus solicitudes');
-      
       const data: SolicitudConEstado[] = await response.json();
-      
-      // --- ¡FILTRO DE LIMPIEZA! ---
-      // Muestra solo las solicitudes que NO estén Cerradas o Anuladas.
       const solicitudesActivas = data.filter(sol => {
         if (sol.estadoOT === 'Cerrado' || sol.estadoOT === 'Anulado') {
-          return false; // No mostrar (ya están archivadas)
+          return false; 
         }
-        return true; // Mostrar 'Pendiente', 'Agendado', 'En Progreso', 'Finalizado'
+        return true; 
       });
-      // --- FIN DEL FILTRO ---
-      
-      setMisSolicitudes(solicitudesActivas); // ¡Solo guarda las activas!
-
+      setMisSolicitudes(solicitudesActivas); 
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -104,7 +95,7 @@ export default function PortalConductorPage() {
     }
   };
 
-  // (handleSolicitud sin cambios)
+  // (handleSolicitud no cambia)
   const handleSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!descripcionFalla || !userProfile || !miVehiculo) return;
@@ -124,8 +115,7 @@ export default function PortalConductorPage() {
 
       toast.success('¡Solicitud enviada exitosamente!');
       setDescripcionFalla(''); 
-      fetchMisSolicitudes(userProfile.id); // Refresca la lista
-
+      fetchMisSolicitudes(userProfile.id); 
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -133,32 +123,37 @@ export default function PortalConductorPage() {
     }
   };
   
-  // (getEstadoConductor sin cambios)
+  // (getEstadoConductor no cambia, pero ahora es válido para TypeScript)
   const getEstadoConductor = (sol: SolicitudConEstado): { texto: string, color: string } => {
-    // (Esta función ya maneja 'Anulado' y 'Cerrado', pero ahora nunca los recibirá)
-    if (sol.estadoOT === 'Anulado') {
-      return { texto: 'Solicitud Anulada', color: 'text-red-600' };
-    }
-    if (sol.estadoOT === 'Cerrado') {
-      return { texto: 'Retirado y Cerrado', color: 'text-gray-500' };
-    }
+    
     if (sol.estadoOT === 'Finalizado') {
       return { texto: '¡LISTO PARA RETIRO!', color: 'text-green-600 font-bold' };
     }
     if (sol.estadoOT === 'En Progreso') {
       return { texto: 'En Taller (En Progreso)', color: 'text-yellow-600' };
     }
+    // ¡Esta línea ahora es válida!
+    if (sol.estadoOT === 'Pendiente') {
+      return { texto: 'En Taller (Pendiente de Mecánico)', color: 'text-yellow-600' };
+    }
+    
+    if (sol.estadoOT === 'Agendado' && sol.fechaHoraAgendada && typeof sol.fechaHoraAgendada === 'object' && sol.fechaHoraAgendada._seconds) {
+      const fecha = new Date(sol.fechaHoraAgendada._seconds * 1000).toLocaleString('es-CL');
+      return { texto: `Agendado para: ${fecha}`, color: 'text-blue-600' };
+    }
     if (sol.estadoOT === 'Agendado') {
-      return { texto: 'Agendado (Pendiente de llegada)', color: 'text-blue-600' };
+      return { texto: 'Agendado (Esperando hora)', color: 'text-blue-600' };
     }
+
     if (sol.estadoSolicitud === 'Pendiente') {
-      return { texto: 'Pendiente de Aprobación', color: 'text-gray-500' };
+      return { texto: 'Pendiente de Aprobación (Admin)', color: 'text-gray-500' };
     }
+    
     return { texto: 'Procesado', color: 'text-gray-500' };
   };
 
   // (Renderizado JSX sin cambios)
-  // ... (se omite por brevedad, es idéntico al anterior) ...
+  // ... (se omite por brevedad) ...
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }

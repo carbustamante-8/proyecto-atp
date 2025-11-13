@@ -25,3 +25,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ... (al final de app/globals.css) ... */
+
+/* Estilos para React-DatePicker */
+.react-datepicker__day--highlighted-times {
+  background-color: #fca5a5; /* Un rojo claro */
+  color: #7f1d1d !important; /* Texto rojo oscuro */
+}

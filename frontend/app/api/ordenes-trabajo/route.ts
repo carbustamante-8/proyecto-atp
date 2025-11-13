@@ -1,10 +1,11 @@
 // app/api/ordenes-trabajo/route.ts
-// (CÓDIGO ACTUALIZADO: POST ahora guarda 'nombre_conductor')
+// (CÓDIGO ACTUALIZADO: POST ahora acepta 'fechaHoraAgendada' y datos del conductor)
 
 import { NextResponse, NextRequest } from 'next/server'; 
 import { adminDb } from '@/lib/firebase-admin';
 import * as admin from 'firebase-admin'; 
 
+// (La función GET no cambia)
 export async function GET(request: NextRequest) { 
   try {
     const { searchParams } = new URL(request.url);
@@ -26,26 +27,37 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * Función POST: (¡MODIFICADA!)
+ * El estado inicial es 'Agendado' y guarda la fecha de la cita.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json(); 
+    console.log('POST /api/ordenes-trabajo: Agendando nueva OT...');
     
-    if (!body.patente || !body.descripcionProblema) {
-      return NextResponse.json({ error: 'Faltan datos' }, { status: 400 });
+    // --- ¡NUEVA VALIDACIÓN! ---
+    if (!body.patente || !body.descripcionProblema || !body.fechaHoraAgendada) {
+      return NextResponse.json({ error: 'Faltan datos (Patente, Descripción y Fecha son obligatorios)' }, { status: 400 });
     }
     
+    // --- ¡NUEVOS DATOS! ---
     const datosOT = {
       patente: body.patente,
       descripcionProblema: body.descripcionProblema,
       
-      // ¡NUEVO CAMPO!
-      nombre_conductor: body.nombre_conductor || 'No registrado', 
+      // Datos del conductor (vienen de la solicitud original)
+      id_conductor: body.id_conductor || null, 
+      nombre_conductor: body.nombre_conductor || 'Ingreso Físico', 
+      
+      // La fecha/hora de la cita
+      fechaHoraAgendada: admin.firestore.Timestamp.fromDate(new Date(body.fechaHoraAgendada)),
       
       mecanicoAsignadoId: null, 
       mecanicoAsignadoNombre: null, 
       estado: 'Agendado', 
       
-      fechaCreacion: admin.firestore.FieldValue.serverTimestamp(),
+      fechaCreacion: admin.firestore.FieldValue.serverTimestamp(), // Fecha en que se creó el registro
       fotos: [], 
       repuestosUsados: "" 
     };

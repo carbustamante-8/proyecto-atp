@@ -1,29 +1,43 @@
 // frontend/app/api/solicitudes/route.ts
-// (CÓDIGO ACTUALIZADO: PUT ahora acepta 'id_ot_relacionada' para conectar)
+// (CÓDIGO ACTUALIZADO: GET ahora devuelve todos los datos)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '../../../lib/firebase-admin'; 
 import * as admin from 'firebase-admin';
 
-// (GET, POST, DELETE no cambian... se omiten por brevedad)
-// ... (GET, POST, DELETE functions are here) ...
+type SolicitudDoc = {
+  id: string;
+  estado: string;
+  fechaCreacion: admin.firestore.Timestamp;
+  // ...y todos los demás campos (id_conductor, nombre_conductor, etc.)
+}
 
+/**
+ * Función GET: (¡MODIFICADA!)
+ * Ahora devuelve todos los datos de la solicitud, no solo el estado.
+ */
 export async function GET(request: NextRequest) {
   try {
     const querySnapshot = await adminDb.collection('solicitudes').get();
+
     const todasLasSolicitudes = querySnapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data(),
-    })) as any[]; 
+      ...doc.data(), // <-- ¡CAMBIO! Devuelve todos los campos
+    })) as unknown as SolicitudDoc[]; 
+
     const solicitudesPendientes = todasLasSolicitudes
       .filter(req => req.estado === 'Pendiente') 
       .sort((a, b) => a.fechaCreacion.toMillis() - b.fechaCreacion.toMillis()); 
+
     return NextResponse.json(solicitudesPendientes);
   } catch (error: any) { 
     console.error("Error en GET /api/solicitudes:", error);
     return NextResponse.json({ error: 'Error al obtener las solicitudes' }, { status: 500 });
   }
 }
+
+// (El resto de funciones POST, PUT, DELETE se mantienen igual que las que te di)
+// ...
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json(); 
@@ -45,6 +59,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Error al crear la solicitud' }, { status: 500 });
   }
 }
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, estado, id_ot_relacionada } = body; 
+    if (!id || !estado) {
+      return NextResponse.json({ error: 'Faltan el ID y el nuevo Estado' }, { status: 400 });
+    }
+    const datosActualizados: {
+      estado: string;
+      id_ot_relacionada?: string;
+    } = { estado: estado };
+    if (id_ot_relacionada) {
+      datosActualizados.id_ot_relacionada = id_ot_relacionada;
+    }
+    const solicitudRef = adminDb.collection('solicitudes').doc(id);
+    await solicitudRef.update(datosActualizados);
+    return NextResponse.json({ message: 'Solicitud actualizada exitosamente' });
+  } catch (error) {
+    console.error("Error en PUT /api/solicitudes:", error);
+    return NextResponse.json({ error: 'Error al actualizar la solicitud' }, { status: 500 });
+  }
+}
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -57,41 +93,5 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Error en DELETE /api/solicitudes:", error);
     return NextResponse.json({ error: 'Error al rechazar la solicitud' }, { status: 500 });
-  }
-}
-
-// --- ¡FUNCIÓN PUT MODIFICADA! ---
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { id, estado, id_ot_relacionada } = body; // Acepta el nuevo ID
-
-    if (!id || !estado) {
-      return NextResponse.json({ error: 'Faltan el ID y el nuevo Estado' }, { status: 400 });
-    }
-
-    console.log(`PUT /api/solicitudes: Actualizando solicitud ${id} a estado ${estado}`);
-
-    // Prepara los datos a actualizar
-    const datosActualizados: {
-      estado: string;
-      id_ot_relacionada?: string;
-    } = {
-      estado: estado,
-    };
-
-    // Si se pasó el ID de la OT, lo añade
-    if (id_ot_relacionada) {
-      datosActualizados.id_ot_relacionada = id_ot_relacionada;
-    }
-
-    const solicitudRef = adminDb.collection('solicitudes').doc(id);
-    await solicitudRef.update(datosActualizados);
-
-    return NextResponse.json({ message: 'Solicitud actualizada exitosamente' });
-
-  } catch (error) {
-    console.error("Error en PUT /api/solicitudes:", error);
-    return NextResponse.json({ error: 'Error al actualizar la solicitud' }, { status: 500 });
   }
 }

@@ -1,5 +1,5 @@
 // frontend/app/solicitudes-pendientes/page.tsx
-// (CÓDIGO CORREGIDO: handleAgendarOT ahora conecta la Solicitud con la OT)
+// (CÓDIGO REVERTIDO: Vuelve a redirigir al formulario para agendar)
 
 'use client'; 
 
@@ -12,6 +12,7 @@ type Solicitud = {
   id: string;
   patente_vehiculo: string;
   nombre_conductor: string;
+  id_conductor: string; // ¡Necesario para pasarlo a la OT!
   descripcion_falla: string;
   fechaCreacion: { _seconds: number };
   estado: string;
@@ -24,9 +25,8 @@ export default function BandejaDeTallerPage() {
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
   
   const { user, userProfile, loading: authLoading } = useAuth();
-  const router = useRouter();
+  const router = useRouter(); // ¡Para redirigir!
 
-  // (useEffect y fetchSolicitudesPendientes no cambian)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -52,57 +52,24 @@ export default function BandejaDeTallerPage() {
     }
   };
 
-  // --- ¡handleAgendarOT (MODIFICADO)! ---
-  const handleAgendarOT = async (solicitud: Solicitud) => {
-    setProcesandoId(solicitud.id); 
+  // --- ¡handleAgendarOT (REVERTIDO A REDIRECCIÓN)! ---
+  const handleAgendarOT = (solicitud: Solicitud) => {
+    toast.success('Redirigiendo para agendar...');
     
-    const promise = (async () => {
-      // 1. Crear la OT
-      const otResponse = await fetch('/api/ordenes-trabajo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patente: solicitud.patente_vehiculo,
-          descripcionProblema: solicitud.descripcion_falla,
-          // ¡ENVIAMOS EL NOMBRE!
-          nombre_conductor: solicitud.nombre_conductor, 
-        }),
-      });
-      if (!otResponse.ok) throw new Error('Fallo al crear la OT.');
-      
-      // ¡NUEVO! Captura el ID de la OT recién creada
-      const nuevaOT = await otResponse.json();
-      const nuevaOtId = nuevaOT.id;
+    // Prepara los datos para la URL
+    const params = new URLSearchParams();
+    params.set('patente', solicitud.patente_vehiculo);
+    params.set('motivo', solicitud.descripcion_falla);
+    params.set('id_conductor', solicitud.id_conductor);
+    params.set('nombre_conductor', solicitud.nombre_conductor);
+    params.set('solicitud_id', solicitud.id); // ¡Importante para actualizar la solicitud!
 
-      // 2. Actualizar la Solicitud (¡ahora con el ID de la OT!)
-      const solResponse = await fetch('/api/solicitudes', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: solicitud.id,
-          estado: 'Procesado',
-          id_ot_relacionada: nuevaOtId // <-- ¡Aquí está la conexión!
-        }),
-      });
-      if (!solResponse.ok) throw new Error('Fallo al actualizar la solicitud.');
-    })();
-
-    toast.promise(promise, {
-      loading: 'Agendando OT...',
-      success: () => {
-        setSolicitudes(actuales => actuales.filter(s => s.id !== solicitud.id));
-        setProcesandoId(null);
-        return '¡OT Agendada! Ya es visible para el Guardia.';
-      },
-      error: (err) => {
-        setProcesandoId(null);
-        return err.message || 'Ocurrió un error inesperado.';
-      }
-    });
+    router.push(`/crear-ot?${params.toString()}`);
   };
 
   // (handleRechazarSolicitud no cambia)
   const handleRechazarSolicitud = async (solicitud: Solicitud) => {
+    // ... (igual que antes, con toast.promise) ...
     setProcesandoId(solicitud.id); 
     const promise = fetch(`/api/solicitudes?id=${solicitud.id}`, { method: 'DELETE' });
     toast.promise(promise, {
@@ -120,8 +87,8 @@ export default function BandejaDeTallerPage() {
     });
   };
 
-  // (El renderizado JSX no cambia)
-  // ... (Se omite el JSX por brevedad, es idéntico al anterior) ...
+  // (Renderizado JSX sin cambios)
+  // ... (se omite por brevedad) ...
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
@@ -157,14 +124,14 @@ export default function BandejaDeTallerPage() {
                         disabled={procesandoId === req.id}
                         className="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700 disabled:bg-gray-400"
                       >
-                        {procesandoId === req.id ? '...' : 'Agendar OT'}
+                        Agendar OT
                       </button>
                       <button 
                         onClick={() => handleRechazarSolicitud(req)}
                         disabled={procesandoId === req.id}
                         className="bg-red-600 text-white px-3 py-1 rounded shadow hover:bg-red-700 disabled:bg-gray-400"
                       >
-                        {procesandoId === req.id ? '...' : 'Rechazar'}
+                        Rechazar
                       </button>
                     </td>
                   </tr>

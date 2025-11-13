@@ -1,11 +1,12 @@
 // frontend/app/api/solicitudes/por-conductor/[id]/route.ts
-// (CÓDIGO CORREGIDO: Se quita el .orderBy() de la consulta y se ordena en el servidor)
+// (API NUEVA: Busca las solicitudes de un conductor y el estado de sus OTs)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '../../../../../lib/firebase-admin'; // (Ruta relativa larga)
 
+// Define el tipo de 'context' que Vercel espera
 type Context = {
-  params: Promise<{ id: string }> 
+  params: Promise<{ id: string }> // El 'id' aquí es el ID del CONDUCTOR
 }
 
 export async function GET(request: NextRequest, context: Context) {
@@ -21,23 +22,23 @@ export async function GET(request: NextRequest, context: Context) {
 
     console.log(`GET /api/solicitudes/por-conductor: Buscando solicitudes para Conductor ID: ${idConductor}`);
 
-    // --- ¡CORRECCIÓN! ---
+    // --- ¡CORRECCIÓN DE ÍNDICE! ---
     // 1. Busca todas las solicitudes (SIN ORDENAR)
     const solicitudesSnapshot = await adminDb.collection('solicitudes')
       .where('id_conductor', '==', idConductor)
-      .get(); // <-- Se quitó el .orderBy()
+      .get(); // <-- Se quita el .orderBy() para evitar error de índice
 
     if (solicitudesSnapshot.empty) {
-      return NextResponse.json([]); 
+      return NextResponse.json([]); // Devuelve un array vacío si no tiene solicitudes
     }
 
     const solicitudesConEstado = [];
 
-    // 2. Itera y busca el estado de la OT (sin cambios)
+    // 2. Itera sobre cada solicitud y busca el estado de la OT
     for (const doc of solicitudesSnapshot.docs) {
       const solicitud = doc.data();
       let estadoOT = null; 
-      let fechaIngresoTaller = null; 
+      let fechaHoraAgendada = null; // ¡NUEVO!
 
       if (solicitud.id_ot_relacionada) {
         const otRef = adminDb.collection('ordenes-trabajo').doc(solicitud.id_ot_relacionada);
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest, context: Context) {
         
         if (otDoc.exists) {
           estadoOT = otDoc.data()?.estado; 
-          fechaIngresoTaller = otDoc.data()?.fechaIngresoTaller || null;
+          fechaHoraAgendada = otDoc.data()?.fechaHoraAgendada || null; // ¡NUEVO!
         }
       }
 
@@ -55,12 +56,11 @@ export async function GET(request: NextRequest, context: Context) {
         fechaSolicitud: solicitud.fechaCreacion,
         estadoSolicitud: solicitud.estado, 
         estadoOT: estadoOT, 
-        fechaIngresoTaller: fechaIngresoTaller, 
+        fechaHoraAgendada: fechaHoraAgendada, // ¡NUEVO!
       });
     }
-
-    // --- ¡CORRECCIÓN! ---
-    // 3. Ordena los resultados aquí, en el código, ANTES de enviarlos
+    
+    // 3. Ordena los resultados en el servidor (evita error de índice)
     solicitudesConEstado.sort((a, b) => {
       const timeA = a.fechaSolicitud?._seconds || 0;
       const timeB = b.fechaSolicitud?._seconds || 0;

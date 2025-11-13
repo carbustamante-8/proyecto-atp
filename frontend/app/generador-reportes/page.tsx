@@ -1,5 +1,5 @@
 // frontend/app/generador-reportes/page.tsx
-// (CÓDIGO CORREGIDO: Eliminada la columna "Acción")
+// (CÓDIGO CORREGIDO: Reemplazado confirm() por toast.promise en handleAnularOT)
 
 'use client'; 
 
@@ -21,6 +21,11 @@ type OrdenDeTrabajo = {
   repuestosUsados?: string; 
 };
 
+const formatFecha = (fecha: { _seconds: number } | undefined | null) => {
+  if (!fecha) return 'N/A';
+  return new Date(fecha._seconds * 1000).toLocaleString('es-CL');
+};
+
 export default function GeneradorReportesPage() {
   
   const [ordenes, setOrdenes] = useState<OrdenDeTrabajo[]>([]); 
@@ -32,12 +37,12 @@ export default function GeneradorReportesPage() {
   const [filtroFechaInicio, setFiltroFechaInicio] = useState(''); 
   const [filtroFechaFin, setFiltroFechaFin] = useState(''); 
 
-  // (Ya no necesitamos 'anulandoId')
+  const [anulandoId, setAnulandoId] = useState<string | null>(null);
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- Carga de Datos (sin cambios) ---
+  // (useEffect y fetchTodasLasOrdenes no cambian)
   useEffect(() => {
     if (!authLoading && user && userProfile) {
       const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
@@ -67,7 +72,7 @@ export default function GeneradorReportesPage() {
     }
   };
   
-  // --- Lógica de Filtros (sin cambios) ---
+  // (handleGenerarReporte no cambia)
   const handleGenerarReporte = (e: React.FormEvent) => {
     e.preventDefault(); 
     setLoading(true);
@@ -97,18 +102,44 @@ export default function GeneradorReportesPage() {
     setLoading(false);
   };
 
-  // (Función 'handleAnularOT' eliminada)
+  // --- ¡handleAnularOT (MODIFICADO)! ---
+  const handleAnularOT = async (otId: string) => {
+    // ¡confirm() ELIMINADO!
+    setAnulandoId(otId);
+    
+    const promise = fetch(`/api/ordenes-trabajo/${otId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estado: 'Anulado', // El estado final
+        accion: 'anularOT' // El flag de seguridad de la API
+      }),
+    });
+
+    toast.promise(promise, {
+      loading: 'Anulando OT...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error al anular la OT');
+        // Actualiza la lista en la UI
+        setOrdenes(prev => prev.map(ot => 
+          ot.id === otId ? { ...ot, estado: 'Anulado' } : ot
+        ));
+        setAnulandoId(null);
+        return '¡OT Anulada!';
+      },
+      error: (err) => {
+        setAnulandoId(null);
+        return err.message || 'Error al anular la OT';
+      }
+    });
+  };
   
-  // --- Lógica de Exportar a Excel (sin cambios) ---
+  // (handleExportExcel no cambia)
   const handleExportExcel = () => {
     if (ordenesFiltradas.length === 0) {
       toast.error("No hay datos para exportar. Genera un reporte primero.");
       return;
     }
-    const formatFecha = (fecha: { _seconds: number } | undefined | null) => {
-      if (!fecha) return 'N/A';
-      return new Date(fecha._seconds * 1000).toLocaleString('es-CL');
-    };
     const datosParaExcel = ordenesFiltradas.map(ot => ({
       "ID OT": ot.id.substring(0, 6),
       "Patente": ot.patente,
@@ -130,6 +161,8 @@ export default function GeneradorReportesPage() {
     return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
   
+  const puedeAnular = ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol);
+
   return (
     <div className="p-8 text-gray-900">
       
@@ -144,8 +177,8 @@ export default function GeneradorReportesPage() {
         </button>
       </div>
       
+      {/* ... (Formulario de Filtros - sin cambios) ... */}
       <form onSubmit={handleGenerarReporte} className="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-        {/* ... (Filtros de fecha y patente sin cambios) ... */}
         <div>
           <label htmlFor="filtroFechaInicio" className="block text-sm font-medium text-gray-700">Fecha Inicio (Creación)</label>
           <input type="date" id="filtroFechaInicio" value={filtroFechaInicio} onChange={(e) => setFiltroFechaInicio(e.target.value)}
@@ -183,7 +216,7 @@ export default function GeneradorReportesPage() {
         </button>
       </form>
 
-      {/* --- Tabla Maestra de OTs (COLUMNA ELIMINADA) --- */}
+      {/* ... (Tabla Maestra - sin cambios) ... */}
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -191,13 +224,15 @@ export default function GeneradorReportesPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mecánico</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Entrada</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Salida</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-              {/* --- COLUMNA "ACCIÓN" ELIMINADA --- */}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
-              <tr><td colSpan={4} className="px-6 py-4 text-center">Cargando OTs...</td></tr>
+              <tr><td colSpan={7} className="px-6 py-4 text-center">Cargando OTs...</td></tr>
             ) : ordenesFiltradas.length > 0 ? (
               ordenesFiltradas.map(ot => (
                 <tr key={ot.id} className={`${ot.estado === 'Anulado' ? 'bg-red-50 opacity-60' : ''}`}>
@@ -216,12 +251,25 @@ export default function GeneradorReportesPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-green-700">{formatFecha(ot.fechaIngresoTaller)}</td>
+                  <td className="px-6 py-4 text-sm text-red-700">{formatFecha(ot.fechaSalidaTaller)}</td>
                   <td className="px-6 py-4">{ot.descripcionProblema}</td>
-                  {/* --- CELDA "ACCIÓN" ELIMINADA --- */}
+                  <td className="px-6 py-4">
+                    {/* Botón Anular (solo para Admins y OTs Agendadas) */}
+                    {puedeAnular && ot.estado === 'Agendado' && (
+                      <button
+                        onClick={() => handleAnularOT(ot.id)}
+                        disabled={anulandoId === ot.id}
+                        className="bg-red-600 text-white px-3 py-1 rounded shadow hover:bg-red-700 disabled:bg-gray-400"
+                      >
+                        {anulandoId === ot.id ? '...' : 'Anular'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))
             ) : (
-              <tr><td colSpan={4} className="px-6 py-4 text-center">
+              <tr><td colSpan={7} className="px-6 py-4 text-center">
                 No se encontraron OTs con esos filtros.
               </td></tr>
             )}
