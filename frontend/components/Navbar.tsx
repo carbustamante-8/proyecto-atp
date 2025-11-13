@@ -1,5 +1,5 @@
 // frontend/components/Navbar.tsx
-// (CÓDIGO COMPLETO Y CORREGIDO: Añadido "Historial Accesos" y "Bitácora")
+// (CÓDIGO ACTUALIZADO: Añadido enlace a "Agenda")
 
 'use client'; 
 
@@ -38,47 +38,43 @@ export default function Navbar() {
 
         <div className="space-x-6">
           
-          {/* --- BLOQUE ADMIN (CON "HISTORIAL ACCESOS") --- */}
+          {/* --- BLOQUE ADMIN (CON "AGENDA") --- */}
           {['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol) && (
             <>
               <Link href="/solicitudes-pendientes" className="hover:text-blue-600">Bandeja de Taller</Link>
+              
+              {/* --- ¡NUEVO ENLACE! --- */}
+              <Link href="/agenda-taller" className="hover:text-blue-600">Agenda</Link>
+              
               <Link href="/cierre-ots" className="hover:text-blue-600">Cierre de OTs</Link>
               <Link href="/dashboard-admin" className="hover:text-blue-600">Usuarios</Link>
               <Link href="/gestion-vehiculos" className="hover:text-blue-600">Vehículos</Link>
-              
-              {/* --- ¡AQUÍ ESTÁ LA LÍNEA AÑADIDA! --- */}
               <Link href="/historial-accesos" className="hover:text-blue-600">Historial Accesos</Link>
-              
               <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>
             </>
           )}
 
-          {/* --- BLOQUE GERENTE --- */}
+          {/* (Resto de roles sin cambios) */}
           {userProfile && userProfile.rol === 'Gerente' && (
             <>
               <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>
             </>
           )}
 
-          {/* --- BLOQUE MECÁNICO --- */}
           {userProfile && userProfile.rol === 'Mecánico' && (
             <>
               <Link href="/mis-tareas" className="hover:text-blue-600">Mi Tablero</Link>
             </>
           )}
 
-          {/* --- BLOQUE GUARDIA (CON "BITÁCORA") --- */}
           {userProfile && userProfile.rol === 'Guardia' && (
             <>
               <Link href="/control-acceso" className="hover:text-blue-600">Registrar Ingreso</Link>
               <Link href="/registrar-salida" className="hover:text-blue-600">Registrar Salida</Link>
-              
-              {/* --- ¡AQUÍ ESTÁ LA LÍNEA AÑADIDA! --- */}
               <Link href="/historial-accesos" className="hover:text-blue-600">Bitácora</Link>
             </>
           )}
           
-          {/* --- BLOQUE CONDUCTOR --- */}
           {userProfile.rol === 'Conductor' && (
             <>
               <Link href="/portal-conductor" className="hover:text-blue-600">Mi Portal</Link>
@@ -86,7 +82,7 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* --- Info de Usuario --- */}
+        {/* (Info de Usuario - sin cambios) */}
         <div className="flex items-center">
           <span className="text-gray-700 mr-4">
             Hola, {userProfile.nombre} (<em className="text-sm">{userProfile.rol}</em>)
