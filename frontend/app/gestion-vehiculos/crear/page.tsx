@@ -1,165 +1,216 @@
 // frontend/app/gestion-vehiculos/crear/page.tsx
+// (CÓDIGO CORREGIDO: Arreglado el bucle de carga y añadido botón "Cancelar")
+
 'use client'; 
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast'; // <-- 1. Importar toast
+import toast from 'react-hot-toast';
 
-type UsuarioSimple = {
+type User = {
   id: string;
   nombre: string;
+  rol: string;
 };
 
 export default function CrearVehiculoPage() {
-  const [formData, setFormData] = useState({
-    patente: '',
-    modelo: '',
-    año: '',
-    tipo_vehiculo: '',
-    kilometraje: '',
-    id_chofer_asignado: '',
-  });
+  const [patente, setPatente] = useState('');
+  const [marca, setMarca] = useState('');
+  const [modelo, setModelo] = useState('');
+  const [año, setAño] = useState(new Date().getFullYear());
+  const [tipoVehiculo, setTipoVehiculo] = useState('Camión');
+  const [estado, setEstado] = useState('Operativo');
+  const [idChoferAsignado, setIdChoferAsignado] = useState('');
   
-  const [choferes, setChoferes] = useState<UsuarioSimple[]>([]);
-  // const [error, setError] = useState(''); // <-- 2. Ya no lo usamos
-  const [loading, setLoading] = useState(false);
+  const [conductores, setConductores] = useState<User[]>([]);
   
-  const { user, userProfile, loading: authLoading } = useAuth();
+  // --- ¡LÓGICA DE CARGA CORREGIDA! ---
+  // 1. Renombrado 'loading' a 'loadingSubmit' para el botón
+  const [loadingSubmit, setLoadingSubmit] = useState(false);
+  // 2. Nuevo estado para la carga de datos de la página
+  const [loadingData, setLoadingData] = useState(true); 
+  
   const router = useRouter();
-  
-  useEffect(() => {
-    // ... (lógica de protección no cambia) ...
-    if (!authLoading) {
-      if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
-        if (rolesPermitidos.includes(userProfile.rol)) {
-          fetchChoferes();
-        } else {
-          router.push('/'); 
-        }
-      } else if (!user) {
-        router.push('/');
-      }
-    }
-  }, [user, userProfile, authLoading, router]);
+  const { user, userProfile, loading: authLoading } = useAuth();
 
-  const fetchChoferes = async () => {
+  // --- useEffect CORREGIDO ---
+  useEffect(() => {
+    // 1. Espera a que la autenticación termine
+    if (authLoading) {
+      return; // Aún no hagas nada
+    }
+    
+    // 2. La autenticación terminó. Ahora, ¿qué pasó?
+    if (user && userProfile) {
+      // 2a. Usuario logueado y con perfil
+      const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+      if (!rolesPermitidos.includes(userProfile.rol)) {
+        toast.error('No tienes permiso para acceder a esta página.');
+        router.push('/');
+      } else {
+        // ¡Tiene permiso! Carga los datos (conductores)
+        fetchConductores();
+      }
+    } else {
+      // 2b. Usuario no logueado o perfil corrupto
+      toast.error('Sesión no válida.');
+      router.push('/');
+    }
+  }, [user, userProfile, authLoading, router]); // Dependencias correctas
+
+  // --- fetchConductores CORREGIDO ---
+  const fetchConductores = async () => {
+    // setLoadingData(true) ya es true por defecto
     try {
       const response = await fetch('/api/usuarios');
-      const usuarios = await response.json();
-      const listaChoferes = usuarios.filter((u: any) => u.rol === 'Conductor');
-      setChoferes(listaChoferes);
+      if (!response.ok) throw new Error('No se pudo cargar la lista de conductores');
+      const usuarios: User[] = await response.json();
+      const conductoresActivos = usuarios.filter(u => u.rol === 'Conductor');
+      setConductores(conductoresActivos);
     } catch (err) {
-      console.error("Error cargando choferes:", err);
-      toast.error('No se pudo cargar la lista de choferes.'); // <-- 3. Cambiado
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      // 3. Pase lo que pase, avisa que la carga de datos terminó
+      setLoadingData(false);
     }
   };
-  
-  if (authLoading || !userProfile) {
-    return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
-  }
-  
-  const handleCrearVehiculo = async (e: React.FormEvent) => {
-    e.preventDefault(); 
-    const { patente, modelo, tipo_vehiculo, año, kilometraje, id_chofer_asignado } = formData;
-    if (!patente || !modelo || !tipo_vehiculo) {
-      toast.error('Patente, Modelo y Tipo son obligatorios.'); // <-- 3. Cambiado
-      return;
-    }
-    setLoading(true);
+
+  // --- handleSubmit CORREGIDO ---
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingSubmit(true); // <-- Usa el estado del botón
+    const toastId = toast.loading('Creando vehículo...');
+
     try {
       const response = await fetch('/api/vehiculos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          año: parseInt(año) || null,
-          kilometraje: parseInt(kilometraje) || 0,
-          id_chofer_asignado: id_chofer_asignado || null,
+        body: JSON.stringify({ 
+          patente: patente.toUpperCase(), 
+          marca, 
+          modelo, 
+          año, 
+          tipo_vehiculo: tipoVehiculo, 
+          estado,
+          id_chofer_asignado: idChoferAsignado || null
         }),
       });
-      if (!response.ok) throw new Error('Falló la creación del vehículo');
-      toast.success(`Vehículo ${patente} creado.`); // <-- 3. Cambiado
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear el vehículo');
+      }
+
+      toast.success('¡Vehículo creado exitosamente!', { id: toastId });
       router.push('/gestion-vehiculos');
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message); // <-- 3. Cambiado
+
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(error.message, { id: toastId });
+      } else {
+        toast.error('Ocurrió un error inesperado', { id: toastId });
+      }
     } finally {
-      setLoading(false); 
+      setLoadingSubmit(false); // <-- Usa el estado del botón
     }
   };
+
+  // --- NUEVA PANTALLA DE CARGA ---
+  // Ahora comprueba la autenticación Y la carga de datos
+  if (authLoading || loadingData) {
+    return <div className="p-8 text-gray-900">Validando sesión y cargando datos...</div>;
+  }
   
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-  
+  // (Esta comprobación es redundante por el useEffect, pero es una buena práctica)
+  if (!userProfile || !['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
+    return <div className="p-8 text-gray-900">Acceso denegado.</div>;
+  }
+
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          Añadir Nuevo Vehículo a la Flota
+        <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+          Registrar Nuevo Vehículo
         </h1>
-        {/* El error ahora es un Toast */}
-        <form onSubmit={handleCrearVehiculo} className="space-y-6">
-          {/* ... (todos tus inputs no cambian) ... */}
-           <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* ... (Inputs Patente, Marca, Modelo, Año, Tipo) ... */}
+          <div>
+            <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
+            <input type="text" id="patente" value={patente} onChange={(e) => setPatente(e.target.value)} required
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+          </div>
+          <div className="grid grid-cols-2 gap-6">
             <div>
-              <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
-              <input type="text" name="patente" id="patente" value={formData.patente} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-              />
+              <label htmlFor="marca" className="block text-sm font-medium text-gray-700">Marca</label>
+              <input type="text" id="marca" value={marca} onChange={(e) => setMarca(e.target.value)}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
             </div>
             <div>
               <label htmlFor="modelo" className="block text-sm font-medium text-gray-700">Modelo</label>
-              <input type="text" name="modelo" id="modelo" value={formData.modelo} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
-              <input type="number" name="año" id="año" value={formData.año} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-              />
-            </div>
-            <div>
-              <label htmlFor="kilometraje" className="block text-sm font-medium text-gray-700">Kilometraje</label>
-              <input type="number" name="kilometraje" id="kilometraje" value={formData.kilometraje} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-              />
+              <input type="text" id="modelo" value={modelo} onChange={(e) => setModelo(e.target.value)}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
             </div>
           </div>
           <div>
-            <label htmlFor="tipo_vehiculo" className="block text-sm font-medium text-gray-700">Tipo de Vehículo</label>
-            <select name="tipo_vehiculo" id="tipo_vehiculo" value={formData.tipo_vehiculo} onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-            >
-              <option value="" disabled>Selecciona un tipo</option>
-              <option value="Eléctrico">Eléctrico</option>
-              <option value="Diésel">Diésel</option>
-              <option value="Ventas">Vehículo de Ventas</option>
-              <option value="Respaldo">Flota de Respaldo</option>
+            <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
+            <input type="number" id="año" value={año} onChange={(e) => setAño(parseInt(e.target.value))}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+          </div>
+          <div>
+            <label htmlFor="tipoVehiculo" className="block text-sm font-medium text-gray-700">Tipo de Vehículo</label>
+            <select id="tipoVehiculo" value={tipoVehiculo} onChange={(e) => setTipoVehiculo(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              <option value="Camión">Camión</option>
+              <option value="Camioneta">Camioneta</option>
+              <option value="Auto">Auto</option>
+              <option value="Grúa Horquilla">Grúa Horquilla</option>
+              <option value="Otro">Otro</option>
             </select>
           </div>
+          
+          {/* (Selects Conductor y Estado) */}
           <div>
-            <label htmlFor="id_chofer_asignado" className="block text-sm font-medium text-gray-700">Chofer Asignado (Opcional)</label>
-            <select name="id_chofer_asignado" id="id_chofer_asignado" value={formData.id_chofer_asignado} onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-            >
-              <option value="">Sin chofer fijo</option>
-              {choferes.map(chofer => (
-                <option key={chofer.id} value={chofer.id}>{chofer.nombre}</option>
+            <label htmlFor="idChoferAsignado" className="block text-sm font-medium text-gray-700">Conductor Asignado (Opcional)</label>
+            <select id="idChoferAsignado" value={idChoferAsignado} onChange={(e) => setIdChoferAsignado(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              <option value="">Ninguno</option>
+              {conductores.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </select>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loading ? 'Guardando...' : 'Añadir Vehículo'}
-          </button>
+          <div>
+            <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Estado</label>
+            <select id="estado" value={estado} onChange={(e) => setEstado(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              <option value="Operativo">Operativo</option>
+              <option value="En Taller">En Taller</option>
+              <option value="De Baja">De Baja</option>
+            </select>
+          </div>
+
+          {/* --- ¡BLOQUE DE BOTONES ACTUALIZADO! --- */}
+          <div className="space-y-4 pt-4">
+            <button
+              type="submit"
+              disabled={loadingSubmit} 
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+            >
+              {loadingSubmit ? 'Guardando...' : 'Guardar Vehículo'}
+            </button>
+            
+            {/* --- ¡NUEVO BOTÓN DE CANCELAR! --- */}
+            <button
+              type="button"
+              onClick={() => router.push('/gestion-vehiculos')}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300"
+            >
+              Cancelar
+            </button>
+          </div>
+          {/* --- FIN DEL BLOQUE --- */}
+
         </form>
       </div>
     </div>

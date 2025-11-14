@@ -1,8 +1,8 @@
 // frontend/app/tareas-detalle/[id]/page.tsx
-// (CÓDIGO ACTUALIZADO: Añadido modal para ampliar fotos subidas)
+// (CÓDIGO CORREGIDO: Botón "Volver" ahora solo es visible para el Mecánico)
 
 'use client'; 
-import { useState, useEffect, useRef, Fragment } from 'react'; // ¡Añadido Fragment!
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation'; 
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
@@ -29,20 +29,16 @@ export default function DetalleOTPage() {
 
   const [ot, setOt] = useState<DetalleOrdenDeTrabajo | null>(null);
   const [loading, setLoading] = useState(true); 
-  
   const [nuevoEstado, setNuevoEstado] = useState<'Pendiente' | 'En Progreso' | 'Finalizado'>('Pendiente');
   const [repuestosUsados, setRepuestosUsados] = useState(''); 
   const [isUpdating, setIsUpdating] = useState(false); 
-  
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null); 
-
-  // --- ¡NUEVO! Estado para la foto ampliada ---
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
   
-  // (Función de Carga - sin cambios)
+  // (fetchDetalleOT - sin cambios)
   const fetchDetalleOT = async () => {
     if (!id) { setLoading(false); return; }
     setLoading(true); 
@@ -82,7 +78,6 @@ export default function DetalleOTPage() {
   const handleActualizarMecanico = async (e: React.FormEvent) => {
     e.preventDefault(); 
     setIsUpdating(true);
-    
     const body: {
       estado: string,
       repuestosUsados: string,
@@ -92,7 +87,6 @@ export default function DetalleOTPage() {
       estado: nuevoEstado,
       repuestosUsados: repuestosUsados,
     };
-
     if (ot?.estado === 'Pendiente' && nuevoEstado === 'En Progreso') {
       if (userProfile) {
         body.mecanicoAsignadoId = userProfile.id;
@@ -104,7 +98,6 @@ export default function DetalleOTPage() {
         return;
       }
     }
-
     try {
       const response = await fetch(`/api/ordenes-trabajo/${id}`, {
         method: 'PUT',
@@ -112,7 +105,6 @@ export default function DetalleOTPage() {
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error('No se pudo actualizar el estado');
-      
       if (body.mecanicoAsignadoId) {
         await fetchDetalleOT(); 
         toast.success('¡Tarea actualizada!');
@@ -154,7 +146,6 @@ export default function DetalleOTPage() {
       const response = await fetch(`/api/upload-foto?filename=${filename}`, { method: 'POST', body: selectedFile });
       if (!response.ok) throw new Error('Falló la subida del archivo');
       const newBlob = await response.json();
-      
       await fetch(`/api/ordenes-trabajo/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -175,23 +166,22 @@ export default function DetalleOTPage() {
     return <div className="p-8 text-gray-900">Validando sesión y cargando OT...</div>;
   }
   if (!ot) return <div className="p-8 text-gray-900">OT no encontrada.</div>;
-
+  
+  // --- Variables de Rol (sin cambios) ---
   const esMecanico = userProfile.rol === 'Mecánico';
   const isAdmin = ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol);
   const puedeEditar = esMecanico && (ot.estado === 'Pendiente' || (ot.mecanicoAsignadoId === userProfile.id && ot.estado !== 'Finalizado' && ot.estado !== 'Cerrado'));
   
   return (
-    // --- ¡AÑADIDO FRAGMENT! ---
     <Fragment>
     
-      {/* --- ¡NUEVO! MODAL PARA FOTO AMPLIADA --- */}
+      {/* (Modal de Foto Ampliada - sin cambios) */}
       {fotoAmpliada && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm p-4"
-          onClick={() => setFotoAmpliada(null)} // Click afuera para cerrar
+          onClick={() => setFotoAmpliada(null)}
         >
           <div className="relative w-full h-full max-w-4xl max-h-[80vh]">
-            {/* Detiene la propagación para que al hacer clic en la imagen no se cierre */}
             <Image 
               src={fotoAmpliada} 
               alt="Evidencia ampliada"
@@ -200,7 +190,6 @@ export default function DetalleOTPage() {
               onClick={(e) => e.stopPropagation()} 
             />
           </div>
-          {/* Botón de Cierre (esquina) */}
           <button
             onClick={() => setFotoAmpliada(null)}
             className="absolute top-4 right-4 bg-white text-black rounded-full w-10 h-10 text-2xl font-bold shadow-lg"
@@ -209,17 +198,26 @@ export default function DetalleOTPage() {
           </button>
         </div>
       )}
-      {/* --- FIN DEL MODAL --- */}
 
       <div className="p-8 text-gray-900 grid grid-cols-3 gap-8">
         
-        {/* Columna Izquierda (Contenido) */}
         <div className="col-span-2 space-y-6"> 
           
           <h1 className="text-3xl font-bold">Detalle de OT-{ot.id.substring(0, 6)}</h1>
           
+          {/* --- ¡BOTÓN DE VOLVER (AHORA CONDICIONAL)! --- */}
+          {esMecanico && (
+            <button
+              onClick={() => router.back()} 
+              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+            >
+              ← Volver al listado
+            </button>
+          )}
+          
           {/* Info General */}
           <div className="bg-white p-6 rounded-lg shadow">
+            {/* ... (contenido de info general - sin cambios) ... */}
             <h2 className="text-xl font-semibold mb-4">Información General</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -258,6 +256,7 @@ export default function DetalleOTPage() {
           
           {/* Registro de Trabajo */}
           <div className="bg-white p-6 rounded-lg shadow">
+            {/* ... (contenido de registro de trabajo y fotos - sin cambios) ... */}
             <h2 className="text-xl font-semibold mb-4">Registro de Trabajo (Mecánico)</h2>
             <div>
               <label htmlFor="repuestos" className="block text-sm font-medium text-gray-700">Repuestos Utilizados / Trabajo Realizado</label>
@@ -273,7 +272,6 @@ export default function DetalleOTPage() {
             
             <h2 className="text-xl font-semibold mt-6 mb-4">Evidencia Fotográfica</h2>
             
-            {/* Previsualización de Foto */}
             {puedeEditar && (
               <div className="border border-gray-200 p-4 rounded-lg">
                 {previewUrl && (
@@ -302,7 +300,6 @@ export default function DetalleOTPage() {
               </div>
             )}
 
-            {/* Galería de Fotos Subidas (¡AHORA CON ONCLICK!) */}
             <div className="mt-6">
               <h3 className="text-lg font-semibold">Fotos Subidas:</h3>
               {ot.fotos && ot.fotos.length > 0 ? (
@@ -311,7 +308,7 @@ export default function DetalleOTPage() {
                     <div 
                       key={index} 
                       className="relative w-full h-40 rounded-lg overflow-hidden shadow-md cursor-pointer transition-transform hover:scale-105"
-                      onClick={() => setFotoAmpliada(fotoUrl)} // <-- ¡ACCIÓN DE AMPLIAR!
+                      onClick={() => setFotoAmpliada(fotoUrl)}
                     >
                       <Image src={fotoUrl} alt={`Evidencia ${index + 1}`} layout="fill" objectFit="cover" priority={index < 3} />
                     </div>
@@ -327,8 +324,7 @@ export default function DetalleOTPage() {
 
         {/* Columna Derecha (Acciones) */}
         <div className="col-span-1">
-          
-          {/* Formulario de Acciones (Mecánico) */}
+          {/* ... (Formulario de Acciones - sin cambios) ... */}
           {esMecanico && (
             <form onSubmit={handleActualizarMecanico} className="bg-white p-6 rounded-lg shadow sticky top-8">
               <h2 className="text-xl font-semibold mb-4 text-green-600">Acción Requerida</h2>
@@ -354,7 +350,6 @@ export default function DetalleOTPage() {
             </form>
           )}
 
-          {/* Vista de Solo Lectura (Admin) */}
           {isAdmin && (
             <div className="bg-white p-6 rounded-lg shadow sticky top-8">
               <h2 className="text-xl font-semibold mb-4 text-gray-700">Gestión de Tarea</h2>

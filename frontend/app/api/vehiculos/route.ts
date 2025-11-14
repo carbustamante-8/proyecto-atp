@@ -1,97 +1,74 @@
-// app/api/vehiculos/route.ts
+// frontend/app/api/vehiculos/route.ts
+// (CÓDIGO CORREGIDO: Arreglada la función POST con Firebase Admin SDK)
 
 import { NextResponse, NextRequest } from 'next/server';
-// Usamos la ruta relativa larga para asegurar que funcione
-import { adminDb } from '../../../lib/firebase-admin'; 
+// ¡CORRECCIÓN IMPORTANTE! Usamos la 'adminDb' del admin-sdk
+import { adminDb } from '@/lib/firebase-admin'; 
+import * as admin from 'firebase-admin'; // Para el serverTimestamp
 
 /**
- * Función GET: Obtiene la lista completa de vehículos de la flota.
+ * Función GET: (Sin cambios)
+ * Obtiene la lista de todos los vehículos
  */
 export async function GET() {
   try {
-    console.log('GET /api/vehiculos: Obteniendo lista de vehículos...');
-
-    // 2. Apunta a la colección "vehiculos"
     const vehiculosSnapshot = await adminDb.collection('vehiculos').get();
-
-    // 3. Convierte los datos a un formato JSON simple
     const vehiculos = vehiculosSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     }));
-
-    // 4. Responde con la lista de vehículos
     return NextResponse.json(vehiculos);
-
   } catch (error) {
     console.error("Error en GET /api/vehiculos:", error);
     return NextResponse.json({ error: 'Error al obtener vehículos' }, { status: 500 });
   }
 }
 
-
 /**
- * Función POST: Se ejecuta cuando un formulario
- * cree un nuevo vehículo.
+ * Función POST: (¡CORREGIDA!)
+ * Se ejecuta cuando el Admin crea un nuevo vehículo.
  */
 export async function POST(request: NextRequest) {
   try {
-    // 1. Lee los datos que envió el formulario
-    // (Basado en tu SQL y datos del cliente)
-    const body = await request.json(); 
-    
-    console.log('POST /api/vehiculos: Creando nuevo vehículo...');
+    const body = await request.json();
+    const { patente, marca, modelo, año, tipo_vehiculo, estado, id_chofer_asignado } = body;
 
-    // 2. Valida que los datos mínimos llegaron
-    if (!body.patente || !body.modelo || !body.tipo_vehiculo) {
-      return NextResponse.json({ error: 'Faltan datos (patente, modelo, tipo)' }, { status: 400 });
+    if (!patente) {
+      return NextResponse.json({ error: 'La patente es obligatoria' }, { status: 400 });
+    }
+    
+    const patenteMayuscula = patente.toUpperCase();
+
+    // --- ¡SINTAXIS CORREGIDA DE FIREBASE ADMIN! ---
+    // 1. Validación de patente duplicada
+    const querySnapshot = await adminDb.collection('vehiculos')
+      .where('patente', '==', patenteMayuscula)
+      .get();
+    
+    if (!querySnapshot.empty) {
+      return NextResponse.json({ error: 'La patente ya está registrada' }, { status: 400 });
     }
 
-    // 3. USA LA CONEXIÓN ADMIN para CREAR un nuevo documento
-    // ¡Firestore creará la colección "vehiculos" si no existe!
-    const nuevoVehiculoRef = await adminDb.collection('vehiculos').add({
-      patente: body.patente,
-      modelo: body.modelo,
-      año: body.año || null,
-      tipo_vehiculo: body.tipo_vehiculo, // Ej: "Diésel", "Eléctrico"
-      kilometraje: body.kilometraje || 0,
-      id_chofer_asignado: body.id_chofer_asignado || null, // ID del usuario chofer
-      estado: 'Activo', // Estado del vehículo (Activo, Inactivo, En Taller)
-    });
+    // 2. Creación del vehículo
+    const nuevoVehiculo = {
+      patente: patenteMayuscula,
+      marca,
+      modelo,
+      año: Number(año), // Aseguramos que sea número
+      tipo_vehiculo,
+      estado,
+      id_chofer_asignado: id_chofer_asignado || null,
+      fechaCreacion: admin.firestore.FieldValue.serverTimestamp(), // ¡Sintaxis Admin!
+    };
 
-    // 4. Responde con los datos del vehículo creado
-    return NextResponse.json({ id: nuevoVehiculoRef.id, ...body, estado: 'Activo' }, { status: 201 });
+    // 3. Guardar en la base de datos
+    const docRef = await adminDb.collection('vehiculos').add(nuevoVehiculo);
+    // --- FIN DE LA CORRECCIÓN ---
+    
+    return NextResponse.json({ id: docRef.id, ...nuevoVehiculo }, { status: 201 });
 
-  } catch (error) {
-    console.error("Error en POST /api/vehiculos:", error);
-    return NextResponse.json({ error: 'Error al crear el vehículo' }, { status: 500 });
+  } catch (error: any) {
+    console.error("Error al crear el vehículo:", error);
+    return NextResponse.json({ error: 'Error al crear el vehículo', details: error.message }, { status: 500 });
   }
 }
-
-  /**
-   * Función DELETE: Se ejecuta cuando el frontend pide borrar un vehículo.
-   * Recibirá el ID por la URL (ej: /api/vehiculos?id=abc12345)
-   */
-  export async function DELETE(request: NextRequest) {
-    try {
-      // 1. Obtiene la URL y saca el ID del vehículo
-      const { searchParams } = new URL(request.url);
-      const vehiculoId = searchParams.get('id');
-
-      if (!vehiculoId) {
-        return NextResponse.json({ error: 'Falta el ID del vehículo' }, { status: 400 });
-      }
-
-      console.log(`DELETE /api/vehiculos: Borrando vehículo con ID: ${vehiculoId}`);
-
-      // 2. USA LA LLAVE MAESTRA para borrar el documento de Firestore
-      await adminDb.collection('vehiculos').doc(vehiculoId).delete();
-
-      // 3. Responde con un mensaje de éxito
-      return NextResponse.json({ message: 'Vehículo eliminado exitosamente' });
-
-    } catch (error) {
-      console.error("Error en DELETE /api/vehiculos:", error);
-      return NextResponse.json({ error: 'Error al eliminar el vehículo' }, { status: 500 });
-    }
-  }

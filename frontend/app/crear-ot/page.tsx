@@ -1,5 +1,5 @@
 // frontend/app/crear-ot/page.tsx
-// (CÓDIGO ACTUALIZADO: Implementa react-datepicker)
+// (CÓDIGO ACTUALIZADO: Implementa react-datepicker + Botón Cancelar)
 
 'use client'; 
 import { useState, useEffect, Suspense } from 'react';
@@ -90,7 +90,7 @@ function CrearOTForm() {
     }
   };
   
-  // --- handleCrearOT (ACTUALIZADO) ---
+  // (handleCrearOT no cambia)
   const handleCrearOT = async (e: React.FormEvent) => {
     e.preventDefault(); 
     if (!patente || !descripcionProblema || !fechaHoraAgendada) {
@@ -98,7 +98,6 @@ function CrearOTForm() {
       return;
     }
     
-    // La validación ahora es más simple
     if (fechaHoraAgendada < new Date()) {
       toast.error('La fecha de agendamiento no puede ser en el pasado.');
       return;
@@ -107,14 +106,12 @@ function CrearOTForm() {
     setLoading(true);
     
     const promise = (async () => {
-      // 1. Crear la OT
       const otResponse = await fetch('/api/ordenes-trabajo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patente,
           descripcionProblema,
-          // El objeto Date se convierte a string ISO automáticamente
           fechaHoraAgendada: fechaHoraAgendada, 
           id_conductor: idConductor,
           nombre_conductor: nombreConductor,
@@ -123,7 +120,6 @@ function CrearOTForm() {
       if (!otResponse.ok) throw new Error('Falló la creación de la OT');
       const nuevaOT = await otResponse.json();
 
-      // 2. Actualizar la solicitud (si aplica)
       if (solicitudId) {
         const solResponse = await fetch('/api/solicitudes', {
           method: 'PUT',
@@ -151,7 +147,6 @@ function CrearOTForm() {
     });
   };
 
-  // --- ¡NUEVO! Convierte las horas ocupadas a objetos Date ---
   const horasExcluidas = horasOcupadasHoy.map(
     ot => new Date(ot.fechaHoraAgendada._seconds * 1000)
   );
@@ -199,33 +194,43 @@ function CrearOTForm() {
                 selected={fechaHoraAgendada}
                 onChange={(date: Date | null) => setFechaHoraAgendada(date)}
                 
-                showTimeSelect // Muestra el selector de hora
-                timeIntervals={30} // ¡Tu requisito de bloques de 30 min!
+                showTimeSelect 
+                timeIntervals={30} 
                 
-                // --- ¡Lógica de Disponibilidad! ---
-                // Muestra las horas ocupadas (pero no las bloquea)
                 highlightDates={[{
                   "react-datepicker__day--highlighted-times": horasExcluidas
                 }]}
-                // (Si quisieras bloquearlas, usarías: excludeTimes={horasExcluidas})
                 
-                minDate={new Date()} // No se puede agendar en el pasado
-                dateFormat="dd/MM/yyyy HH:mm" // Formato amigable
+                minDate={new Date()} 
+                dateFormat="dd/MM/yyyy HH:mm" 
                 
-                // Estilos para que se vea como los otros inputs
                 className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
                 wrapperClassName="w-full"
                 placeholderText="Selecciona fecha y hora..."
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading || loadingHoras}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
-            >
-              {loading ? 'Guardando...' : 'Agendar OT'}
-            </button>
+            {/* --- ¡BLOQUE DE BOTONES ACTUALIZADO! --- */}
+            <div className="space-y-4 pt-4">
+              <button
+                type="submit"
+                disabled={loading || loadingHoras}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {loading ? 'Guardando...' : 'Agendar OT'}
+              </button>
+              
+              {/* --- ¡NUEVO BOTÓN DE CANCELAR! --- */}
+              <button
+                type="button" 
+                onClick={() => router.push('/solicitudes-pendientes')} // Vuelve a la bandeja
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300"
+              >
+                Cancelar
+              </button>
+            </div>
+            {/* --- FIN DEL BLOQUE --- */}
+            
           </form>
         </div>
         
