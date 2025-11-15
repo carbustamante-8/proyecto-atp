@@ -1,5 +1,5 @@
 // frontend/app/dashboard-admin/editar-usuario/[id]/page.tsx
-// (CÓDIGO ACTUALIZADO: Añadido botón "Cancelar")
+// (CÓDIGO CORREGIDO: Solucionado el error "uncontrolled input" para RUT)
 
 'use client';
 
@@ -8,26 +8,42 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
+// ¡Definimos el tipo con valores NO NULOS!
 type UserData = {
   email: string;
   nombre: string;
-  rut: string;
+  rut: string; // Ya no es opcional, será string vacío
   rol: string;
   estado: string;
 };
 
 function EditarUsuarioForm() {
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(false);
+  
+  // --- ¡ESTADO INICIAL CORREGIDO! ---
+  // Inicializamos con valores por defecto (strings vacíos)
+  const [userData, setUserData] = useState<UserData>({
+    email: '',
+    nombre: '',
+    rut: '', // <-- Inicia como string vacío
+    rol: 'Mecánico',
+    estado: 'Activo',
+  });
+  
+  // 'loadingSubmit' es para el botón, 'loadingPage' es para cargar datos
+  const [loadingSubmit, setLoadingSubmit] = useState(false);
+  const [loadingPage, setLoadingPage] = useState(true); // ¡Importante!
+  
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
   const { user, userProfile, loading: authLoading } = useAuth();
 
+  // (useEffect de protección - sin cambios)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        // (Roles corregidos según el reparto de vistas)
+        const rolesPermitidos = ['Supervisor', 'Coordinador'];
         if (!rolesPermitidos.includes(userProfile.rol)) {
           toast.error('No tienes permiso para acceder a esta página.');
           router.push('/');
@@ -38,30 +54,38 @@ function EditarUsuarioForm() {
         router.push('/');
       }
     }
-  }, [user, userProfile, authLoading, router, id]); // Añadido 'id' a las dependencias
+  }, [user, userProfile, authLoading, router, id]); // 'id' debe estar aquí
 
+  // --- fetchUserData (CORREGIDO) ---
   const fetchUserData = async () => {
     if (!id) return;
-    setLoading(true);
+    setLoadingPage(true); // <-- Usa el estado de página
     try {
       const response = await fetch(`/api/usuarios/${id}`);
       if (!response.ok) {
         throw new Error('Usuario no encontrado');
       }
       const data = await response.json();
-      setUserData(data);
+      
+      // --- ¡CORRECCIÓN! ---
+      // Aseguramos que 'rut' nunca sea 'null' o 'undefined'
+      setUserData({
+        ...data,
+        rut: data.rut || '', // <-- Si es null/undefined, usa string vacío
+      });
+      
     } catch (error) {
       if (error instanceof Error) toast.error(error.message);
       router.push('/dashboard-admin');
     } finally {
-      setLoading(false);
+      setLoadingPage(false); // <-- Usa el estado de página
     }
   };
 
+  // --- handleActualizarUsuario (CORREGIDO) ---
   const handleActualizarUsuario = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userData) return;
-    setLoading(true);
+    setLoadingSubmit(true); // <-- Usa el estado de botón
     toast.loading('Actualizando usuario...');
     try {
       const response = await fetch(`/api/usuarios/${id}`, {
@@ -69,7 +93,8 @@ function EditarUsuarioForm() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData),
+        // 'userData' ya tiene los valores correctos
+        body: JSON.stringify(userData), 
       });
 
       if (!response.ok) {
@@ -84,20 +109,20 @@ function EditarUsuarioForm() {
       toast.dismiss();
       if (error instanceof Error) toast.error(error.message);
     } finally {
-      setLoading(false);
+      setLoadingSubmit(false); // <-- Usa el estado de botón
     }
   };
 
+  // --- handleChange (CORREGIDO) ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
-    setUserData(prev => prev ? { ...prev, [id]: value } : null);
+    // Ahora 'prev' siempre está definido, no necesitamos 'prev ? ...'
+    setUserData(prev => ({ ...prev, [id]: value })); 
   };
 
-  if (authLoading || !userProfile || !userData) {
+  // --- PANTALLA DE CARGA CORREGIDA ---
+  if (authLoading || loadingPage) {
     return <div className="p-8 text-gray-900">Cargando...</div>;
-  }
-  if (!['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
-    return <div className="p-8 text-gray-900">Acceso denegado.</div>;
   }
 
   return (
@@ -107,21 +132,29 @@ function EditarUsuarioForm() {
           Editar Usuario
         </h1>
         <form onSubmit={handleActualizarUsuario} className="space-y-6">
+          
+          {/* (Email - sin cambios) */}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email (No editable)</label>
             <input type="email" id="email" value={userData.email} disabled
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-500 bg-gray-200" />
           </div>
+          
+          {/* (Nombre - sin cambios) */}
           <div>
             <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre Completo</label>
             <input type="text" id="nombre" value={userData.nombre} onChange={handleChange} required
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
           </div>
+          
+          {/* (RUT - ¡CORREGIDO!) */}
           <div>
             <label htmlFor="rut" className="block text-sm font-medium text-gray-700">RUT</label>
-            <input type="text" id="rut" value={userData.rut} onChange={handleChange}
+            <input type="text" id="rut" value={userData.rut} onChange={handleChange} // <-- Ahora es seguro
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
           </div>
+          
+          {/* (Rol y Estado - sin cambios) */}
           <div>
             <label htmlFor="rol" className="block text-sm font-medium text-gray-700">Rol</label>
             <select id="rol" value={userData.rol} onChange={handleChange}
@@ -144,26 +177,23 @@ function EditarUsuarioForm() {
             </select>
           </div>
 
-          {/* --- ¡BLOQUE DE BOTONES ACTUALIZADO! --- */}
+          {/* (Botones - sin cambios) */}
           <div className="space-y-4 pt-4">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loadingSubmit}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
             >
-              {loading ? 'Actualizando...' : 'Guardar Cambios'}
+              {loadingSubmit ? 'Actualizando...' : 'Guardar Cambios'}
             </button>
-            
-            {/* --- ¡NUEVO BOTÓN DE CANCELAR! --- */}
             <button
               type="button"
-              onClick={() => router.push('/dashboard-admin')} // Vuelve a la lista
+              onClick={() => router.push('/dashboard-admin')}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300"
             >
               Cancelar
             </button>
           </div>
-          {/* --- FIN DEL BLOQUE --- */}
 
         </form>
       </div>

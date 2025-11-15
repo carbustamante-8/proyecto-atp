@@ -1,5 +1,5 @@
 // frontend/app/crear-ot/page.tsx
-// (CÓDIGO ACTUALIZADO: Implementa react-datepicker + Botón Cancelar)
+// (CÓDIGO ACTUALIZADO: Implementa bloqueo de 1 hora y persistencia)
 
 'use client'; 
 import { useState, useEffect, Suspense } from 'react';
@@ -7,30 +7,27 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; 
 
-// --- ¡NUEVAS IMPORTACIONES! ---
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-// --- Fin de importaciones ---
 
 type HoraAgendada = {
   id: string;
   patente: string;
   fechaHoraAgendada: { _seconds: number };
+  estado: string; // ¡Necesario para la persistencia!
 };
 
 function CrearOTForm() {
   
-  // --- Estados del formulario ---
   const [patente, setPatente] = useState('');
   const [descripcionProblema, setDescripcionProblema] = useState('');
-  
-  // ¡CAMBIO DE TIPO! Ya no es string, es un objeto Date
   const [fechaHoraAgendada, setFechaHoraAgendada] = useState<Date | null>(null);
   
   const [idConductor, setIdConductor] = useState<string | null>(null);
   const [nombreConductor, setNombreConductor] = useState<string | null>(null);
   const [solicitudId, setSolicitudId] = useState<string | null>(null);
 
+  // --- ¡ACTUALIZADO! Ahora guarda todas las horas ocupadas ---
   const [horasOcupadasHoy, setHorasOcupadasHoy] = useState<HoraAgendada[]>([]);
   const [loadingHoras, setLoadingHoras] = useState(true);
 
@@ -39,7 +36,7 @@ function CrearOTForm() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const searchParams = useSearchParams(); 
 
-  // (useEffect y fetchHorasAgendadasHoy no cambian)
+  // (useEffect - sin cambios)
   useEffect(() => {
     setPatente(searchParams.get('patente') || '');
     setDescripcionProblema(searchParams.get('motivo') || '');
@@ -53,7 +50,7 @@ function CrearOTForm() {
         if (!rolesPermitidos.includes(userProfile.rol)) {
           router.push('/');
         } else {
-          fetchHorasAgendadasHoy();
+          fetchHorasOcupadasDelDia(); // Renombrada
         }
       } else if (!user) {
         router.push('/');
@@ -61,7 +58,8 @@ function CrearOTForm() {
     }
   }, [user, userProfile, authLoading, router, searchParams]);
   
-  const fetchHorasAgendadasHoy = async () => {
+  // --- ¡fetchHoras (ACTUALIZADO)! ---
+  const fetchHorasOcupadasDelDia = async () => {
     setLoadingHoras(true);
     try {
       const response = await fetch('/api/ordenes-trabajo');
@@ -74,9 +72,15 @@ function CrearOTForm() {
       hoyFin.setHours(23, 59, 59, 999);
 
       const agendadasHoy = data.filter((ot: any) => {
-        if (ot.estado !== 'Agendado' || !ot.fechaHoraAgendada?._seconds) {
+        // --- ¡LÓGICA DE PERSISTENCIA! ---
+        // La hora se considera "ocupada" si NO está Cerrada o Anulada
+        const estaActiva = ot.estado !== 'Cerrado' && ot.estado !== 'Anulado';
+        
+        if (!estaActiva || !ot.fechaHoraAgendada?._seconds) {
           return false;
         }
+        
+        // Y si la cita es para hoy
         const fechaCita = new Date(ot.fechaHoraAgendada._seconds * 1000);
         return fechaCita >= hoyInicio && fechaCita <= hoyFin;
       });
@@ -90,19 +94,17 @@ function CrearOTForm() {
     }
   };
   
-  // (handleCrearOT no cambia)
+  // (handleCrearOT - sin cambios)
   const handleCrearOT = async (e: React.FormEvent) => {
     e.preventDefault(); 
     if (!patente || !descripcionProblema || !fechaHoraAgendada) {
       toast.error('Completa Patente, Descripción y Fecha/Hora.');
       return;
     }
-    
     if (fechaHoraAgendada < new Date()) {
       toast.error('La fecha de agendamiento no puede ser en el pasado.');
       return;
     }
-    
     setLoading(true);
     
     const promise = (async () => {
@@ -147,9 +149,24 @@ function CrearOTForm() {
     });
   };
 
-  const horasExcluidas = horasOcupadasHoy.map(
+  // --- ¡NUEVA LÓGICA DE BLOQUEO! ---
+  // 1. Obtiene las horas de inicio
+  const horasOcupadas = horasOcupadasHoy.map(
     ot => new Date(ot.fechaHoraAgendada._seconds * 1000)
   );
+  
+  // 2. Crea la lista de bloqueo (bloquea la hora Y la siguiente media hora)
+  const horasParaExcluir: Date[] = [];
+  horasOcupadas.forEach(hora => {
+    // Añade la hora de inicio (ej: 11:00)
+    horasParaExcluir.push(hora);
+    
+    // Añade la siguiente media hora (ej: 11:30)
+    const siguienteMediaHora = new Date(hora.getTime() + 30 * 60000); 
+    horasParaExcluir.push(siguienteMediaHora);
+  });
+  // --- FIN LÓGICA DE BLOQUEO ---
+
 
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
@@ -166,6 +183,7 @@ function CrearOTForm() {
           </h1>
           <form onSubmit={handleCrearOT} className="space-y-6">
             
+            {/* (Inputs Patente y Descripción - sin cambios) */}
             <div>
               <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
               <input
@@ -174,7 +192,6 @@ function CrearOTForm() {
                 className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
               />
             </div>
-            
             <div>
               <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700">Descripción / Motivo</label>
               <textarea
@@ -185,7 +202,7 @@ function CrearOTForm() {
               />
             </div>
             
-            {/* --- ¡NUEVO COMPONENTE DE CALENDARIO! --- */}
+            {/* --- ¡DATEPICKER ACTUALIZADO CON BLOQUEO! --- */}
             <div>
               <label htmlFor="fechaHoraAgendada" className="block text-sm font-medium text-gray-700">
                 Fecha y Hora de Agendamiento
@@ -193,15 +210,13 @@ function CrearOTForm() {
               <DatePicker
                 selected={fechaHoraAgendada}
                 onChange={(date: Date | null) => setFechaHoraAgendada(date)}
-                
                 showTimeSelect 
-                timeIntervals={30} 
+                timeIntervals={30} // Intervalos de 30 min
                 
-                highlightDates={[{
-                  "react-datepicker__day--highlighted-times": horasExcluidas
-                }]}
+                // ¡BLOQUEA LAS HORAS!
+                excludeTimes={horasParaExcluir} 
                 
-                minDate={new Date()} 
+                minDate={new Date()} // No agendar en el pasado
                 dateFormat="dd/MM/yyyy HH:mm" 
                 
                 className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
@@ -210,7 +225,7 @@ function CrearOTForm() {
               />
             </div>
 
-            {/* --- ¡BLOQUE DE BOTONES ACTUALIZADO! --- */}
+            {/* (Botones - sin cambios) */}
             <div className="space-y-4 pt-4">
               <button
                 type="submit"
@@ -219,25 +234,22 @@ function CrearOTForm() {
               >
                 {loading ? 'Guardando...' : 'Agendar OT'}
               </button>
-              
-              {/* --- ¡NUEVO BOTÓN DE CANCELAR! --- */}
               <button
                 type="button" 
-                onClick={() => router.push('/solicitudes-pendientes')} // Vuelve a la bandeja
+                onClick={() => router.push('/solicitudes-pendientes')}
                 className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300"
               >
                 Cancelar
               </button>
             </div>
-            {/* --- FIN DEL BLOQUE --- */}
             
           </form>
         </div>
         
-        {/* --- Lista de Horas (Sigue siendo útil) --- */}
+        {/* --- Lista de Horas (ACTUALIZADA) --- */}
         <div className="bg-white p-8 rounded-lg shadow-lg mt-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Disponibilidad (Hoy)
+            Horas Ocupadas (Hoy)
           </h2>
           {loadingHoras ? (
             <p className="text-gray-500">Cargando disponibilidad...</p>
@@ -246,7 +258,8 @@ function CrearOTForm() {
               {horasOcupadasHoy.map(ot => (
                 <li key={ot.id} className="flex justify-between items-center p-3 bg-gray-100 rounded-md">
                   <span className="font-semibold text-red-600 text-lg">
-                    OCUPADO: {new Date(ot.fechaHoraAgendada._seconds * 1000).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                    {/* Muestra la hora y el estado */}
+                    OCUPADO ({ot.estado}): {new Date(ot.fechaHoraAgendada._seconds * 1000).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <span className="text-gray-700">{ot.patente}</span>
                 </li>

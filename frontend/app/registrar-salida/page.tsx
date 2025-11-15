@@ -1,36 +1,34 @@
 // frontend/app/registrar-salida/page.tsx
-// (CÓDIGO ACTUALIZADO: Restaurado el modal, pero SIN fondo)
+// (CÓDIGO CORREGIDO: Ahora busca OTs "Finalizado" o "Cerrado")
 
 'use client'; 
-import { useState, useEffect, Fragment } from 'react'; // ¡Restaurado Fragment!
+import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; 
 
-type OTFinalizada = {
+type OTParaSalida = {
   id: string;
   patente: string;
   nombre_conductor?: string;
   mecanicoAsignadoNombre?: string;
   fechaIngresoTaller?: { _seconds: number };
-  fechaSalidaTaller?: any; 
+  fechaSalidaTaller?: any; // Para el filtro
   estado: string;
 };
 
 export default function RegistrarSalidaPage() {
   
-  const [otsParaSalida, setOtsParaSalida] = useState<OTFinalizada[]>([]);
+  const [otsParaSalida, setOtsParaSalida] = useState<OTParaSalida[]>([]);
   const [loading, setLoading] = useState(true);
   const [actualizandoId, setActualizandoId] = useState<string | null>(null);
   
-  // --- ¡Restaurados! Estados para el Modal ---
   const [modalAbierto, setModalAbierto] = useState(false);
-  const [otParaRegistrarSalida, setOtParaRegistrarSalida] = useState<OTFinalizada | null>(null);
+  const [otParaRegistrarSalida, setOtParaRegistrarSalida] = useState<OTParaSalida | null>(null);
   
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // (useEffect y fetchOtsParaSalida no cambian)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile && userProfile.rol === 'Guardia') {
@@ -43,16 +41,21 @@ export default function RegistrarSalidaPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
+  // --- ¡LÓGICA DE FETCH CORREGIDA! ---
   const fetchOtsParaSalida = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/ordenes-trabajo');
+      // 1. Llama a la API correcta
+      const response = await fetch('/api/ordenes-trabajo'); 
       if (!response.ok) throw new Error('Error al cargar vehículos');
-      const data: OTFinalizada[] = await response.json();
+      const data: OTParaSalida[] = await response.json();
+      
+      // 2. Filtra OTs que SÍ tienen permiso de salida
       const salidaPendiente = data.filter(ot => 
-        (ot.estado === 'Finalizado' || ot.estado === 'Cerrado') && 
-        !ot.fechaSalidaTaller
+        (ot.estado === 'Finalizado' || ot.estado === 'Cerrado') && // ¡Solo Finalizado o Cerrado!
+        !ot.fechaSalidaTaller // Y que no hayan salido ya
       );
+      
       setOtsParaSalida(salidaPendiente);
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
@@ -61,8 +64,7 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  // --- ¡Restauradas! Funciones del Modal ---
-  const handleAbrirModalSalida = (ot: OTFinalizada) => {
+  const handleAbrirModalSalida = (ot: OTParaSalida) => {
     setOtParaRegistrarSalida(ot);
     setModalAbierto(true);
   };
@@ -72,23 +74,25 @@ export default function RegistrarSalidaPage() {
     setModalAbierto(false);
   };
 
-  // --- ¡Restaurado! handleConfirmarSalida ---
+  // --- ¡LÓGICA DE SALIDA CORREGIDA! ---
   const handleConfirmarSalida = async () => {
     if (!otParaRegistrarSalida) return;
     
     setActualizandoId(otParaRegistrarSalida.id);
     setModalAbierto(false); 
 
+    // 1. Llama a la API de OTs, no a la antigua 'control-salida'
     const promise = fetch(`/api/ordenes-trabajo/${otParaRegistrarSalida.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'registrarSalida' }),
+      body: JSON.stringify({ accion: 'registrarSalida' }), // 2. Envía la acción correcta
     });
 
     toast.promise(promise, {
       loading: 'Registrando salida...',
       success: (res) => {
         if (!res.ok) throw new Error('Falló el registro de salida');
+        // 3. Actualiza la UI
         setOtsParaSalida(prev => prev.filter(ot => ot.id !== otParaRegistrarSalida.id));
         setOtParaRegistrarSalida(null);
         setActualizandoId(null);
@@ -106,16 +110,13 @@ export default function RegistrarSalidaPage() {
   
   return (
     <Fragment>
-
-      {/* --- ¡MODAL SIN FONDO! --- */}
+      {/* (Modal sin fondo - sin cambios) */}
       {modalAbierto && otParaRegistrarSalida && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* 1. Overlay TRANSPARENTE (para cerrar al hacer clic afuera) */}
           <div 
             className="absolute inset-0" 
             onClick={handleCerrarModalSalida}
           ></div>
-          {/* 2. Caja Blanca (Contenido) */}
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
             <p className="text-gray-700 mb-2">
@@ -145,11 +146,10 @@ export default function RegistrarSalidaPage() {
           </div>
         </div>
       )}
-      {/* --- FIN DEL MODAL --- */}
 
+      {/* (Contenido de la página - sin cambios) */}
       <div className="p-8 text-gray-900">
         <h1 className="text-3xl font-bold mb-6">Registrar Salida de Vehículo</h1>
-        {/* ... (resto del JSX sin cambios) ... */}
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -173,7 +173,7 @@ export default function RegistrarSalidaPage() {
                   </td>
                   <td className="px-6 py-4">
                     <button 
-                      onClick={() => handleAbrirModalSalida(ot)} // ¡Llama al modal!
+                      onClick={() => handleAbrirModalSalida(ot)} 
                       disabled={actualizandoId === ot.id}
                       className="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700 disabled:bg-gray-400"
                     >

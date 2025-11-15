@@ -1,5 +1,5 @@
 // frontend/app/tareas-detalle/[id]/page.tsx
-// (CÓDIGO ACTUALIZADO: Lógica condicional para Admin vs Mecánico)
+// (CÓDIGO ACTUALIZADO: Añadido botón "Cerrar OT" para Admins en esta vista)
 
 'use client'; 
 import { useState, useEffect, useRef, Fragment } from 'react';
@@ -12,7 +12,6 @@ type DetalleOrdenDeTrabajo = {
   id: string;
   patente: string;
   descripcionProblema: string; 
-  // ¡Añadido 'Asignada'!
   estado: 'Agendado' | 'Pendiente' | 'Asignada' | 'En Progreso' | 'Finalizado' | 'Cerrado' | 'Anulado';
   fechaCreacion: any; 
   repuestosUsados?: string;
@@ -21,7 +20,6 @@ type DetalleOrdenDeTrabajo = {
   mecanicoAsignadoNombre?: string | null;
 };
 
-// ¡NUEVO TIPO!
 type Mecanico = {
   id: string;
   nombre: string;
@@ -37,25 +35,25 @@ export default function DetalleOTPage() {
   const [ot, setOt] = useState<DetalleOrdenDeTrabajo | null>(null);
   const [loading, setLoading] = useState(true); 
   
-  // --- Estados para MODO MECÁNICO ---
   const [nuevoEstado, setNuevoEstado] = useState<'Asignada' | 'En Progreso' | 'Finalizado'>('Asignada');
   const [repuestosUsados, setRepuestosUsados] = useState(''); 
   const [isUpdating, setIsUpdating] = useState(false); 
   
-  // --- Estados de Fotos (sin cambios) ---
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null); 
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
   
-  // --- ¡NUEVO! Estados para MODO ADMIN (Asignación) ---
   const [mecanicos, setMecanicos] = useState<Mecanico[]>([]);
   const [mecanicoAsignadoId, setMecanicoAsignadoId] = useState('');
   const [mecanicoAsignadoNombre, setMecanicoAsignadoNombre] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // --- 1. Función de Carga ---
+  // --- ¡NUEVO! Estado para Cierre Administrativo ---
+  const [isClosing, setIsClosing] = useState(false);
+
+  // --- 1. Función de Carga (sin cambios) ---
   const fetchDetalleOT = async () => {
     if (!id) { setLoading(false); return; }
     setLoading(true); 
@@ -65,7 +63,6 @@ export default function DetalleOTPage() {
       const data: DetalleOrdenDeTrabajo = await response.json();
       setOt(data); 
       
-      // Setea el estado actual del mecánico (si aplica)
       if (data.estado === 'Asignada' || data.estado === 'En Progreso' || data.estado === 'Finalizado') {
         setNuevoEstado(data.estado);
       }
@@ -77,14 +74,13 @@ export default function DetalleOTPage() {
     }
   };
   
-  // --- 2. useEffect (Carga mecánicos para el Admin) ---
+  // --- 2. useEffect (sin cambios) ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Mecánico'];
         if (rolesPermitidos.includes(userProfile.rol)) {
           fetchDetalleOT();
-          // Si eres Admin, carga la lista de mecánicos para el selector
           if (['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
             fetchMecanicos();
           }
@@ -97,7 +93,7 @@ export default function DetalleOTPage() {
     }
   }, [user, userProfile, authLoading, router, id]);
 
-  // --- ¡NUEVO! Carga de Mecánicos (para Admin) ---
+  // --- Carga de Mecánicos (sin cambios) ---
   const fetchMecanicos = async () => {
     try {
       const response = await fetch('/api/usuarios');
@@ -112,17 +108,11 @@ export default function DetalleOTPage() {
     }
   };
 
-  // --- 3. Funciones de MODO MECÁNICO (¡SIN auto-asignación!) ---
+  // --- 3. Funciones de MODO MECÁNICO (sin cambios) ---
   const handleActualizarMecanico = async (e: React.FormEvent) => {
     e.preventDefault(); 
     setIsUpdating(true);
-    
-    // El body ya no necesita la lógica de auto-asignación
-    const body = {
-      estado: nuevoEstado,
-      repuestosUsados: repuestosUsados,
-    };
-
+    const body = { estado: nuevoEstado, repuestosUsados: repuestosUsados };
     try {
       const response = await fetch(`/api/ordenes-trabajo/${id}`, {
         method: 'PUT',
@@ -130,12 +120,11 @@ export default function DetalleOTPage() {
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error('No se pudo actualizar el estado');
-      
       toast.success('¡OT actualizada!'); 
       if (nuevoEstado === 'Finalizado') {
-        router.push('/mis-tareas'); // Redirige si finaliza
+        router.push('/mis-tareas'); 
       } else {
-        await fetchDetalleOT(); // Solo recarga
+        await fetchDetalleOT(); 
       }
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
@@ -155,9 +144,7 @@ export default function DetalleOTPage() {
   const handleRemovePreview = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''; 
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ''; 
   };
   const handleFileUpload = async () => {
     if (!selectedFile) return;
@@ -182,7 +169,7 @@ export default function DetalleOTPage() {
     }
   };
   
-  // --- ¡NUEVO! Funciones de MODO ADMIN ---
+  // --- Funciones de MODO ADMIN (Asignar) (sin cambios) ---
   const handleMecanicoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
     const selectedMecanico = mecanicos.find(m => m.id === selectedId);
@@ -201,24 +188,50 @@ export default function DetalleOTPage() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        accion: 'asignarTarea', // Flag para la API
+        accion: 'asignarTarea', 
         mecanicoAsignadoId: mecanicoAsignadoId,
         mecanicoAsignadoNombre: mecanicoAsignadoNombre,
-        // La API la pasará a estado "Asignada"
       }),
     });
-
     toast.promise(promise, {
       loading: 'Asignando OT...',
       success: (res) => {
         if (!res.ok) throw new Error('No se pudo asignar la OT');
-        fetchDetalleOT(); // Recarga la OT (ahora en estado Asignada)
+        fetchDetalleOT(); 
         setIsAssigning(false);
         return `¡OT Asignada a ${mecanicoAsignadoNombre}!`;
       },
       error: (err) => {
         setIsAssigning(false);
         return err.message || 'No se pudo asignar la OT';
+      }
+    });
+  };
+
+  // --- ¡NUEVA FUNCIÓN! MODO ADMIN (Cerrar) ---
+  const handleCierreAdministrativo = async () => {
+    setIsClosing(true);
+    
+    const promise = fetch(`/api/ordenes-trabajo/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estado: 'Cerrado',
+        accion: 'cierreAdministrativo'
+      }),
+    });
+
+    toast.promise(promise, {
+      loading: 'Cerrando OT...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error al cerrar la OT');
+        setIsClosing(false);
+        router.push('/cierre-ots'); // Devuelve a la lista de Cierres
+        return '¡OT Cerrada Administrativamente!';
+      },
+      error: (err) => {
+        setIsClosing(false);
+        return err.message || 'Error al cerrar la OT';
       }
     });
   };
@@ -233,16 +246,21 @@ export default function DetalleOTPage() {
   const esMecanico = userProfile.rol === 'Mecánico';
   const isAdmin = ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol);
   
-  // El mecánico puede editar si la OT es SUYA y está 'Asignada' o 'En Progreso'
   const puedeEditar = esMecanico && 
                       ot.mecanicoAsignadoId === userProfile.id && 
                       (ot.estado === 'Asignada' || ot.estado === 'En Progreso');
                       
-  // El Admin ve el formulario de Asignación si la OT está 'Pendiente'
   const showAdminAssignForm = isAdmin && ot.estado === 'Pendiente';
-  
-  // El Mecánico ve la página de trabajo si la OT es suya o si es Admin
   const showWorkView = esMecanico || isAdmin;
+
+  // --- ¡NUEVA LÓGICA DE VISTA! ---
+  const showAdminCloseForm = isAdmin && ot.estado === 'Finalizado';
+  
+  // La vista de "Solo Lectura" del Admin ahora es más específica
+  const showAdminReadOnlyView = isAdmin && 
+                                ot.estado !== 'Pendiente' && 
+                                ot.estado !== 'Finalizado'; // No mostrar si está Pendiente o Finalizado
+
 
   return (
     <Fragment>
@@ -279,7 +297,6 @@ export default function DetalleOTPage() {
             
             <h1 className="text-3xl font-bold">Detalle de OT-{ot.id.substring(0, 6)}</h1>
             
-            {/* Botón Volver (solo para Mecánico) */}
             {esMecanico && (
               <button
                 onClick={() => router.back()} 
@@ -289,10 +306,10 @@ export default function DetalleOTPage() {
               </button>
             )}
             
-            {/* Botón Volver (solo para Admin) */}
+            {/* Botón Volver para Admin (ahora funciona para Cierre, Agenda, etc.) */}
             {isAdmin && (
               <button
-                onClick={() => router.back()} // Vuelve a la agenda, cierre, etc.
+                onClick={() => router.back()} 
                 className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
               >
                 ← Volver al listado
@@ -301,6 +318,7 @@ export default function DetalleOTPage() {
             
             {/* Info General */}
             <div className="bg-white p-6 rounded-lg shadow">
+              {/* ... (contenido info general sin cambios) ... */}
               <h2 className="text-xl font-semibold mb-4">Información General</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -313,7 +331,7 @@ export default function DetalleOTPage() {
                       ot.estado === 'Finalizado' ? 'text-green-600' :
                       ot.estado === 'Cerrado' ? 'text-gray-500' :
                       ot.estado === 'En Progreso' ? 'text-yellow-600' :
-                      ot.estado === 'Asignada' ? 'text-blue-600' : // ¡Nuevo!
+                      ot.estado === 'Asignada' ? 'text-blue-600' : 
                       ot.estado === 'Pendiente' ? 'text-red-600' :
                       'text-gray-400' 
                   }`}>
@@ -340,6 +358,7 @@ export default function DetalleOTPage() {
             
             {/* Registro de Trabajo */}
             <div className="bg-white p-6 rounded-lg shadow">
+              {/* ... (contenido registro de trabajo y fotos sin cambios) ... */}
               <h2 className="text-xl font-semibold mb-4">Registro de Trabajo (Mecánico)</h2>
               <div>
                 <label htmlFor="repuestos" className="block text-sm font-medium text-gray-700">Repuestos Utilizados / Trabajo Realizado</label>
@@ -352,10 +371,7 @@ export default function DetalleOTPage() {
                   disabled={!puedeEditar} 
                 />
               </div>
-              
               <h2 className="text-xl font-semibold mt-6 mb-4">Evidencia Fotográfica</h2>
-              
-              {/* Previsualización de Foto (solo si 'puedeEditar') */}
               {puedeEditar && (
                 <div className="border border-gray-200 p-4 rounded-lg">
                   {previewUrl && (
@@ -383,8 +399,6 @@ export default function DetalleOTPage() {
                   <p className="text-xs text-gray-500 mt-2">Nota: Debes "Subir Foto" antes de guardar cambios.</p>
                 </div>
               )}
-
-              {/* Galería de Fotos Subidas */}
               <div className="mt-6">
                 <h3 className="text-lg font-semibold">Fotos Subidas:</h3>
                 {ot.fotos && ot.fotos.length > 0 ? (
@@ -454,12 +468,10 @@ export default function DetalleOTPage() {
             <form onSubmit={handleActualizarMecanico} className="bg-white p-6 rounded-lg shadow sticky top-8">
               <h2 className="text-xl font-semibold mb-4 text-green-600">Acción Requerida</h2>
               
-              {/* Mensaje de solo lectura si está en el Pool */}
               {ot.estado === 'Pendiente' && (
                 <p className="text-sm text-gray-700">Esta tarea está en el Pool. Esperando asignación de un supervisor.</p>
               )}
               
-              {/* Selectores de estado (solo si puede editar) */}
               {puedeEditar && (
                 <>
                   <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Actualizar Estado</label>
@@ -467,7 +479,6 @@ export default function DetalleOTPage() {
                     id="estado" value={nuevoEstado} onChange={(e) => setNuevoEstado(e.target.value as any)}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                   >
-                    {/* El mecánico ahora ve 'Asignada' como su primer estado */}
                     {ot.estado === 'Asignada' && <option value="Asignada">Asignada (Sin Iniciar)</option>}
                     {(ot.estado === 'Asignada' || ot.estado === 'En Progreso') && <option value="En Progreso">En Progreso</option>}
                     {ot.estado === 'En Progreso' && <option value="Finalizado">Finalizar Trabajo</option>}
@@ -483,15 +494,32 @@ export default function DetalleOTPage() {
                 </>
               )}
               
-              {/* Mensaje si la OT ya fue finalizada */}
               {ot.estado === 'Finalizado' && (
                  <p className="text-sm text-green-700">¡Trabajo finalizado! Pendiente de cierre administrativo.</p>
               )}
             </form>
           )}
 
-          {/* --- VISTA 3: Solo Lectura (ADMIN) --- */}
-          {isAdmin && ot.estado !== 'Pendiente' && (
+          {/* --- ¡NUEVA VISTA 4! Formulario de Cierre (ADMIN) --- */}
+          {showAdminCloseForm && (
+             <div className="bg-white p-6 rounded-lg shadow sticky top-8">
+               <h2 className="text-xl font-semibold mb-4 text-green-600">Revisión Final</h2>
+               <p className="text-sm text-gray-600 mb-4">
+                 El mecánico ha marcado esta OT como 'Finalizado'. Revisa el trabajo, las fotos y los repuestos.
+               </p>
+               <button
+                  type="button"
+                  onClick={handleCierreAdministrativo}
+                  disabled={isClosing}
+                  className="w-full bg-green-700 text-white py-2 rounded-md hover:bg-green-800 disabled:bg-gray-400"
+                >
+                  {isClosing ? 'Cerrando...' : 'Cerrar OT (Archivar)'}
+                </button>
+             </div>
+          )}
+
+          {/* --- VISTA 3: Solo Lectura (ADMIN) (Actualizada) --- */}
+          {showAdminReadOnlyView && (
              <div className="bg-white p-6 rounded-lg shadow sticky top-8">
                <h2 className="text-xl font-semibold mb-4 text-gray-700">Gestión de Tarea</h2>
                <p className="text-sm text-gray-600">

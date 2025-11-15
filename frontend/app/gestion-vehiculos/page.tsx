@@ -1,6 +1,8 @@
 // frontend/app/gestion-vehiculos/page.tsx
+// (CÓDIGO CORREGIDO: Modal de confirmación SIN fondo)
+
 'use client'; 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react'; // ¡Añadido Fragment!
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
@@ -29,7 +31,7 @@ export default function GestionVehiculosPage() {
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // --- ¡ROL CORREGIDO! ---
+        // (Roles corregidos según el reparto de vistas)
         const rolesPermitidos = ['Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
           fetchVehiculos();
@@ -43,7 +45,6 @@ export default function GestionVehiculosPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // (fetchVehiculos - sin cambios)
   const fetchVehiculos = async () => {
     setLoading(true);
     try {
@@ -58,7 +59,6 @@ export default function GestionVehiculosPage() {
     }
   };
 
-  // (Funciones de Modal y Eliminar - sin cambios)
   const handleAbrirModal = (vehiculo: Vehiculo) => {
     setVehiculoParaEliminar(vehiculo);
     setModalAbierto(true);
@@ -67,36 +67,50 @@ export default function GestionVehiculosPage() {
     setVehiculoParaEliminar(null);
     setModalAbierto(false);
   };
+  
+  // (Lógica de borrado con toast.promise)
   const handleConfirmarEliminar = async () => {
     if (!vehiculoParaEliminar) return;
-    const toastId = toast.loading('Eliminando vehículo...');
-    try {
-      const response = await fetch(`/api/vehiculos/${vehiculoParaEliminar.id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al eliminar el vehículo');
+    
+    const idVehiculo = vehiculoParaEliminar.id;
+    setModalAbierto(false); 
+    
+    const promise = fetch(`/api/vehiculos/${idVehiculo}`, {
+      method: 'DELETE',
+    });
+
+    toast.promise(promise, {
+      loading: 'Eliminando vehículo...',
+      success: (res) => {
+        if (!res.ok) {
+          throw new Error('Error de servidor al eliminar');
+        }
+        setVehiculos(vehiculos.filter(v => v.id !== idVehiculo));
+        setVehiculoParaEliminar(null);
+        return 'Vehículo eliminado permanentemente.';
+      },
+      error: (err) => {
+        setVehiculoParaEliminar(null);
+        return err.message || 'Error al eliminar el vehículo';
       }
-      toast.success('Vehículo eliminado permanentemente.', { id: toastId });
-      setVehiculos(vehiculos.filter(v => v.id !== vehiculoParaEliminar.id));
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message, { id: toastId });
-    } finally {
-      handleCerrarModal();
-    }
+    });
   };
 
   if (authLoading || loading) {
     return <div className="p-8 text-gray-900">Validando sesión y cargando vehículos...</div>;
   }
 
-  // (Renderizado JSX - sin cambios)
   return (
-    <>
+    <Fragment>
+      {/* --- ¡MODAL CORREGIDO (SIN FONDO)! --- */}
       {modalAbierto && vehiculoParaEliminar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={handleCerrarModal}></div>
+          {/* 1. Overlay TRANSPARENTE (para cerrar al hacer clic afuera) */}
+          <div 
+            className="absolute inset-0" 
+            onClick={handleCerrarModal}
+          ></div>
+          {/* 2. Caja Blanca (Contenido) */}
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
             <p className="text-gray-700 mb-6">
@@ -115,6 +129,7 @@ export default function GestionVehiculosPage() {
         </div>
       )}
 
+      {/* (Resto de la página sin cambios) */}
       <div className="p-8 text-gray-900">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Gestión de Vehículos</h1>
@@ -166,6 +181,6 @@ export default function GestionVehiculosPage() {
           </table>
         </div>
       </div>
-    </>
+    </Fragment>
   );
 }

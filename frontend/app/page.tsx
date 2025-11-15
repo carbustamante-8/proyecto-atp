@@ -1,67 +1,57 @@
 // frontend/app/page.tsx
-// (CÓDIGO CORREGIDO: Mantiene el estilo "moderno" y arregla la lógica de redirección)
+// (CÓDIGO CORREGIDO: Lógica de redirección eliminada, manejada por el Context)
 
 'use client'; 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // ¡Añadido useEffect!
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { auth, db } from '../lib/firebase'; 
+import { auth } from '../lib/firebase'; 
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore'; 
-import { useAuth, UserProfile } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast'; 
-import Link from 'next/link'; // <-- ¡ARREGLO 1: Importación añadida!
-import styles from './page.module.css'; // <-- Tu estilo "moderno"
+import Link from 'next/link';
+import styles from './page.module.css'; 
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { setUser, setUserProfile } = useAuth(); // <-- Funciona gracias al AuthContext corregido
+  
+  // --- ¡SIMPLIFICADO! ---
+  // Ya no necesitamos setUser o setUserProfile aquí
+  const { user, userProfile, loading: authLoading } = useAuth(); 
 
+  // --- ¡NUEVO! Redirige si el usuario YA ESTÁ logueado ---
+  // (Esto maneja el F5 en la página de login)
+  useEffect(() => {
+    if (!authLoading && user && userProfile) {
+      // Si ya está logueado, lo patea a su página (la lógica del Context lo hará)
+      // Pero por si acaso, lo enviamos al hub del Jefe de Taller como fallback.
+      if (userProfile.rol === 'Jefe de Taller') {
+        router.push('/agenda-taller');
+      } else {
+        router.push('/mis-tareas'); // O cualquier otra página principal
+      }
+    }
+  }, [user, userProfile, authLoading, router]);
+
+  // --- ¡handleLogin (SIMPLIFICADO)! ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     toast.loading('Iniciando sesión...'); 
     
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      // 1. Solo intenta iniciar sesión
+      await signInWithEmailAndPassword(auth, email, password);
       
-      setUser(user); 
-
-      const userProfileRef = doc(db, "usuarios", user.uid);
-      const userProfileSnapshot = await getDoc(userProfileRef);
-
-      if (userProfileSnapshot.exists()) {
-        const userProfile = userProfileSnapshot.data() as UserProfile;
-        setUserProfile(userProfile); 
-        
-        toast.dismiss();
-        toast.success(`¡Bienvenido, ${userProfile.nombre}!`);
-
-        // --- ¡ARREGLO 2: Lógica de redirección corregida! ---
-        if (userProfile.rol === 'Jefe de Taller') {
-          router.push('/agenda-taller'); // <-- El destino correcto
-        } else if (userProfile.rol === 'Supervisor') {
-          router.push('/dashboard-admin'); 
-        } else if (userProfile.rol === 'Coordinador') {
-          router.push('/dashboard-admin'); 
-        } else if (userProfile.rol === 'Mecánico') {
-          router.push('/mis-tareas'); 
-        } else if (userProfile.rol === 'Guardia') {
-          router.push('/control-acceso'); 
-        } else if (userProfile.rol === 'Conductor') {
-          router.push('/portal-conductor'); 
-        } else if (userProfile.rol === 'Gerente') {
-          router.push('/generador-reportes'); 
-        } else {
-          router.push('/'); 
-        }
-      } else {
-        throw new Error("No se encontró tu perfil de usuario (rol).");
-      }
+      // 2. ¡NO HAGAS NADA MÁS!
+      // El 'AuthContext' detectará el cambio y
+      // el 'useEffect' en el Context se encargará
+      // de buscar el perfil y redirigir.
+      toast.dismiss();
+      
     } catch (error: any) {
       toast.dismiss();
       console.error("Error en login:", error);
@@ -75,7 +65,12 @@ export default function LoginPage() {
     }
   };
 
-  // --- ¡TU DISEÑO "MODERNO" ESTÁ AQUÍ! ---
+  // Muestra una pantalla de carga si la autenticación está en proceso
+  if (authLoading || (user && userProfile)) {
+    return <div className="p-8 text-gray-900">Validando sesión...</div>;
+  }
+  
+  // (Renderizado JSX - sin cambios)
   return (
     <div className={styles.container}>
       {/* Columna Izquierda (Logo) */}
@@ -110,7 +105,6 @@ export default function LoginPage() {
                 className={styles.input}
               />
             </div>
-
             <div className={styles.inputGroup}>
               <label htmlFor="password" className={styles.label}>
                 Contraseña
@@ -124,7 +118,6 @@ export default function LoginPage() {
                 className={styles.input}
               />
             </div>
-
             <button
               type="submit"
               disabled={loading}
@@ -132,7 +125,6 @@ export default function LoginPage() {
             >
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
-            
             <div className={styles.linkContainer}>
               <Link href="/recuperar-contrasena">
                 <span className={styles.link}>

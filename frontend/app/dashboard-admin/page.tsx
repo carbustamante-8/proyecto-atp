@@ -1,7 +1,9 @@
 // frontend/app/dashboard-admin/page.tsx
+// (CÓDIGO CORREGIDO: Modal sin fondo)
+
 'use client'; 
-import { useState, useEffect } from 'react';
-import { useRouter, notFound } from 'next/navigation';
+import { useState, useEffect, Fragment } from 'react'; // ¡Añadido Fragment!
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -23,22 +25,16 @@ export default function DashboardAdminPage() {
   const router = useRouter();
   const { user, userProfile, loading: authLoading } = useAuth();
 
-  // frontend/app/dashboard-admin/page.tsx
-
-  // ... (antes del useEffect)
-
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // Roles que SÍ pueden ver esta página
+        // (Roles corregidos según el reparto de vistas)
         const rolesPermitidos = ['Supervisor', 'Coordinador'];
-        
         if (rolesPermitidos.includes(userProfile.rol)) {
-          // ¡OK! Carga los datos
           fetchUsuarios();
         } else {
-          // ¡BLOQUEADO! Redirige al home de ESE rol, no a /
           toast.error('Acceso denegado');
+          // Redirección inteligente (corregida en mensaje anterior)
           if (userProfile.rol === 'Jefe de Taller') {
             router.push('/agenda-taller');
           } else if (userProfile.rol === 'Mecánico') {
@@ -59,9 +55,6 @@ export default function DashboardAdminPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // ... (resto del archivo)
-
-  // (fetchUsuarios - sin cambios)
   const fetchUsuarios = async () => {
     setLoading(true);
     try {
@@ -76,7 +69,6 @@ export default function DashboardAdminPage() {
     }
   };
 
-  // (Funciones de Modal y Eliminar - sin cambios)
   const handleAbrirModal = (usuario: User) => {
     setUsuarioParaEliminar(usuario);
     setModalAbierto(true);
@@ -85,36 +77,48 @@ export default function DashboardAdminPage() {
     setUsuarioParaEliminar(null);
     setModalAbierto(false);
   };
+  
+  // (Lógica de borrado con toast.promise)
   const handleConfirmarEliminar = async () => {
     if (!usuarioParaEliminar) return;
-    const toastId = toast.loading('Eliminando usuario...');
-    try {
-      const response = await fetch(`/api/usuarios/${usuarioParaEliminar.id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al eliminar el usuario');
+    
+    const idUsuario = usuarioParaEliminar.id;
+    setModalAbierto(false); // Cierra el modal
+
+    const promise = fetch(`/api/usuarios/${idUsuario}`, {
+      method: 'DELETE',
+    });
+
+    toast.promise(promise, {
+      loading: 'Eliminando usuario...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error de servidor al eliminar');
+        setUsuarios(usuarios.filter(u => u.id !== idUsuario));
+        setUsuarioParaEliminar(null);
+        return 'Usuario eliminado permanentemente.';
+      },
+      error: (err) => {
+        setUsuarioParaEliminar(null);
+        return err.message || 'Error al eliminar el usuario';
       }
-      toast.success('Usuario eliminado permanentemente.', { id: toastId });
-      setUsuarios(usuarios.filter(u => u.id !== usuarioParaEliminar.id));
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message, { id: toastId });
-    } finally {
-      handleCerrarModal();
-    }
+    });
   };
 
   if (authLoading || loading) {
     return <div className="p-8 text-gray-900">Validando sesión y cargando usuarios...</div>;
   }
   
-  // (Renderizado JSX - sin cambios)
   return (
-    <>
+    <Fragment>
+      {/* --- ¡MODAL CORREGIDO (SIN FONDO)! --- */}
       {modalAbierto && usuarioParaEliminar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={handleCerrarModal}></div>
+          {/* 1. Overlay TRANSPARENTE (para cerrar al hacer clic afuera) */}
+          <div 
+            className="absolute inset-0" 
+            onClick={handleCerrarModal}
+          ></div>
+          {/* 2. Caja Blanca (Contenido) */}
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
             <p className="text-gray-700 mb-6">
@@ -133,6 +137,7 @@ export default function DashboardAdminPage() {
         </div>
       )}
 
+      {/* (Resto de la página sin cambios) */}
       <div className="p-8 text-gray-900">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
@@ -181,6 +186,6 @@ export default function DashboardAdminPage() {
           </table>
         </div>
       </div>
-    </>
+    </Fragment>
   );
 }

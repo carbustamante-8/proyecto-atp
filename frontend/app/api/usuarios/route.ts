@@ -1,103 +1,90 @@
-// app/api/usuarios/route.ts
+// frontend/app/api/usuarios/route.ts
+// (CÓDIGO CORREGIDO: Arregladas las importaciones y los tipos en GET)
 
 import { NextResponse, NextRequest } from 'next/server';
-import { adminDb, admin } from '../../../lib/firebase-admin'; // Usa la ruta relativa
+// --- ¡IMPORTACIONES CORREGIDAS! ---
+import { adminDb, adminAuth } from '@/lib/firebase-admin'; // Usamos el alias de ruta
+import * as admin from 'firebase-admin'; // Importamos 'admin' por separado
+// --- FIN DE LA CORRECCIÓN ---
 
-// --- FUNCIÓN GET (Sigue igual) ---
+/**
+ * Función GET: (¡CORREGIDA!)
+ * Ya no usa .toJSON() y maneja los tipos de UserRecord correctamente.
+ */
 export async function GET() {
   try {
-    const usuariosSnapshot = await adminDb.collection('usuarios').get();
-    const usuarios = usuariosSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    return NextResponse.json(usuarios);
+    const listUsersResult = await adminAuth.listUsers();
+    
+    // --- ¡CORRECCIÓN DE TIPOS! ---
+    // 'users' es ahora un array de 'UserRecord'
+    const users = listUsersResult.users;
+    
+    // Carga los datos de Firestore (sin cambios)
+    const firestoreSnapshot = await adminDb.collection('usuarios').get();
+    const firestoreData: { [key: string]: any } = {};
+    firestoreSnapshot.forEach(doc => {
+      firestoreData[doc.id] = doc.data();
+    });
+
+    // Combina los datos de Auth y Firestore
+    // 'user' ahora es de tipo 'UserRecord', que SÍ tiene 'uid' y 'email'.
+    const combinedUsers = users.map(user => {
+      const profile = firestoreData[user.uid];
+      return {
+        id: user.uid,
+        email: user.email || 'N/A', // Email es opcional en UserRecord
+        nombre: profile?.nombre || 'N/A',
+        rol: profile?.rol || 'N/A',
+        estado: profile?.estado || 'N/A',
+      };
+    });
+    // --- FIN DE LA CORRECCIÓN ---
+
+    return NextResponse.json(combinedUsers);
   } catch (error) {
     console.error("Error en GET /api/usuarios:", error);
     return NextResponse.json({ error: 'Error al obtener usuarios' }, { status: 500 });
   }
 }
 
-// --- ¡FUNCIÓN POST (CORREGIDA)! ---
-export async function POST(
-  request: NextRequest // Asegúrate de que es NextRequest
-) {
-  
-  // --- ¡NUEVO BLOQUE DE DEBUG! ---
-  // Vamos a atrapar el error de 'request.json()' por separado
-  let body: any;
+/**
+ * Función POST: (Sin cambios en la lógica)
+ * Se ejecuta cuando el Admin crea un nuevo usuario.
+ */
+export async function POST(request: NextRequest) {
   try {
-    body = await request.json();
-    console.log("BODY RECIBIDO EN EL BACKEND:", body); // Log para ver qué recibe
-  } catch (error) {
-    console.error("FALLÓ AL LEER EL BODY (request.json):", error);
-    return NextResponse.json({ error: 'El body de la solicitud no es JSON válido' }, { status: 400 });
-  }
-  // --- FIN DEL BLOQUE DE DEBUG ---
+    const body = await request.json();
+    const { email, password, nombre, rut, rol, estado } = body;
 
-  try {
-    // 1. Valida que los datos necesarios llegaron
-    if (!body.email || !body.password || !body.nombre || !body.rol) {
-      console.warn('Faltan datos en el body:', body); // Log de advertencia
-      return NextResponse.json({ error: 'Faltan datos (email, password, nombre, rol)' }, { status: 400 });
+    if (!email || !password || !nombre || !rol) {
+      return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 });
     }
 
-    console.log('POST /api/usuarios: Creando nuevo usuario...');
-    
-    // 2. Crea el usuario en Firebase Authentication
-    const userRecord = await admin.auth().createUser({
-      email: body.email,
-      password: body.password,
-      displayName: body.nombre,
-      disabled: false,
+    // 1. Crear usuario en Firebase Authentication
+    const userRecord = await adminAuth.createUser({
+      email: email,
+      password: password,
+      displayName: nombre,
     });
 
-    console.log('Usuario creado en Auth, UID:', userRecord.uid);
+    // 2. Crear perfil de usuario en Firestore con el MISMO ID
+    await adminDb.collection('usuarios').doc(userRecord.uid).set({
+      nombre: nombre,
+      email: email,
+      rut: rut || '',
+      rol: rol,
+      estado: estado || 'Activo',
+      fechaCreacion: admin.firestore.FieldValue.serverTimestamp(), // ¡Ahora 'admin' está definido!
+      id_vehiculo_asignado: null,
+    });
+    
+    return NextResponse.json({ id: userRecord.uid, ...body }, { status: 201 });
 
-    // 3. Prepara los datos para Firestore
-    const datosUsuarioFirestore = {
-      nombre: body.nombre,
-      email: body.email,
-      rol: body.rol,
-      estado: "Activo",
-    };
-
-    // 4. Guarda los datos en Firestore
-    await adminDb.collection('usuarios').doc(userRecord.uid).set(datosUsuarioFirestore);
-
-    console.log('Datos de usuario guardados en Firestore');
-
-    // 5. Responde con los datos del usuario creado
-    return NextResponse.json({ id: userRecord.uid, ...datosUsuarioFirestore }, { status: 201 });
-
-  } catch (error) {
-    console.error("Error en POST /api/usuarios:", error);
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'auth/email-already-exists') {
-      return NextResponse.json({ error: 'El correo electrónico ya está en uso' }, { status: 409 });
+  } catch (error: any) {
+    console.error("Error al crear el usuario:", error);
+    if (error.code === 'auth/email-already-exists') {
+      return NextResponse.json({ error: 'El correo electrónico ya está en uso' }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Error al crear el usuario', detalle: error instanceof Error ? error.message : 'Error desconocido' }, { status: 500 });
-  }
-}
-
-
-// --- FUNCIÓN DELETE (Sigue igual) ---
-export async function DELETE(
-  request: NextRequest
-) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('id');
-    if (!userId) {
-      return NextResponse.json({ error: 'Falta el ID del usuario' }, { status: 400 });
-    }
-
-    await admin.auth().deleteUser(userId); 
-    await adminDb.collection('usuarios').doc(userId).delete(); 
-
-    return NextResponse.json({ message: 'Usuario eliminado exitosamente' });
-
-  } catch (error) {
-    console.error("Error en DELETE /api/usuarios:", error);
-    return NextResponse.json({ error: 'Error al eliminar el usuario' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al crear el usuario', details: error.message }, { status: 500 });
   }
 }

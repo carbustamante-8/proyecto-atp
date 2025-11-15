@@ -1,187 +1,256 @@
-// frontend/app/gestion-vehiculos/page.tsx
-// (CÓDIGO CORREGIDO: Modal de confirmación SIN fondo)
+// frontend/app/gestion-vehiculos/editar-vehiculo/[id]/page.tsx
+// (CÓDIGO CORREGIDO: Solucionado el error "uncontrolled input")
 
 'use client'; 
-import { useState, useEffect, Fragment } from 'react'; // ¡Añadido Fragment!
-import { useRouter } from 'next/navigation';
+
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
-import Link from 'next/link';
 
-type Vehiculo = {
+type User = {
   id: string;
+  nombre: string;
+  rol: string;
+};
+
+// ¡Definimos el tipo con valores NO NULOS!
+type VehiculoData = {
   patente: string;
   marca: string;
   modelo: string;
-  año: number;
+  año: number | string; // Permitimos string para el input
   tipo_vehiculo: string;
   estado: string;
-  id_chofer_asignado: string | null;
+  id_chofer_asignado: string; // Usamos string vacío en lugar de null
 };
 
-export default function GestionVehiculosPage() {
-  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [vehiculoParaEliminar, setVehiculoParaEliminar] = useState<Vehiculo | null>(null);
-
+function EditarVehiculoForm() {
+  
+  // --- ¡ESTADO INICIAL CORREGIDO! ---
+  // Inicializamos con valores por defecto (strings vacíos)
+  // para que los inputs sean "controlados" desde el inicio.
+  const [vehiculoData, setVehiculoData] = useState<VehiculoData>({
+    patente: '',
+    marca: '',
+    modelo: '',
+    año: '', // Empezar como string vacío
+    tipo_vehiculo: 'Camión',
+    estado: 'Operativo',
+    id_chofer_asignado: '',
+  });
+  
+  const [conductores, setConductores] = useState<User[]>([]);
+  
+  // 'loadingSubmit' es para el botón, 'loadingPage' es para cargar datos
+  const [loadingSubmit, setLoadingSubmit] = useState(false);
+  const [loadingPage, setLoadingPage] = useState(true); // ¡Importante!
+  
   const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
   const { user, userProfile, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // (Roles corregidos según el reparto de vistas)
+        // --- ¡ROLES CORREGIDOS! (quitamos Jefe de Taller) ---
         const rolesPermitidos = ['Supervisor', 'Coordinador'];
-        if (rolesPermitidos.includes(userProfile.rol)) {
-          fetchVehiculos();
-        } else {
-          toast.error('Acceso denegado');
+        if (!rolesPermitidos.includes(userProfile.rol)) {
+          toast.error('No tienes permiso para acceder a esta página.');
           router.push('/');
+        } else {
+          // Carga ambos, conductores y datos del vehículo
+          fetchConductores();
+          fetchVehiculoData();
         }
       } else if (!user) {
         router.push('/');
       }
     }
-  }, [user, userProfile, authLoading, router]);
+  }, [user, userProfile, authLoading, router, id]); // 'id' debe estar aquí
 
-  const fetchVehiculos = async () => {
-    setLoading(true);
+  const fetchConductores = async () => {
     try {
-      const response = await fetch('/api/vehiculos');
-      if (!response.ok) throw new Error('No se pudo cargar la lista de vehículos');
-      const data = await response.json();
-      setVehiculos(data);
+      const response = await fetch('/api/usuarios');
+      if (!response.ok) throw new Error('No se pudo cargar la lista de conductores');
+      const usuarios: User[] = await response.json();
+      setConductores(usuarios.filter(u => u.rol === 'Conductor'));
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // (Funciones de Modal y Eliminar - sin cambios en la LÓGICA)
-  const handleAbrirModal = (vehiculo: Vehiculo) => {
-    setVehiculoParaEliminar(vehiculo);
-    setModalAbierto(true);
+  const fetchVehiculoData = async () => {
+    if (!id) return;
+    setLoadingPage(true);
+    try {
+      const response = await fetch(`/api/vehiculos/${id}`);
+      if (!response.ok) throw new Error('Vehículo no encontrado');
+      const data = await response.json();
+      
+      // --- ¡CORRECCIÓN! ---
+      // Aseguramos que 'id_chofer_asignado' y 'año' nunca sean 'null' o 'NaN'
+      setVehiculoData({
+        ...data,
+        año: data.año || '', // Convertir null/NaN/undefined a string vacío
+        id_chofer_asignado: data.id_chofer_asignado || '',
+      });
+      
+    } catch (error) {
+      if (error instanceof Error) toast.error(error.message);
+      router.push('/gestion-vehiculos');
+    } finally {
+      setLoadingPage(false);
+    }
   };
-  const handleCerrarModal = () => {
-    setVehiculoParaEliminar(null);
-    setModalAbierto(false);
-  };
-  const handleConfirmarEliminar = async () => {
-    if (!vehiculoParaEliminar) return;
-    
-    setModalAbierto(false); // Cierra el modal primero
-    
-    const promise = fetch(`/api/vehiculos/${vehiculoParaEliminar.id}`, {
-      method: 'DELETE',
-    });
 
-    toast.promise(promise, {
-      loading: 'Eliminando vehículo...',
-      success: (res) => {
-        if (!res.ok) {
-          // Si la API falla, lanzamos un error para que lo coja el 'catch'
-          throw new Error('Error de servidor al eliminar');
-        }
-        // Éxito: actualiza la UI
-        setVehiculos(vehiculos.filter(v => v.id !== vehiculoParaEliminar.id));
-        setVehiculoParaEliminar(null);
-        return 'Vehículo eliminado permanentemente.';
-      },
-      error: (err) => {
-        // Error (ya sea de red o el 'throw' de arriba)
-        setVehiculoParaEliminar(null);
-        return err.message || 'Error al eliminar el vehículo';
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // --- ¡NUEVA VALIDACIÓN! ---
+    const añoNum = parseInt(vehiculoData.año as string, 10);
+    if (isNaN(añoNum)) {
+      toast.error('El año debe ser un número válido.');
+      return;
+    }
+    
+    setLoadingSubmit(true);
+    const toastId = toast.loading('Actualizando vehículo...');
+    try {
+      const response = await fetch(`/api/vehiculos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...vehiculoData,
+          año: añoNum, // Enviar como número
+          id_chofer_asignado: vehiculoData.id_chofer_asignado || null
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al actualizar el vehículo');
       }
-    });
+      toast.success('¡Vehículo actualizado exitosamente!', { id: toastId });
+      router.push('/gestion-vehiculos');
+    } catch (error) {
+      if (error instanceof Error) toast.error(error.message, { id: toastId });
+    } finally {
+      setLoadingSubmit(false);
+    }
   };
 
-  if (authLoading || loading) {
-    return <div className="p-8 text-gray-900">Validando sesión y cargando vehículos...</div>;
-  }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { id, value } = e.target;
+    setVehiculoData(prev => ({ ...prev, [id]: value })); 
+  };
 
+  // --- ¡PANTALLA DE CARGA CORREGIDA! ---
+  if (authLoading || loadingPage) {
+    return <div className="p-8 text-gray-900">Cargando...</div>;
+  }
+  
   return (
-    <Fragment>
-      {/* --- ¡MODAL CORREGIDO (SIN FONDO)! --- */}
-      {modalAbierto && vehiculoParaEliminar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* 1. Overlay TRANSPARENTE (solo para cerrar al hacer clic afuera) */}
-          <div 
-            className="absolute inset-0" 
-            onClick={handleCerrarModal}
-          ></div>
-          {/* 2. Caja Blanca (Contenido) */}
-          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
-            <p className="text-gray-700 mb-6">
-              ¿Estás seguro de que quieres eliminar el vehículo patente 
-              <strong className="text-blue-600"> {vehiculoParaEliminar.patente}</strong> ({vehiculoParaEliminar.modelo})? Esta acción no se puede deshacer.
-            </p>
-            <div className="flex justify-end space-x-4">
-              <button onClick={handleCerrarModal} className="px-4 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium">
-                Cancelar
-              </button>
-              <button onClick={handleConfirmarEliminar} className="px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 font-medium">
-                Sí, Eliminar
-              </button>
+    <div className="flex justify-center items-center min-h-screen bg-gray-50">
+      <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
+        <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+          Editar Vehículo
+        </h1>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          
+          <div>
+            <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente (No editable)</label>
+            <input type="text" id="patente" value={vehiculoData.patente} disabled
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-500 bg-gray-200" />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="marca" className="block text-sm font-medium text-gray-700">Marca</label>
+              <input type="text" id="marca" value={vehiculoData.marca} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="modelo" className="block text-sm font-medium text-gray-700">Modelo</label>
+              <input type="text" id="modelo" value={vehiculoData.modelo} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Página principal */}
-      <div className="p-8 text-gray-900">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Gestión de Vehículos</h1>
-          <Link href="/gestion-vehiculos/crear">
-            <span className="bg-blue-600 text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-blue-700">
-              + Registrar Vehículo
-            </span>
-          </Link>
-        </div>
-        
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca/Modelo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Año</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {vehiculos.map((v) => (
-                <tr key={v.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{v.patente}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.marca || 'N/A'} {v.modelo}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.año}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.tipo_vehiculo}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      v.estado === 'Operativo' ? 'bg-green-100 text-green-800' : 
-                      v.estado === 'En Taller' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {v.estado}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <Link href={`/gestion-vehiculos/editar-vehiculo/${v.id}`}>
-                      <span className="text-blue-600 hover:text-blue-900 cursor-pointer">Editar</span>
-                    </Link>
-                    <button onClick={() => handleAbrirModal(v)} className="text-red-600 hover:text-red-900">
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
+          
+          {/* (Año - ¡ACTUALIZADO!) */}
+          <div>
+            <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
+            <input 
+              type="number" // El input sigue siendo 'number' para el teclado móvil
+              id="año" 
+              value={vehiculoData.año} // El valor ahora es un string o número
+              onChange={handleChange}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" 
+            />
+          </div>
+          
+          <div>
+            <label htmlFor="tipo_vehiculo" className="block text-sm font-medium text-gray-700">Tipo de Vehículo</label>
+            <select id="tipo_vehiculo" value={vehiculoData.tipo_vehiculo} onChange={handleChange}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              <option value="Camión">Camión</option>
+              <option value="Camioneta">Camioneta</option>
+              <option value="Auto">Auto</option>
+              <option value="Grúa Horquilla">Grúa Horquilla</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          
+          {/* (Conductor Asignado - ¡ACTUALIZADO!) */}
+          <div>
+            <label htmlFor="id_chofer_asignado" className="block text-sm font-medium text-gray-700">Conductor Asignado</label>
+            <select id="id_chofer_asignado" value={vehiculoData.id_chofer_asignado} onChange={handleChange}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              <option value="">Ninguno</option>
+              {conductores.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </select>
+          </div>
+          
+          <div>
+            <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Estado</label>
+            <select id="estado" value={vehiculoData.estado} onChange={handleChange}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              <option value="Operativo">Operativo</option>
+              <option value="En Taller">En Taller</option>
+              <option value="De Baja">De Baja</option>
+            </select>
+          </div>
+          
+          {/* (Botones - sin cambios) */}
+          <div className="space-y-4 pt-4">
+            <button
+              type="submit"
+              disabled={loadingSubmit}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+            >
+              {loadingSubmit ? 'Actualizando...' : 'Guardar Cambios'}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/gestion-vehiculos')}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300"
+            >
+              Cancelar
+            </button>
+          </div>
+
+        </form>
       </div>
-    </Fragment>
+    </div>
+  );
+}
+
+export default function EditarVehiculoPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-gray-900">Cargando...</div>}>
+      <EditarVehiculoForm />
+    </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 // frontend/context/AuthContext.tsx
-// (CÓDIGO CORREGIDO: Añadido 'setUserProfile' al context)
+// (CÓDIGO ACTUALIZADO: El Contexto ahora maneja la redirección post-login)
 
 'use client'; 
 
@@ -7,6 +7,9 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+// ¡NUEVAS IMPORTACIONES!
+import { useRouter, usePathname } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 export type UserProfile = {
   id: string;
@@ -16,13 +19,12 @@ export type UserProfile = {
   estado: string; 
 };
 
-// --- ¡TIPO CORREGIDO! ---
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
   setUser: (user: User | null) => void;
-  setUserProfile: (profile: UserProfile | null) => void; // <-- ¡AÑADIDO!
+  setUserProfile: (profile: UserProfile | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,19 +33,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // ¡NUEVO! Hooks de Navegación
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(true);
       if (user) {
         setUser(user);
-        // Escucha cambios en el perfil en tiempo real
         const userProfileRef = doc(db, "usuarios", user.uid);
         const unsubscribeProfile = onSnapshot(userProfileRef, (doc) => {
           if (doc.exists()) {
             setUserProfile({ id: doc.id, ...doc.data() } as UserProfile);
           } else {
-            setUserProfile(null); // Perfil no encontrado
+            setUserProfile(null); 
           }
           setLoading(false);
         }, (error) => {
@@ -52,7 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
         });
         
-        return () => unsubscribeProfile(); // Limpia el listener de perfil
+        return () => unsubscribeProfile(); 
       } else {
         setUser(null);
         setUserProfile(null);
@@ -60,16 +65,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    return () => unsubscribe(); // Limpia el listener de auth
+    return () => unsubscribe(); 
   }, []);
 
-  // --- ¡VALOR CORREGIDO! ---
+  // --- ¡NUEVO useEffect para REDIRECCIÓN INTELIGENTE! ---
+  useEffect(() => {
+    // 1. No hagas nada si estamos cargando
+    if (loading) {
+      return;
+    }
+
+    // 2. Si el usuario está cargado y está en la página de Login...
+    if (user && userProfile && (pathname === '/' || pathname === '/recuperar-contrasena')) {
+      toast.success(`¡Bienvenido, ${userProfile.nombre}!`);
+      
+      // 3. Redirígelo a su "home" correcto
+      if (userProfile.rol === 'Jefe de Taller') {
+        router.push('/agenda-taller');
+      } else if (userProfile.rol === 'Supervisor') {
+        router.push('/dashboard-admin');  
+      } else if (userProfile.rol === 'Coordinador') {
+        router.push('/dashboard-admin');
+      } else if (userProfile.rol === 'Mecánico') {
+        router.push('/mis-tareas');
+      } else if (userProfile.rol === 'Guardia') {
+        router.push('/control-acceso');
+      } else if (userProfile.rol === 'Conductor') {
+        router.push('/portal-conductor');
+      } else if (userProfile.rol === 'Gerente') {
+        router.push('/generador-reportes');
+      } else {
+        router.push('/'); // Fallback
+      }
+    }
+  }, [user, userProfile, loading, pathname, router]); // Se activa cuando el login termina
+
   const value = {
     user,
     userProfile,
     loading,
     setUser,
-    setUserProfile // <-- ¡AÑADIDO!
+    setUserProfile 
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
