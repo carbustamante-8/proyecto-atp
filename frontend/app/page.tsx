@@ -1,168 +1,148 @@
 // frontend/app/page.tsx
-// (CÓDIGO ACTUALIZADO: Redirección de "Conductor" añadida)
+// (CÓDIGO CORREGIDO: Mantiene el estilo "moderno" y arregla la lógica de redirección)
 
 'use client'; 
-
-import React, { useState, useEffect } from 'react'; 
-import Image from 'next/image'; 
-import Link from 'next/link'; 
-import { auth } from '@/lib/firebase'; 
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext'; 
+import { auth, db } from '../lib/firebase'; 
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore'; 
+import { useAuth, UserProfile } from '../context/AuthContext';
 import toast from 'react-hot-toast'; 
+import Link from 'next/link'; // <-- ¡ARREGLO 1: Importación añadida!
+import styles from './page.module.css'; // <-- Tu estilo "moderno"
 
-export default function Home() {
-  
-  // --- HOOKS ---
+export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { setUser, setUserProfile } = useAuth(); // <-- Funciona gracias al AuthContext corregido
 
-  const { user, userProfile, loading: authLoading } = useAuth();
-
-  // --- ¡LÓGICA DE REDIRECCIÓN CORREGIDA! ---
-  useEffect(() => {
-    if (!authLoading && user && userProfile) {
-      console.log(`Usuario ya logueado (${userProfile.rol}). Redirigiendo...`);
-      
-      // Lista de Admins
-      if (['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
-        router.push('/dashboard-admin');
-      
-      // Gerente
-      } else if (userProfile.rol === 'Gerente') {
-        router.push('/generador-reportes');
-      
-      // Mecánico
-      } else if (userProfile.rol === 'Mecánico') {
-        router.push('/mis-tareas');
-      
-      // Guardia
-      } else if (userProfile.rol === 'Guardia') {
-        router.push('/control-acceso');
-      
-      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-      } else if (userProfile.rol === 'Conductor') {
-        router.push('/portal-conductor');
-      // --- FIN DE LA CORRECCIÓN ---
-
-      }
-      // (Cualquier otro rol se queda en el login)
-    }
-  }, [user, userProfile, authLoading, router]);
-  // --- FIN DE LA LÓGICA ---
-
-
-  // --- LÓGICA DE LOGIN (al hacer submit) ---
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    toast.loading('Iniciando sesión...'); 
+    
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // ¡No se redirige! El 'useEffect' de arriba se encarga.
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
       
-    } catch (err) {
-      console.error('Error en el login:', err);
-      toast.error('Error: Correo o contraseña incorrectos.');
+      setUser(user); 
+
+      const userProfileRef = doc(db, "usuarios", user.uid);
+      const userProfileSnapshot = await getDoc(userProfileRef);
+
+      if (userProfileSnapshot.exists()) {
+        const userProfile = userProfileSnapshot.data() as UserProfile;
+        setUserProfile(userProfile); 
+        
+        toast.dismiss();
+        toast.success(`¡Bienvenido, ${userProfile.nombre}!`);
+
+        // --- ¡ARREGLO 2: Lógica de redirección corregida! ---
+        if (userProfile.rol === 'Jefe de Taller') {
+          router.push('/agenda-taller'); // <-- El destino correcto
+        } else if (userProfile.rol === 'Supervisor') {
+          router.push('/dashboard-admin'); 
+        } else if (userProfile.rol === 'Coordinador') {
+          router.push('/dashboard-admin'); 
+        } else if (userProfile.rol === 'Mecánico') {
+          router.push('/mis-tareas'); 
+        } else if (userProfile.rol === 'Guardia') {
+          router.push('/control-acceso'); 
+        } else if (userProfile.rol === 'Conductor') {
+          router.push('/portal-conductor'); 
+        } else if (userProfile.rol === 'Gerente') {
+          router.push('/generador-reportes'); 
+        } else {
+          router.push('/'); 
+        }
+      } else {
+        throw new Error("No se encontró tu perfil de usuario (rol).");
+      }
+    } catch (error: any) {
+      toast.dismiss();
+      console.error("Error en login:", error);
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        toast.error('Email o contraseña incorrectos.');
+      } else {
+        toast.error(error.message || 'Error al iniciar sesión');
+      }
+    } finally {
+      setLoading(false); 
     }
   };
 
-  const togglePasswordVisibility = () => setShowPassword((prev) => !prev);
-
-  // --- LÓGICA DE RENDERIZADO ---
-  
-  if (authLoading || user) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-100 text-gray-900">
-        Validando sesión...
-      </div>
-    );
-  }
-
-  // Si NO hay usuario y NO está cargando, SÍ muestra el login
+  // --- ¡TU DISEÑO "MODERNO" ESTÁ AQUÍ! ---
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-100">
-      
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-xl">
-        
-        {/* Logo */}
-        <div className="flex justify-center mb-6">
-          <Image
-            src="/pepsico-logo.png" 
-            alt="PepsiCo Logo"
-            width={150} 
-            height={150}
-            priority
-          />
-        </div>
-
-        {/* Títulos */}
-        <h1 className="text-2xl font-bold text-center text-gray-900">
-          Pepsi-Fleet
-        </h1>
-        <p className="text-center text-gray-600 mb-6">
-          Por favor, ingresa tus datos
-        </p>
-
-        {/* Formulario */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email:</label>
-            <input
-              type="email" id="email" value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900"
-            />
-          </div>
-
-          {/* Contraseña */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Contraseña:</label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                id="password" value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900"
-              />
-              <button
-                type="button"
-                onClick={togglePasswordVisibility}
-                className="absolute inset-y-0 right-0 px-3 py-2 text-sm text-gray-600"
-              >
-                {showPassword ? 'Ocultar' : 'Mostrar'}
-              </button>
-            </div>
-          </div>
-
-          {/* Olvidé contraseña */}
-          <div className="text-right text-sm">
-            <Link href="/recuperar-contrasena">
-              <span className="font-medium text-blue-600 hover:text-blue-500">
-                ¿Olvidaste tu contraseña?
-              </span>
-            </Link>
-          </div>
-
-          {/* El error ahora es un Toast */}
-
-          {/* Botón de login */}
-          <button
-            type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-          >
-            Iniciar Sesión
-          </button>
-          
-          {/* (Enlace "Registrarse" eliminado) */}
-
-        </form>
+    <div className={styles.container}>
+      {/* Columna Izquierda (Logo) */}
+      <div className={styles.leftColumn}>
+        <Image
+          src="/pepsico-logo.png"
+          alt="PepsiCo Logo"
+          width={400} 
+          height={100} 
+          priority 
+        />
+        <h2 className={styles.subtitle}>
+          Gestión de Flota y Taller Mecánico
+        </h2>
       </div>
-    </main>
+      
+      {/* Columna Derecha (Formulario) */}
+      <div className={styles.rightColumn}>
+        <div className={styles.loginBox}>
+          <h2 className={styles.loginTitle}>Iniciar Sesión</h2>
+          <form onSubmit={handleLogin} className={styles.form}>
+            <div className={styles.inputGroup}>
+              <label htmlFor="email" className={styles.label}>
+                Correo Electrónico
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={styles.input}
+              />
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label htmlFor="password" className={styles.label}>
+                Contraseña
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={styles.input}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className={styles.button}
+            >
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </button>
+            
+            <div className={styles.linkContainer}>
+              <Link href="/recuperar-contrasena">
+                <span className={styles.link}>
+                  ¿Olvidaste tu contraseña?
+                </span>
+              </Link>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }

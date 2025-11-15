@@ -1,88 +1,84 @@
 // frontend/context/AuthContext.tsx
+// (CÓDIGO CORREGIDO: Añadido 'setUserProfile' al context)
 
-'use client'; // <-- Este archivo es 100% del lado del cliente
+'use client'; 
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase'; // <-- 1. IMPORTA 'db' (de Firestore)
-import { doc, getDoc } from 'firebase/firestore'; // <-- 2. IMPORTA las funciones de Firestore
+import { auth, db } from '../lib/firebase';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
-// 3. Define el "tipo" de perfil que guardamos en Firestore
-// (Esto debe coincidir con los datos que creas en el formulario)
 export type UserProfile = {
   id: string;
   nombre: string;
   email: string;
   rol: string;
-  estado: 'Activo' | 'Inactivo';
+  estado: string; 
 };
 
-// 4. Define el tipo de datos que tendrá el contexto
-export type AuthContextType = {
-  user: User | null;           // El objeto de usuario de Firebase Auth (con el UID)
-  userProfile: UserProfile | null; // El objeto de usuario de Firestore (con el ROL)
-  loading: boolean;          // Para saber si está "Cargando..."
-};
+// --- ¡TIPO CORREGIDO! ---
+interface AuthContextType {
+  user: User | null;
+  userProfile: UserProfile | null;
+  loading: boolean;
+  setUser: (user: User | null) => void;
+  setUserProfile: (profile: UserProfile | null) => void; // <-- ¡AÑADIDO!
+}
 
-// 5. Crea el Contexto
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// 6. Crea el "Proveedor" (el componente que "envuelve")
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null); // <-- NUEVO ESTADO
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // onAuthStateChanged ahora es asíncrono
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      
+      setLoading(true);
       if (user) {
-        // --- Usuario está logueado ---
         setUser(user);
-        
-        // ¡MAGIA! Busca el perfil en Firestore usando el UID del login
-        const docRef = doc(db, 'usuarios', user.uid); // Busca en la colección 'usuarios'
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-          // Si encontramos el documento...
-          console.log("AuthContext: Perfil de usuario encontrado:", docSnap.data());
-          // Guarda el perfil completo (con nombre, email, ROL, etc.)
-          setUserProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
-        } else {
-          // El usuario existe en Auth, pero NO en Firestore
-          console.warn(`¡Alerta! El usuario ${user.uid} existe en Auth pero no tiene perfil en Firestore.`);
+        // Escucha cambios en el perfil en tiempo real
+        const userProfileRef = doc(db, "usuarios", user.uid);
+        const unsubscribeProfile = onSnapshot(userProfileRef, (doc) => {
+          if (doc.exists()) {
+            setUserProfile({ id: doc.id, ...doc.data() } as UserProfile);
+          } else {
+            setUserProfile(null); // Perfil no encontrado
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error("Error al escuchar perfil:", error);
           setUserProfile(null);
-        }
+          setLoading(false);
+        });
         
+        return () => unsubscribeProfile(); // Limpia el listener de perfil
       } else {
-        // --- Usuario cerró sesión ---
         setUser(null);
         setUserProfile(null);
+        setLoading(false);
       }
-      
-      setLoading(false); // Deja de cargar
     });
 
-    // Se limpia el "oyente" cuando el componente se desmonta
-    return () => unsubscribe();
+    return () => unsubscribe(); // Limpia el listener de auth
   }, []);
 
-  // 7. Provee el 'user', el 'userProfile' y 'loading' a todos los hijos
-  return (
-    <AuthContext.Provider value={{ user, userProfile, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  // --- ¡VALOR CORREGIDO! ---
+  const value = {
+    user,
+    userProfile,
+    loading,
+    setUser,
+    setUserProfile // <-- ¡AÑADIDO!
+  };
 
-// 8. Crea el "Hook" (el atajo para usar el contexto)
-// (Este hook no cambia, pero ahora devuelve más datos)
-export function useAuth() {
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth debe ser usado dentro de un AuthProvider');
   }
   return context;
-}
+};

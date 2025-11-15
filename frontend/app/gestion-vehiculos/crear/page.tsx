@@ -1,5 +1,5 @@
 // frontend/app/gestion-vehiculos/crear/page.tsx
-// (CÓDIGO CORREGIDO: Arreglado el bucle de carga y añadido botón "Cancelar")
+// (CÓDIGO CORREGIDO: Arreglado el bucle de carga y los roles)
 
 'use client'; 
 
@@ -25,35 +25,33 @@ export default function CrearVehiculoPage() {
   
   const [conductores, setConductores] = useState<User[]>([]);
   
-  // --- ¡LÓGICA DE CARGA CORREGIDA! ---
-  // 1. Renombrado 'loading' a 'loadingSubmit' para el botón
   const [loadingSubmit, setLoadingSubmit] = useState(false);
-  // 2. Nuevo estado para la carga de datos de la página
-  const [loadingData, setLoadingData] = useState(true); 
+  const [loadingData, setLoadingData] = useState(true); // <-- Estado de carga de página
   
   const router = useRouter();
   const { user, userProfile, loading: authLoading } = useAuth();
 
   // --- useEffect CORREGIDO ---
   useEffect(() => {
-    // 1. Espera a que la autenticación termine
     if (authLoading) {
-      return; // Aún no hagas nada
+      return; // 1. Espera a que la autenticación termine
     }
     
-    // 2. La autenticación terminó. Ahora, ¿qué pasó?
     if (user && userProfile) {
-      // 2a. Usuario logueado y con perfil
-      const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
-      if (!rolesPermitidos.includes(userProfile.rol)) {
+      // 2. Autenticación lista, revisa roles
+      // --- ¡ROLES ACTUALIZADOS (SIN JEFE DE TALLER)! ---
+      const rolesPermitidos = ['Supervisor', 'Coordinador']; 
+      
+      if (rolesPermitidos.includes(userProfile.rol)) {
+        // 3. Tiene permiso, carga los datos
+        fetchConductores();
+      } else {
+        // 4. No tiene permiso
         toast.error('No tienes permiso para acceder a esta página.');
         router.push('/');
-      } else {
-        // ¡Tiene permiso! Carga los datos (conductores)
-        fetchConductores();
       }
     } else {
-      // 2b. Usuario no logueado o perfil corrupto
+      // 5. No está logueado
       toast.error('Sesión no válida.');
       router.push('/');
     }
@@ -61,7 +59,7 @@ export default function CrearVehiculoPage() {
 
   // --- fetchConductores CORREGIDO ---
   const fetchConductores = async () => {
-    // setLoadingData(true) ya es true por defecto
+    // setLoadingData(true) ya está en true
     try {
       const response = await fetch('/api/usuarios');
       if (!response.ok) throw new Error('No se pudo cargar la lista de conductores');
@@ -71,7 +69,7 @@ export default function CrearVehiculoPage() {
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
-      // 3. Pase lo que pase, avisa que la carga de datos terminó
+      // 6. Avisa que la carga de datos terminó
       setLoadingData(false);
     }
   };
@@ -90,7 +88,7 @@ export default function CrearVehiculoPage() {
           patente: patente.toUpperCase(), 
           marca, 
           modelo, 
-          año, 
+          año: Number(año), // Asegura que sea número
           tipo_vehiculo: tipoVehiculo, 
           estado,
           id_chofer_asignado: idChoferAsignado || null
@@ -116,17 +114,11 @@ export default function CrearVehiculoPage() {
     }
   };
 
-  // --- NUEVA PANTALLA DE CARGA ---
-  // Ahora comprueba la autenticación Y la carga de datos
+  // --- PANTALLA DE CARGA CORREGIDA ---
   if (authLoading || loadingData) {
     return <div className="p-8 text-gray-900">Validando sesión y cargando datos...</div>;
   }
   
-  // (Esta comprobación es redundante por el useEffect, pero es una buena práctica)
-  if (!userProfile || !['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
-    return <div className="p-8 text-gray-900">Acceso denegado.</div>;
-  }
-
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
@@ -200,7 +192,6 @@ export default function CrearVehiculoPage() {
               {loadingSubmit ? 'Guardando...' : 'Guardar Vehículo'}
             </button>
             
-            {/* --- ¡NUEVO BOTÓN DE CANCELAR! --- */}
             <button
               type="button"
               onClick={() => router.push('/gestion-vehiculos')}

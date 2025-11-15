@@ -1,42 +1,34 @@
 // frontend/app/cierre-ots/page.tsx
-// (PÁGINA NUEVA: Cierre Administrativo de OTs)
-
 'use client'; 
-
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
 import toast from 'react-hot-toast'; 
 
-// --- Tipo de Dato ---
 type OTFinalizada = {
   id: string;
   patente: string;
   descripcionProblema: string;
   mecanicoAsignadoNombre: string;
   fechaCreacion: { _seconds: number };
-  // (Podríamos añadir más campos si el Admin necesita revisar)
 };
 
 export default function CierreOtsPage() {
-  
-  // --- Estados ---
   const [otsFinalizadas, setOtsFinalizadas] = useState<OTFinalizada[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cerrandoId, setCerrandoId] = useState<string | null>(null); // Para deshabilitar botón
-  
+  const [cerrandoId, setCerrandoId] = useState<string | null>(null); 
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- Lógica de Protección y Carga ---
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        // --- ¡ROL CORREGIDO! ---
+        const rolesPermitidos = ['Jefe de Taller', 'Supervisor'];
         if (rolesPermitidos.includes(userProfile.rol)) {
-          // Carga las OTs pendientes de cierre
           fetchOtsFinalizadas();
-        } else {
+        } else { 
+          toast.error('Acceso denegado');
           router.push('/'); 
         }
       } else if (!user) {
@@ -45,19 +37,15 @@ export default function CierreOtsPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // --- Función de Carga de Datos ---
+  // (fetchOtsFinalizadas - sin cambios)
   const fetchOtsFinalizadas = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/ordenes-trabajo'); // Trae todas las OTs
+      const response = await fetch('/api/ordenes-trabajo'); 
       if (!response.ok) throw new Error('No se pudieron cargar las OTs finalizadas');
-      
       const data: any[] = await response.json();
-      
-      // Filtra solo las que están 'Finalizado'
       const finalizadas = data.filter(ot => ot.estado === 'Finalizado');
       setOtsFinalizadas(finalizadas);
-
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -65,51 +53,45 @@ export default function CierreOtsPage() {
     }
   };
 
-  // --- Acción del Botón "Cerrar OT" ---
+  // (handleCerrarOT - sin cambios)
   const handleCerrarOT = async (otId: string) => {
-    setCerrandoId(otId); // Bloquea este botón
-    try {
-      const response = await fetch(`/api/ordenes-trabajo/${otId}`, {
+    setCerrandoId(otId); 
+    const promise = fetch(`/api/ordenes-trabajo/${otId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          estado: 'Cerrado', // El nuevo estado final
-          accion: 'cierreAdministrativo' // El flag de seguridad de la API
+          estado: 'Cerrado',
+          accion: 'cierreAdministrativo'
         }),
       });
-
-      if (!response.ok) throw new Error('Error al cerrar la OT');
-      
-      toast.success('¡OT Cerrada Administrativamente!');
-      
-      // Refresca la lista (quitando la OT que acaba de cerrar)
-      setOtsFinalizadas(actuales => actuales.filter(ot => ot.id !== otId));
-
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setCerrandoId(null); // Desbloquea el botón (en caso de error)
-    }
+    toast.promise(promise, {
+      loading: 'Cerrando OT...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error al cerrar la OT');
+        setOtsFinalizadas(actuales => actuales.filter(ot => ot.id !== otId));
+        setCerrandoId(null);
+        return '¡OT Cerrada Administrativamente!';
+      },
+      error: (err) => {
+        setCerrandoId(null);
+        return err.message;
+      }
+    });
   };
   
-  // --- Acción para ir a "Revisar" la OT ---
   const handleRevisarOT = (otId: string) => {
-    // Abre el detalle de la OT en una nueva pestaña para revisión
     window.open(`/tareas-detalle/${otId}`, '_blank');
   };
 
-  // --- Lógica de Renderizado ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
   
+  // (Renderizado JSX - sin cambios)
   return (
     <div className="p-8 text-gray-900">
-      
       <h1 className="text-3xl font-bold mb-4">Cierre Administrativo de OTs</h1>
       <p className="text-gray-600 mb-6">Lista de OTs finalizadas por los mecánicos, pendientes de cierre y archivo.</p>
-
-      {/* --- Tabla de OTs Finalizadas --- */}
       <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">

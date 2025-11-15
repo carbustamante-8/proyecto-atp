@@ -1,5 +1,5 @@
 // frontend/components/Navbar.tsx
-// (CÓDIGO ACTUALIZADO: Añadido enlace a "Agenda")
+// (CÓDIGO ACTUALIZADO: Vistas repartidas por rol jerárquico)
 
 'use client'; 
 
@@ -38,14 +38,11 @@ export default function Navbar() {
 
         <div className="space-x-6">
           
-          {/* --- BLOQUE ADMIN (CON "AGENDA") --- */}
-          {['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol) && (
+          {/* --- 🥇 SUPERVISOR (ROL MÁS ALTO) --- */}
+          {userProfile.rol === 'Supervisor' && (
             <>
               <Link href="/solicitudes-pendientes" className="hover:text-blue-600">Bandeja de Taller</Link>
-              
-              {/* --- ¡NUEVO ENLACE! --- */}
-              <Link href="/agenda-taller" className="hover:text-blue-600">Agenda</Link>
-              
+              <Link href="/agenda-taller" className="hover:text-blue-600">Agenda/Asignar</Link>
               <Link href="/cierre-ots" className="hover:text-blue-600">Cierre de OTs</Link>
               <Link href="/dashboard-admin" className="hover:text-blue-600">Usuarios</Link>
               <Link href="/gestion-vehiculos" className="hover:text-blue-600">Vehículos</Link>
@@ -54,7 +51,28 @@ export default function Navbar() {
             </>
           )}
 
-          {/* (Resto de roles sin cambios) */}
+          {/* --- 🥈 JEFE DE TALLER (ROL TÉCNICO) --- */}
+          {userProfile.rol === 'Jefe de Taller' && (
+            <>
+              <Link href="/agenda-taller" className="hover:text-blue-600">Agenda/Asignar</Link>
+              <Link href="/cierre-ots" className="hover:text-blue-600">Cierre de OTs</Link>
+              <Link href="/historial-accesos" className="hover:text-blue-600">Historial Accesos</Link>
+              <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>
+            </>
+          )}
+
+          {/* --- 🥉 COORDINADOR (ROL ADMINISTRATIVO) --- */}
+          {userProfile.rol === 'Coordinador' && (
+            <>
+              <Link href="/solicitudes-pendientes" className="hover:text-blue-600">Bandeja de Taller</Link>
+              <Link href="/agenda-taller" className="hover:text-blue-600">Agenda</Link>
+              <Link href="/dashboard-admin" className="hover:text-blue-600">Usuarios</Link>
+              <Link href="/gestion-vehiculos" className="hover:text-blue-600">Vehículos</Link>
+              <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>
+            </>
+          )}
+
+          {/* --- (Resto de roles sin cambios) --- */}
           {userProfile && userProfile.rol === 'Gerente' && (
             <>
               <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>

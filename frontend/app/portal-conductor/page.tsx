@@ -1,5 +1,5 @@
 // frontend/app/portal-conductor/page.tsx
-// (CÓDIGO CORREGIDO: Añadido 'Pendiente' al tipo SolicitudConEstado)
+// (CÓDIGO CORREGIDO: El useEffect ahora espera a que authLoading sea false)
 
 'use client'; 
 
@@ -17,16 +17,14 @@ type VehiculoAsignado = {
   estado: string;
 };
 
-// --- ¡TIPO CORREGIDO! ---
 type SolicitudConEstado = {
   id: string;
   descripcion: string;
   fechaSolicitud: { _seconds: number };
   estadoSolicitud: 'Pendiente' | 'Procesado';
-  estadoOT: 'Agendado' | 'Pendiente' | 'En Progreso' | 'Finalizado' | 'Cerrado' | 'Anulado' | null; // <-- "Pendiente" AÑADIDO
+  estadoOT: 'Agendado' | 'Pendiente' | 'En Progreso' | 'Finalizado' | 'Cerrado' | 'Anulado' | null;
   fechaHoraAgendada?: { _seconds: number } | null; 
 };
-// --- FIN DE LA CORRECCIÓN ---
 
 export default function PortalConductorPage() {
   
@@ -40,22 +38,32 @@ export default function PortalConductorPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // (useEffect y fetchMiVehiculo no cambian)
+  // --- ¡useEffect (ACTUALIZADO CON PROTECCIÓN DE CARGA)! ---
   useEffect(() => {
-    if (!authLoading) {
-      if (user && userProfile) {
-        if (userProfile.rol === 'Conductor') {
-          fetchMiVehiculo(userProfile.id); 
-          fetchMisSolicitudes(userProfile.id);
-        } else {
-          router.push('/'); 
-        }
-      } else if (!user) {
-        router.push('/');
-      }
+    // 1. Si la autenticación AÚN ESTÁ CARGANDO, no hagas nada.
+    if (authLoading) {
+      return; 
     }
-  }, [user, userProfile, authLoading, router]);
 
+    // 2. La autenticación TERMINÓ. Ahora, revisa si hay usuario.
+    if (user && userProfile) {
+      // 3. Hay usuario. ¿Es Conductor?
+      if (userProfile.rol === 'Conductor') {
+        // ¡SÍ! Ahora es seguro llamar a las APIs
+        fetchMiVehiculo(userProfile.id); 
+        fetchMisSolicitudes(userProfile.id);
+      } else {
+        // No es Conductor, redirige
+        toast.error('Acceso denegado');
+        router.push('/'); 
+      }
+    } else {
+      // 4. No hay usuario (sesión expirada o nunca iniciada)
+      router.push('/');
+    }
+  }, [user, userProfile, authLoading, router]); // Depende de que 'authLoading' cambie a 'false'
+
+  // (fetchMiVehiculo - sin cambios)
   const fetchMiVehiculo = async (conductorId: string) => {
     setLoadingVehiculo(true);
     try {
@@ -74,7 +82,7 @@ export default function PortalConductorPage() {
     }
   };
   
-  // (fetchMisSolicitudes no cambia)
+  // (fetchMisSolicitudes - sin cambios)
   const fetchMisSolicitudes = async (conductorId: string) => {
     setLoadingSolicitudes(true);
     try {
@@ -95,7 +103,7 @@ export default function PortalConductorPage() {
     }
   };
 
-  // (handleSolicitud no cambia)
+  // (handleSolicitud - sin cambios)
   const handleSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!descripcionFalla || !userProfile || !miVehiculo) return;
@@ -123,20 +131,17 @@ export default function PortalConductorPage() {
     }
   };
   
-  // (getEstadoConductor no cambia, pero ahora es válido para TypeScript)
+  // (getEstadoConductor - sin cambios)
   const getEstadoConductor = (sol: SolicitudConEstado): { texto: string, color: string } => {
-    
     if (sol.estadoOT === 'Finalizado') {
       return { texto: '¡LISTO PARA RETIRO!', color: 'text-green-600 font-bold' };
     }
     if (sol.estadoOT === 'En Progreso') {
       return { texto: 'En Taller (En Progreso)', color: 'text-yellow-600' };
     }
-    // ¡Esta línea ahora es válida!
     if (sol.estadoOT === 'Pendiente') {
       return { texto: 'En Taller (Pendiente de Mecánico)', color: 'text-yellow-600' };
     }
-    
     if (sol.estadoOT === 'Agendado' && sol.fechaHoraAgendada && typeof sol.fechaHoraAgendada === 'object' && sol.fechaHoraAgendada._seconds) {
       const fecha = new Date(sol.fechaHoraAgendada._seconds * 1000).toLocaleString('es-CL');
       return { texto: `Agendado para: ${fecha}`, color: 'text-blue-600' };
@@ -144,28 +149,32 @@ export default function PortalConductorPage() {
     if (sol.estadoOT === 'Agendado') {
       return { texto: 'Agendado (Esperando hora)', color: 'text-blue-600' };
     }
-
     if (sol.estadoSolicitud === 'Pendiente') {
       return { texto: 'Pendiente de Aprobación (Admin)', color: 'text-gray-500' };
     }
-    
     return { texto: 'Procesado', color: 'text-gray-500' };
   };
 
-  // (Renderizado JSX sin cambios)
-  // ... (se omite por brevedad) ...
+  // --- PANTALLA DE CARGA ACTUALIZADA ---
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
-  if (userProfile.rol !== 'Conductor') {
-    return <div className="p-8 text-gray-900">Acceso denegado.</div>;
-  }
+  
+  // (Ya no necesitamos esta comprobación, el useEffect la maneja)
+  // if (userProfile.rol !== 'Conductor') { ... }
+
   return (
     <div className="p-8 text-gray-900 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8"> 
+      
+      {/* Columna Izquierda (Acciones) */}
       <div className="md:col-span-1 space-y-8">
+        
+        {/* --- SECCIÓN 1: MI VEHÍCULO --- */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-blue-600">Mi Vehículo Asignado</h2>
-          {loadingVehiculo ? (<p>Buscando...</p>) : miVehiculo ? (
+          {loadingVehiculo ? (
+            <p>Buscando tu vehículo...</p>
+          ) : miVehiculo ? (
             <div className="space-y-3">
               <div>
                 <span className="text-sm text-gray-500">Patente</span>
@@ -176,8 +185,13 @@ export default function PortalConductorPage() {
                 <p className="font-medium text-lg">{miVehiculo.modelo} ({miVehiculo.año})</p>
               </div>
             </div>
-          ) : (<p className="text-gray-700">No tienes un vehículo asignado.</p>)}
+          ) : (
+            <p className="text-gray-700">No tienes un vehículo asignado.</p>
+          )}
         </div>
+
+        {/* --- SECCIÓN 2: SOLICITAR MANTENIMIENTO --- */}
+        {/* (Este bloque ahora se mostrará correctamente cuando 'miVehiculo' cargue) */}
         {miVehiculo && (
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-2xl font-semibold mb-4 text-blue-600">Solicitar Mantenimiento</h2>
@@ -206,6 +220,8 @@ export default function PortalConductorPage() {
           </div>
         )}
       </div>
+
+      {/* --- Columna Derecha (Estado de Solicitudes) --- */}
       <div className="md:col-span-2">
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-blue-600">Estado de mis Solicitudes</h2>

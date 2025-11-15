@@ -1,8 +1,5 @@
 // frontend/app/solicitudes-pendientes/page.tsx
-// (CÓDIGO REVERTIDO: Vuelve a redirigir al formulario para agendar)
-
 'use client'; 
-
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
@@ -12,39 +9,44 @@ type Solicitud = {
   id: string;
   patente_vehiculo: string;
   nombre_conductor: string;
-  id_conductor: string; // ¡Necesario para pasarlo a la OT!
+  id_conductor: string;
   descripcion_falla: string;
   fechaCreacion: { _seconds: number };
   estado: string;
 };
 
 export default function BandejaDeTallerPage() {
-  
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [loading, setLoading] = useState(true);
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
-  
   const { user, userProfile, loading: authLoading } = useAuth();
-  const router = useRouter(); // ¡Para redirigir!
+  const router = useRouter(); 
 
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador'];
+        // --- ¡ROL CORREGIDO! ---
+        const rolesPermitidos = ['Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
           fetchSolicitudesPendientes();
-        } else { router.push('/'); }
-      } else if (!user) { router.push('/'); }
+        } else { 
+          toast.error('Acceso denegado');
+          router.push('/'); 
+        }
+      } else if (!user) {
+        router.push('/');
+      }
     }
   }, [user, userProfile, authLoading, router]);
 
   const fetchSolicitudesPendientes = async () => {
+    // ... (sin cambios)
     setLoading(true);
     try {
       const response = await fetch('/api/solicitudes');
       if (!response.ok) throw new Error('No se pudo cargar la lista de solicitudes');
       const solicitudesData = await response.json() as Solicitud[];
-      setSolicitudes(solicitudesData.filter((s: any) => s.estado === 'Pendiente'));
+      setSolicitudes(solicitudesData.filter((s: any) => s.estado === 'Pendiente')); 
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -52,24 +54,20 @@ export default function BandejaDeTallerPage() {
     }
   };
 
-  // --- ¡handleAgendarOT (REVERTIDO A REDIRECCIÓN)! ---
   const handleAgendarOT = (solicitud: Solicitud) => {
+    // ... (sin cambios)
     toast.success('Redirigiendo para agendar...');
-    
-    // Prepara los datos para la URL
     const params = new URLSearchParams();
     params.set('patente', solicitud.patente_vehiculo);
     params.set('motivo', solicitud.descripcion_falla);
     params.set('id_conductor', solicitud.id_conductor);
     params.set('nombre_conductor', solicitud.nombre_conductor);
-    params.set('solicitud_id', solicitud.id); // ¡Importante para actualizar la solicitud!
-
+    params.set('solicitud_id', solicitud.id);
     router.push(`/crear-ot?${params.toString()}`);
   };
 
-  // (handleRechazarSolicitud no cambia)
   const handleRechazarSolicitud = async (solicitud: Solicitud) => {
-    // ... (igual que antes, con toast.promise) ...
+    // ... (sin cambios)
     setProcesandoId(solicitud.id); 
     const promise = fetch(`/api/solicitudes?id=${solicitud.id}`, { method: 'DELETE' });
     toast.promise(promise, {
@@ -87,11 +85,11 @@ export default function BandejaDeTallerPage() {
     });
   };
 
-  // (Renderizado JSX sin cambios)
-  // ... (se omite por brevedad) ...
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
+  
+  // (Renderizado JSX - sin cambios)
   return (
     <div className="p-8 text-gray-900 space-y-12"> 
       <h1 className="text-3xl font-bold">Bandeja de Taller</h1>
