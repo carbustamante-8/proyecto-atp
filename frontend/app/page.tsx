@@ -1,13 +1,14 @@
 // frontend/app/page.tsx
-// (CÓDIGO CORREGIDO: Lógica de redirección eliminada, manejada por el Context)
+// (ACTUALIZADO: JSX limpiado para coincidir con el nuevo CSS)
 
 'use client'; 
-import { useState, useEffect } from 'react'; // ¡Añadido useEffect!
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { auth } from '../lib/firebase'; 
+import { auth, db } from '../lib/firebase'; 
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useAuth } from '../context/AuthContext';
+import { doc, getDoc } from 'firebase/firestore'; 
+import { useAuth, UserProfile } from '../context/AuthContext';
 import toast from 'react-hot-toast'; 
 import Link from 'next/link';
 import styles from './page.module.css'; 
@@ -18,38 +19,41 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   
-  // --- ¡SIMPLIFICADO! ---
-  // Ya no necesitamos setUser o setUserProfile aquí
   const { user, userProfile, loading: authLoading } = useAuth(); 
 
-  // --- ¡NUEVO! Redirige si el usuario YA ESTÁ logueado ---
-  // (Esto maneja el F5 en la página de login)
+  // (useEffect para redirigir si ya está logueado - sin cambios)
   useEffect(() => {
     if (!authLoading && user && userProfile) {
-      // Si ya está logueado, lo patea a su página (la lógica del Context lo hará)
-      // Pero por si acaso, lo enviamos al hub del Jefe de Taller como fallback.
       if (userProfile.rol === 'Jefe de Taller') {
         router.push('/agenda-taller');
+      } else if (userProfile.rol === 'Supervisor') {
+        router.push('/dashboard-admin'); 
+      } else if (userProfile.rol === 'Coordinador') {
+        router.push('/dashboard-admin'); 
+      } else if (userProfile.rol === 'Mecánico') {
+        router.push('/mis-tareas'); 
+      } else if (userProfile.rol === 'Guardia') {
+        router.push('/control-acceso'); 
+      } else if (userProfile.rol === 'Conductor') {
+        router.push('/portal-conductor'); 
+      } else if (userProfile.rol === 'Gerente') {
+        router.push('/generador-reportes'); 
       } else {
-        router.push('/mis-tareas'); // O cualquier otra página principal
+        router.push('/'); 
       }
     }
   }, [user, userProfile, authLoading, router]);
 
-  // --- ¡handleLogin (SIMPLIFICADO)! ---
+  // (handleLogin - sin cambios en la lógica)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     toast.loading('Iniciando sesión...'); 
     
     try {
-      // 1. Solo intenta iniciar sesión
       await signInWithEmailAndPassword(auth, email, password);
-      
-      // 2. ¡NO HAGAS NADA MÁS!
-      // El 'AuthContext' detectará el cambio y
-      // el 'useEffect' en el Context se encargará
-      // de buscar el perfil y redirigir.
+      // El AuthContext (que ya corregimos) se encargará de
+      // buscar el perfil y redirigir automáticamente.
       toast.dismiss();
       
     } catch (error: any) {
@@ -65,12 +69,16 @@ export default function LoginPage() {
     }
   };
 
-  // Muestra una pantalla de carga si la autenticación está en proceso
+  // Muestra pantalla de carga si la sesión se está validando
   if (authLoading || (user && userProfile)) {
-    return <div className="p-8 text-gray-900">Validando sesión...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-background">
+        <p className="text-text-secondary">Validando sesión...</p>
+      </div>
+    );
   }
   
-  // (Renderizado JSX - sin cambios)
+  // --- JSX del Login (Moderno) ---
   return (
     <div className={styles.container}>
       {/* Columna Izquierda (Logo) */}
@@ -105,6 +113,7 @@ export default function LoginPage() {
                 className={styles.input}
               />
             </div>
+
             <div className={styles.inputGroup}>
               <label htmlFor="password" className={styles.label}>
                 Contraseña
@@ -118,6 +127,7 @@ export default function LoginPage() {
                 className={styles.input}
               />
             </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -125,6 +135,7 @@ export default function LoginPage() {
             >
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
+            
             <div className={styles.linkContainer}>
               <Link href="/recuperar-contrasena">
                 <span className={styles.link}>

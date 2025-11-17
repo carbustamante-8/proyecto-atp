@@ -1,35 +1,48 @@
-@import "tailwindcss";
+/* Importar la fuente 'Poppins' (moderna y profesional) */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-/* Variables de color: dejar blanco por defecto para evitar franjas negras
-   independientemente del esquema de color del sistema */
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definición de la paleta de colores de Pepsi */
+@layer base {
+  :root {
+    --color-pepsi-blue: #004B8D; /* Azul Pepsi principal */
+    --color-pepsi-red: #D40026;  /* Rojo Pepsi para acentos/botones de peligro */
+    --color-pepsi-light-blue: #007bff; /* Un azul más brillante para enlaces */
+    --color-white: #FFFFFF;
+    --color-background: #f8f9fa; /* Un fondo gris muy claro */
+    --color-text-primary: #1f2937; /* Texto oscuro principal */
+    --color-text-secondary: #6b7280; /* Texto gris secundario */
+  }
 }
 
-/* Removed non-standard @theme rule to avoid linter errors. */
-
-/* Forzar fondo blanco y reset básico para evitar márgenes que muestren el fondo
-   oscuro del sistema. Esto garantiza un lienzo limpio y sin franjas negras. */
-html, body, #__next {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  background: #ffffff;
-}
-
+/* Aplicación de la fuente y fondo base */
 body {
-  background: #ffffff;
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-family: 'Poppins', sans-serif;
+  @apply bg-background text-text-primary;
 }
 
-/* ... (al final de app/globals.css) ... */
+/* Estilos para el DatePicker (Calendario)
+   (Lo añadimos aquí para que el rediseño futuro de 'crear-ot' funcione)
+*/
+.react-datepicker-wrapper {
+  width: 100%;
+}
 
-/* Estilos para React-DatePicker */
-.react-datepicker__day--highlighted-times {
-  background-color: #fca5a5; /* Un rojo claro */
-  color: #7f1d1d !important; /* Texto rojo oscuro */
+.react-datepicker__input-container {
+  width: 100%;
+}
+
+.react-datepicker__input-container input {
+  @apply w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50 focus:ring-pepsi-blue focus:border-pepsi-blue;
+}
+
+/* Clases para el modal "sin fondo" que pediste */
+.modal-overlay {
+  @apply fixed inset-0 z-50 flex items-center justify-center;
+}
+.modal-content {
+  @apply relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full;
 }

@@ -1,173 +1,144 @@
-/* --- Estilos para page.module.css --- */
+/* frontend/app/page.module.css
+  (ACTUALIZADO: Rediseño visual con la paleta de Pepsi)
+*/
 
-/* Contenedor principal de la página */
 .container {
   display: flex;
   min-height: 100vh;
-  font-family: Arial, sans-serif;
-  align-items: stretch;
-  gap: 0; /* evitar gaps inesperados */
+  width: 100%;
 }
 
-/* Lado Izquierdo - Formulario */
-.formContainer {
-  flex: 1 1 0%; /* usar flex en lugar de width para evitar franjas por redondeo */
+/* Columna Izquierda (Branding Pepsi) */
+.leftColumn {
+  width: 50%;
+  background-color: var(--color-pepsi-blue); /* Fondo azul Pepsi */
+  color: var(--color-white);
   display: flex;
   flex-direction: column;
-  align-items: flex-start; /* alinear el contenido hacia la izquierda del panel */
+  align-items: center;
   justify-content: center;
-  background-color: white;
-  /* aumentar padding-left para separar del borde izquierdo */
-  padding: 40px 24px 40px 250px; /* top right bottom left - desplazado más a la derecha */
-  box-sizing: border-box;
+  padding: 2rem;
+  /* Oculta en pantallas pequeñas */
+  display: none; 
 }
-
-.title {
-  font-size: 2rem;
-  margin-bottom: 20px;
-  color: #00529C; /* Azul Pepsi */
-  font-weight: 700;
-  text-align: left;
-  width: 100%;
-  max-width: 480px;
+@media (min-width: 768px) {
+  .leftColumn {
+    display: flex; /* Muestra en pantallas medianas y grandes */
+  }
 }
 
 .subtitle {
-  margin-bottom: 24px;
-  color: #666;
-  font-size: 1rem;
+  font-size: 2.25rem; /* 36px */
+  font-weight: 600;
+  text-align: center;
+  margin-top: 1.5rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Columna Derecha (Formulario) */
+.rightColumn {
+  width: 100%; /* Ocupa todo en móvil */
+  background-color: var(--color-background); /* Fondo gris claro */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+@media (min-width: 768px) {
+  .rightColumn {
+    width: 50%; /* Mitad en pantallas grandes */
+  }
+}
+
+.loginBox {
+  background-color: var(--color-white);
+  padding: 2.5rem; /* 40px */
+  border-radius: 0.75rem; /* 12px */
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   width: 100%;
-  max-width: 480px;
+  max-width: 28rem; /* 448px */
+}
+
+.loginTitle {
+  font-size: 2rem; /* 32px */
+  font-weight: 700;
+  text-align: center;
+  color: var(--color-text-primary);
+  margin-bottom: 2rem;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  width: 360px; /* más ancho para aspecto profesional */
-  max-width: 100%;
+  gap: 1.5rem; /* 24px */
 }
 
-/* Campo form - estructura consistente para cada label+input */
-.formField {
+.inputGroup {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 100%;
 }
 
 .label {
-  display: block;
-  margin-bottom: 0;
-  color: #333;
-  font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.875rem; /* 14px */
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem; /* 8px */
 }
 
 .input {
+  display: block;
   width: 100%;
-  padding: 12px 44px 12px 12px; /* dejar espacio a la derecha para el botón Mostrar */
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  font-size: 1rem;
-  box-sizing: border-box;
-  color: #111;
-  background: #fff;
+  padding: 0.75rem 1rem; /* 12px 16px */
+  font-size: 1rem; /* 16px */
+  color: var(--color-text-primary);
+  background-color: #f9fafb; /* bg-gray-50 */
+  border: 1px solid #D1D5DB; /* border-gray-300 */
+  border-radius: 0.5rem; /* 8px */
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-/* Contenedor para el input de contraseña y el botón */
-.passwordWrapper {
-  position: relative;
-  width: 100%;
+.input:focus {
+  outline: none;
+  border-color: var(--color-pepsi-blue);
+  /* Sombra de foco sutil */
+  box-shadow: 0 0 0 3px rgba(0, 75, 141, 0.2); 
 }
 
-.toggleBtn {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
+.button {
+  width: 100%;
+  padding: 0.75rem 1.5rem; /* 12px 24px */
+  font-size: 1rem; /* 16px */
+  font-weight: 600;
+  color: var(--color-white);
+  background-color: var(--color-pepsi-blue);
   border: none;
+  border-radius: 0.5rem; /* 8px */
   cursor: pointer;
-  font-size: 0.9rem;
-  color: #00529C; /* Azul Pepsi */
-  padding: 4px 6px;
-  line-height: 1;
+  transition: background-color 0.3s, transform 0.1s;
 }
 
-.forgotContainer {
-  display: flex;
-  justify-content: flex-end;
-  font-size: 0.9em;
-  width: 100%;
-  max-width: 360px;
+.button:hover {
+  background-color: #003d73; /* Azul Pepsi más oscuro */
+}
+
+.button:disabled {
+  background-color: #9CA3AF; /* bg-gray-400 */
+  cursor: not-allowed;
+}
+
+.linkContainer {
+  text-align: center;
+  padding-top: 0.5rem; /* 8px */
 }
 
 .link {
-  color: #00529C; /* Azul Pepsi */
+  font-size: 0.875rem; /* 14px */
+  font-weight: 500;
+  color: var(--color-pepsi-light-blue);
   text-decoration: none;
-}
-
-.error {
-  color: red;
-  text-align: center;
-  min-height: 1.2em;
-  font-size: 0.9em;
-}
-
-.submitBtn {
-  width: 100%;
-  padding: 12px;
-  background-color: #00529C; /* Azul Pepsi */
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 1.05rem;
   cursor: pointer;
-  font-weight: 700;
 }
 
-.registerText {
-  text-align: center;
-  font-size: 0.9em;
-  color: #666;
-  margin-top: 10px;
-}
-
-/* Lado Derecho - Imagen */
-.imageContainer {
-  flex: 1 1 0%; /* usar flex para parejas exactas sin gaps */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: white; /* Mantener blanco para evitar franjas negras */
-  padding: 20px;
-  box-sizing: border-box;
-}
-
-.image {
-  max-width: 60%;
-  height: auto;
-  max-height: 80%;
-  object-fit: contain;
-}
-
-/* Responsive: en pantallas pequeñas apilar verticalmente */
-@media (max-width: 768px) {
-  .container {
-    flex-direction: column;
-  }
-  .form {
-    width: 92%;
-  }
-  .image {
-    max-width: 50%;
-    margin: 24px 0;
-  }
-  /* reducir el padding-left en pantallas pequeñas y centrar el contenido */
-  .formContainer {
-    padding-left: 24px;
-    padding-right: 24px;
-    align-items: center;
-  }
+.link:hover {
+  text-decoration: underline;
 }

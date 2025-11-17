@@ -1,42 +1,51 @@
 // frontend/app/layout.tsx
+// (ACTUALIZADO: Importa la fuente 'Poppins' y la aplica)
 
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
+import type { Metadata } from "next";
+// --- ¡CAMBIO DE FUENTE! ---
+import { Poppins } from "next/font/google";
+import "./globals.css";
 import { AuthProvider } from '@/context/AuthContext';
-import Navbar from '@/components/Navbar'; 
-// --- ¡CAMBIO 1: Importa el Toaster! ---
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from "react-hot-toast";
+import Navbar from "@/components/Navbar";
 
-const inter = Inter({ subsets: ['latin'] });
+// Configura la fuente Poppins
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: '--font-poppins', // Opcional si quieres usarla como variable
+});
+// --- FIN CAMBIO DE FUENTE ---
 
 export const metadata: Metadata = {
-  title: 'Pepsi-Fleet', 
-  description: 'Gestión de Flota ATP',
+  title: "Pepsi-Fleet",
+  description: "Gestión de Taller y Flota - PepsiCo",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="es">
-      <body className={inter.className}>
+      {/* ¡Aplica la fuente y el color de fondo! */}
+      <body className={`${poppins.className} bg-background`}>
         <AuthProvider>
-          
-          {/* --- ¡CAMBIO 2: Añade el Toaster aquí! --- */}
-          {/* (Se puede poner arriba o abajo, no afecta el layout) */}
           <Toaster 
-            position="bottom-right" // Las notificaciones saldrán en la esquina inferior derecha
+            position="top-right"
             toastOptions={{
-              duration: 4000, // Duran 4 segundos
+              className: 'font-sans', // Asegura que los toasts usen la fuente
             }}
           />
-          
-          <Navbar /> 
-          {children} 
-        
+          <Navbar />
+          {/* Este 'main' es importante. 
+            El Navbar ahora es FIJO (fixed), así que el contenido principal 
+            necesita un padding-top (pt-16) para no quedar oculto debajo.
+          */}
+          <main className="pt-16">
+            {children}
+          </main>
         </AuthProvider>
       </body>
     </html>

@@ -1,5 +1,5 @@
 // frontend/components/Navbar.tsx
-// (CÓDIGO ACTUALIZADO: Vistas repartidas por rol jerárquico)
+// (CÓDIGO ACTUALIZADO: Rediseño visual a tema Pepsi)
 
 'use client'; 
 
@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
+import Image from 'next/image'; // ¡Importado Image!
 
 export default function Navbar() {
   const { user, userProfile, loading } = useAuth();
@@ -23,93 +24,108 @@ export default function Navbar() {
     }
   };
 
+  // No mostrar Navbar en la página de Login
   if (pathname === '/') return null; 
-  if (loading || !user || !userProfile) {
-    return <div className="h-16 bg-white shadow-md"></div>; 
+  
+  // Muestra un placeholder mientras se carga la sesión
+  if (loading || !userProfile) {
+    return (
+      <nav className="fixed top-0 left-0 w-full h-16 bg-pepsi-blue shadow-lg z-50 flex items-center justify-between px-6">
+        <div className="flex items-center space-x-3">
+          <Image
+            src="/pepsico-logo.png" // Asume que tienes 'pepsico-logo.png' en /public
+            alt="Pepsi Logo"
+            width={32}
+            height={32}
+          />
+          <span className="font-semibold text-xl text-white">Pepsi-Fleet</span>
+        </div>
+      </nav>
+    ); 
   }
 
+  // --- Navbar principal (rediseñado) ---
   return (
-    <nav className="bg-white shadow-md text-gray-900 sticky top-0 z-50">
-      <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+    <nav className="fixed top-0 left-0 w-full bg-pepsi-blue text-white shadow-lg z-50">
+      <div className="container mx-auto px-6 py-3 flex justify-between items-center">
         
-        <Link href="/">
-          <span className="font-bold text-xl" style={{ color: '#003DA5' }}>Pepsi-Fleet</span>
+        {/* --- Logo y Título --- */}
+        <Link href="/" className="flex items-center space-x-3">
+          <Image
+            src="/pepsico-logo.png" // Asume que tienes 'pepsico-logo.png' en /public
+            alt="Pepsi Logo"
+            width={32}
+            height={32}
+          />
+          <span className="font-bold text-xl">Pepsi-Fleet</span>
         </Link>
 
-        <div className="space-x-6">
+        {/* --- Enlaces (Misma lógica, nuevo estilo) --- */}
+        <div className="hidden md:flex items-center space-x-4">
           
-          {/* --- 🥇 SUPERVISOR (ROL MÁS ALTO) --- */}
+          {/* --- 🥇 SUPERVISOR --- */}
           {userProfile.rol === 'Supervisor' && (
             <>
-              <Link href="/solicitudes-pendientes" className="hover:text-blue-600">Bandeja de Taller</Link>
-              <Link href="/agenda-taller" className="hover:text-blue-600">Agenda/Asignar</Link>
-              <Link href="/cierre-ots" className="hover:text-blue-600">Cierre de OTs</Link>
-              <Link href="/dashboard-admin" className="hover:text-blue-600">Usuarios</Link>
-              <Link href="/gestion-vehiculos" className="hover:text-blue-600">Vehículos</Link>
-              <Link href="/historial-accesos" className="hover:text-blue-600">Historial Accesos</Link>
-              <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>
+              <Link href="/solicitudes-pendientes" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Bandeja de Taller</Link>
+              <Link href="/agenda-taller" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Agenda/Asignar</Link>
+              <Link href="/cierre-ots" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Cierre de OTs</Link>
+              <Link href="/dashboard-admin" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Usuarios</Link>
+              <Link href="/gestion-vehiculos" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Vehículos</Link>
+              <Link href="/historial-accesos" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Historial Accesos</Link>
+              <Link href="/generador-reportes" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Reportes</Link>
             </>
           )}
 
-          {/* --- 🥈 JEFE DE TALLER (ROL TÉCNICO) --- */}
+          {/* --- 🥈 JEFE DE TALLER --- */}
           {userProfile.rol === 'Jefe de Taller' && (
             <>
-              <Link href="/agenda-taller" className="hover:text-blue-600">Agenda/Asignar</Link>
-              <Link href="/cierre-ots" className="hover:text-blue-600">Cierre de OTs</Link>
-              <Link href="/historial-accesos" className="hover:text-blue-600">Historial Accesos</Link>
-              <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>
+              <Link href="/agenda-taller" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Agenda/Asignar</Link>
+              <Link href="/cierre-ots" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Cierre de OTs</Link>
+              <Link href="/historial-accesos" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Historial Accesos</Link>
+              <Link href="/generador-reportes" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Reportes</Link>
             </>
           )}
 
-          {/* --- 🥉 COORDINADOR (ROL ADMINISTRATIVO) --- */}
+          {/* --- 🥉 COORDINADOR --- */}
           {userProfile.rol === 'Coordinador' && (
             <>
-              <Link href="/solicitudes-pendientes" className="hover:text-blue-600">Bandeja de Taller</Link>
-              <Link href="/agenda-taller" className="hover:text-blue-600">Agenda</Link>
-              <Link href="/dashboard-admin" className="hover:text-blue-600">Usuarios</Link>
-              <Link href="/gestion-vehiculos" className="hover:text-blue-600">Vehículos</Link>
-              <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>
-            </>
-          )}
-
-          {/* --- (Resto de roles sin cambios) --- */}
-          {userProfile && userProfile.rol === 'Gerente' && (
-            <>
-              <Link href="/generador-reportes" className="hover:text-blue-600">Reportes</Link>
-            </>
-          )}
-
-          {userProfile && userProfile.rol === 'Mecánico' && (
-            <>
-              <Link href="/mis-tareas" className="hover:text-blue-600">Mi Tablero</Link>
-            </>
-          )}
-
-          {userProfile && userProfile.rol === 'Guardia' && (
-            <>
-              <Link href="/control-acceso" className="hover:text-blue-600">Registrar Ingreso</Link>
-              <Link href="/registrar-salida" className="hover:text-blue-600">Registrar Salida</Link>
-              <Link href="/historial-accesos" className="hover:text-blue-600">Bitácora</Link>
+              <Link href="/solicitudes-pendientes" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Bandeja de Taller</Link>
+              <Link href="/agenda-taller" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Agenda</Link>
+              <Link href="/dashboard-admin" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Usuarios</Link>
+              <Link href="/gestion-vehiculos" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Vehículos</Link>
+              <Link href="/generador-reportes" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Reportes</Link>
             </>
           )}
           
-          {userProfile.rol === 'Conductor' && (
+          {/* --- OTROS ROLES --- */}
+          {userProfile.rol === 'Gerente' && (
+            <Link href="/generador-reportes" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Reportes</Link>
+          )}
+          {userProfile.rol === 'Mecánico' && (
+            <Link href="/mis-tareas" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Mi Tablero</Link>
+          )}
+          {userProfile.rol === 'Guardia' && (
             <>
-              <Link href="/portal-conductor" className="hover:text-blue-600">Mi Portal</Link>
+              <Link href="/control-acceso" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Registrar Ingreso</Link>
+              <Link href="/registrar-salida" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Registrar Salida</Link>
+              <Link href="/historial-accesos" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Bitácora</Link>
             </>
+          )}
+          {userProfile.rol === 'Conductor' && (
+            <Link href="/portal-conductor" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:text-pepsi-blue transition-colors">Mi Portal</Link>
           )}
         </div>
 
-        {/* (Info de Usuario - sin cambios) */}
-        <div className="flex items-center">
-          <span className="text-gray-700 mr-4">
-            Hola, {userProfile.nombre} (<em className="text-sm">{userProfile.rol}</em>)
+        {/* --- Info de Usuario y Logout (Rediseñado) --- */}
+        <div className="flex items-center space-x-3">
+          <span className="text-sm text-gray-200 hidden md:block">
+            Hola, {userProfile.nombre} ({userProfile.rol})
           </span>
           <button 
             onClick={handleLogout}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg shadow font-semibold hover:bg-red-700 text-sm"
+            className="bg-pepsi-red text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
           >
-            Cerrar Sesión
+            Salir
           </button>
         </div>
       </div>
