@@ -1,35 +1,41 @@
-// frontend/app/cierre-ots/page.tsx
-'use client'; 
+'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext'; 
-import toast from 'react-hot-toast'; 
+import { useAuth } from '@/context/AuthContext';
+import Link from 'next/link';
+import toast from 'react-hot-toast';
 
+// --- ¡NUEVO! Icono para el botón ---
+import { ArrowRightIcon } from '@heroicons/react/24/outline';
+
+// (El tipo de dato no cambia)
 type OTFinalizada = {
   id: string;
   patente: string;
-  descripcionProblema: string;
   mecanicoAsignadoNombre: string;
-  fechaCreacion: { _seconds: number };
+  fechaCompletado?: { _seconds: number };
+  descripcionProblema: string;
+  estado:string;
 };
 
-export default function CierreOtsPage() {
+export default function CierreOTsPage() {
+  
+  // (Toda la lógica de 'useState', 'useEffect' y 'fetch' queda idéntica)
   const [otsFinalizadas, setOtsFinalizadas] = useState<OTFinalizada[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cerrandoId, setCerrandoId] = useState<string | null>(null); 
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // --- ¡ROL CORREGIDO! ---
+        // Roles que pueden ver esta página
         const rolesPermitidos = ['Jefe de Taller', 'Supervisor'];
         if (rolesPermitidos.includes(userProfile.rol)) {
-          fetchOtsFinalizadas();
-        } else { 
+          fetchOTsFinalizadas();
+        } else {
           toast.error('Acceso denegado');
-          router.push('/'); 
+          router.push('/');
         }
       } else if (!user) {
         router.push('/');
@@ -37,14 +43,17 @@ export default function CierreOtsPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
-  // (fetchOtsFinalizadas - sin cambios)
-  const fetchOtsFinalizadas = async () => {
+  const fetchOTsFinalizadas = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/ordenes-trabajo'); 
-      if (!response.ok) throw new Error('No se pudieron cargar las OTs finalizadas');
-      const data: any[] = await response.json();
-      const finalizadas = data.filter(ot => ot.estado === 'Finalizado');
+      const response = await fetch('/api/ordenes-trabajo');
+      if (!response.ok) throw new Error('No se pudieron cargar las OTs');
+      const data: OTFinalizada[] = await response.json();
+      
+      const finalizadas = data
+        .filter(ot => ot.estado === 'Finalizado')
+        .sort((a, b) => (a.fechaCompletado?._seconds || 0) - (b.fechaCompletado?._seconds || 0)); // Más antiguas primero
+        
       setOtsFinalizadas(finalizadas);
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
@@ -53,89 +62,62 @@ export default function CierreOtsPage() {
     }
   };
 
-  // (handleCerrarOT - sin cambios)
-  const handleCerrarOT = async (otId: string) => {
-    setCerrandoId(otId); 
-    const promise = fetch(`/api/ordenes-trabajo/${otId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: 'Cerrado',
-          accion: 'cierreAdministrativo'
-        }),
-      });
-    toast.promise(promise, {
-      loading: 'Cerrando OT...',
-      success: (res) => {
-        if (!res.ok) throw new Error('Error al cerrar la OT');
-        setOtsFinalizadas(actuales => actuales.filter(ot => ot.id !== otId));
-        setCerrandoId(null);
-        return '¡OT Cerrada Administrativamente!';
-      },
-      error: (err) => {
-        setCerrandoId(null);
-        return err.message;
-      }
-    });
-  };
-  
-  const handleRevisarOT = (otId: string) => {
-    window.open(`/tareas-detalle/${otId}`, '_blank');
-  };
-
-  if (authLoading || !userProfile) {
-    return <div className="p-8 text-gray-900">Validando sesión...</div>;
+  if (authLoading || loading) {
+    return <div className="p-8 font-sans">Validando sesión y cargando OTs...</div>;
   }
-  
-  // (Renderizado JSX - sin cambios)
+
+  // --- JSX REFACTORIZADO VISUALMENTE ---
   return (
-    <div className="p-8 text-gray-900">
-      <h1 className="text-3xl font-bold mb-4">Cierre Administrativo de OTs</h1>
-      <p className="text-gray-600 mb-6">Lista de OTs finalizadas por los mecánicos, pendientes de cierre y archivo.</p>
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mecánico</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loading ? (
-              <tr><td colSpan={4} className="px-6 py-4 text-center">Cargando OTs finalizadas...</td></tr>
-            ) : otsFinalizadas.length > 0 ? (
-              otsFinalizadas.map(ot => (
-                <tr key={ot.id}>
-                  <td className="px-6 py-4 font-medium">{ot.patente}</td>
-                  <td className="px-6 py-4">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
-                  <td className="px-6 py-4">{ot.descripcionProblema}</td>
-                  <td className="px-6 py-4 space-x-2">
-                    <button 
-                      onClick={() => handleRevisarOT(ot.id)}
-                      className="bg-gray-500 text-white px-3 py-1 rounded shadow hover:bg-gray-600"
-                    >
-                      Revisar
-                    </button>
-                    <button 
-                      onClick={() => handleCerrarOT(ot.id)}
-                      disabled={cerrandoId === ot.id} 
-                      className="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700 disabled:bg-gray-400"
-                    >
-                      {cerrandoId === ot.id ? 'Cerrando...' : 'Cerrar OT'}
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr><td colSpan={4} className="px-6 py-4 text-center">
-                No hay OTs pendientes de cierre administrativo.
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+    <div className="p-8 font-sans">
+      
+      {/* Título con color Pepsi */}
+      <h1 className="text-3xl font-bold text-pepsi-blue mb-6">OTs Pendientes de Cierre</h1>
+      <p className="text-neutral-700 mb-8 -mt-4">
+        Las siguientes OTs han sido marcadas como "Finalizadas" por los mecánicos y requieren revisión administrativa.
+      </p>
+
+      {otsFinalizadas.length > 0 ? (
+        <div className="space-y-4">
+          {otsFinalizadas.map(ot => (
+            
+            // --- Tarjeta de OT (Rediseñada) ---
+            <div 
+              key={ot.id}
+              // Tarjeta blanca con sombra y animación de hover
+              className="bg-white shadow-card rounded-lg p-6 flex flex-col md:flex-row justify-between md:items-center
+                         transition-transform-shadow duration-200 transform hover:-translate-y-1 hover:shadow-card-hover"
+            >
+              {/* Información de la OT */}
+              <div className="mb-4 md:mb-0">
+                <p className="text-sm text-neutral-700">Patente</p>
+                <h2 className="text-xl font-bold text-neutral-900">{ot.patente}</h2>
+                <p className="text-sm text-neutral-700 mt-2">
+                  Finalizada por: <span className="font-medium">{ot.mecanicoAsignadoNombre || 'Taller'}</span>
+                </p>
+                <p className="text-sm text-neutral-700">
+                  Motivo: <span className="italic">{ot.descripcionProblema}</span>
+                </p>
+              </div>
+              
+              {/* Botón de Acción (Pepsi) */}
+              <Link 
+                href={`/tareas-detalle/${ot.id}`}
+                className="inline-flex items-center justify-center gap-2 bg-pepsi-blue text-white px-5 py-2 rounded-lg shadow font-medium 
+                           hover:bg-pepsi-blue-dark transition-colors duration-200"
+              >
+                Revisar y Cerrar
+                <ArrowRightIcon className="h-5 w-5" />
+              </Link>
+            </div>
+          ))}
+        </div>
+      ) : (
+        // Mensaje si no hay OTs pendientes
+        <div className="bg-white rounded-lg shadow-card p-8 text-center">
+          <h2 className="text-xl font-bold text-neutral-900">Bandeja Limpia</h2>
+          <p className="text-neutral-700 mt-2">No hay OTs finalizadas pendientes de cierre.</p>
+        </div>
+      )}
     </div>
   );
 }

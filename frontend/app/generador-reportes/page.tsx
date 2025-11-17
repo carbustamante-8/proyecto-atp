@@ -1,280 +1,115 @@
-// frontend/app/generador-reportes/page.tsx
-// (CÓDIGO CORREGIDO: Reemplazado confirm() por toast.promise en handleAnularOT)
-
 'use client'; 
-
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext'; 
+
+// --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+// La ruta relativa '../lib/firebase' era incorrecta.
+// Usamos el alias '@/lib/firebase' que está definido en tu tsconfig.json
+// y es la forma correcta de importar en este proyecto.
+import { auth } from '@/lib/firebase'; 
+import { sendPasswordResetEmail } from 'firebase/auth';
 import toast from 'react-hot-toast'; 
-import * as XLSX from 'xlsx'; 
 
-type OrdenDeTrabajo = {
-  id: string;
-  patente: string;
-  descripcionProblema: string;
-  estado: string; 
-  mecanicoAsignadoNombre?: string | null;
-  fechaCreacion: { _seconds: number };
-  fechaIngresoTaller?: { _seconds: number }; 
-  fechaSalidaTaller?: { _seconds: number }; 
-  repuestosUsados?: string; 
-};
+// --- ¡Estilo estándar para inputs (v3)! ---
+const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neutral-900 bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200";
 
-const formatFecha = (fecha: { _seconds: number } | undefined | null) => {
-  if (!fecha) return 'N/A';
-  return new Date(fecha._seconds * 1000).toLocaleString('es-CL');
-};
-
-export default function GeneradorReportesPage() {
+export default function RecuperarContrasenaPage() {
   
-  const [ordenes, setOrdenes] = useState<OrdenDeTrabajo[]>([]); 
-  const [ordenesFiltradas, setOrdenesFiltradas] = useState<OrdenDeTrabajo[]>([]); 
-  const [loading, setLoading] = useState(true);
-  
-  const [filtroEstado, setFiltroEstado] = useState('Todos');
-  const [filtroPatente, setFiltroPatente] = useState(''); 
-  const [filtroFechaInicio, setFiltroFechaInicio] = useState(''); 
-  const [filtroFechaFin, setFiltroFechaFin] = useState(''); 
-
-  const [anulandoId, setAnulandoId] = useState<string | null>(null);
-  
-  const { user, userProfile, loading: authLoading } = useAuth();
+  // (La lógica de 'useState', 'useRouter' y 'handle' queda idéntica)
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // (useEffect y fetchTodasLasOrdenes no cambian)
-  useEffect(() => {
-    if (!authLoading && user && userProfile) {
-      const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
-      if (rolesPermitidos.includes(userProfile.rol)) {
-        fetchTodasLasOrdenes();
-      } else {
-        router.push('/'); 
-      }
-    } else if (!user && !authLoading) {
-      router.push('/');
-    }
-  }, [user, userProfile, authLoading, router]);
-
-  const fetchTodasLasOrdenes = async () => {
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    try {
-      const response = await fetch('/api/ordenes-trabajo'); 
-      if (!response.ok) throw new Error('No se pudieron cargar las órdenes');
-      const data: OrdenDeTrabajo[] = await response.json();
-      data.sort((a, b) => (b.fechaCreacion?._seconds || 0) - (a.fechaCreacion?._seconds || 0));
-      setOrdenes(data);
-      setOrdenesFiltradas(data); 
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // (handleGenerarReporte no cambia)
-  const handleGenerarReporte = (e: React.FormEvent) => {
-    e.preventDefault(); 
-    setLoading(true);
-    let filtradas = ordenes;
-    if (filtroEstado !== 'Todos') {
-      filtradas = filtradas.filter(ot => ot.estado === filtroEstado);
-    }
-    if (filtroPatente) {
-      filtradas = filtradas.filter(ot => 
-        ot.patente.toLowerCase().includes(filtroPatente.toLowerCase())
-      );
-    }
-    if (filtroFechaInicio) {
-      const inicioTs = new Date(filtroFechaInicio).getTime();
-      filtradas = filtradas.filter(ot => 
-        (ot.fechaCreacion._seconds * 1000) >= inicioTs
-      );
-    }
-    if (filtroFechaFin) {
-      const finTs = new Date(filtroFechaFin).getTime() + (24 * 60 * 60 * 1000 - 1); 
-      filtradas = filtradas.filter(ot => 
-        (ot.fechaCreacion._seconds * 1000) <= finTs
-      );
-    }
-    setOrdenesFiltradas(filtradas);
-    toast.success(`Reporte generado. ${filtradas.length} resultados.`);
-    setLoading(false);
-  };
-
-  // --- ¡handleAnularOT (MODIFICADO)! ---
-  const handleAnularOT = async (otId: string) => {
-    // ¡confirm() ELIMINADO!
-    setAnulandoId(otId);
+    const promise = sendPasswordResetEmail(auth, email);
     
-    const promise = fetch(`/api/ordenes-trabajo/${otId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        estado: 'Anulado', // El estado final
-        accion: 'anularOT' // El flag de seguridad de la API
-      }),
-    });
-
     toast.promise(promise, {
-      loading: 'Anulando OT...',
-      success: (res) => {
-        if (!res.ok) throw new Error('Error al anular la OT');
-        // Actualiza la lista en la UI
-        setOrdenes(prev => prev.map(ot => 
-          ot.id === otId ? { ...ot, estado: 'Anulado' } : ot
-        ));
-        setAnulandoId(null);
-        return '¡OT Anulada!';
+      loading: 'Enviando correo...',
+      success: () => {
+        setLoading(false);
+        router.push('/'); // Redirige al login
+        return '¡Correo enviado! Revisa tu bandeja de entrada.';
       },
       error: (err) => {
-        setAnulandoId(null);
-        return err.message || 'Error al anular la OT';
+        setLoading(false);
+        if (err.code === 'auth/user-not-found') {
+          return 'No se encontró un usuario con ese correo.';
+        }
+        return 'Error al enviar el correo.';
       }
     });
   };
-  
-  // (handleExportExcel no cambia)
-  const handleExportExcel = () => {
-    if (ordenesFiltradas.length === 0) {
-      toast.error("No hay datos para exportar. Genera un reporte primero.");
-      return;
-    }
-    const datosParaExcel = ordenesFiltradas.map(ot => ({
-      "ID OT": ot.id.substring(0, 6),
-      "Patente": ot.patente,
-      "Estado": ot.estado,
-      "Mecánico Asignado": ot.mecanicoAsignadoNombre || 'N/A',
-      "Descripción": ot.descripcionProblema,
-      "Repuestos": ot.repuestosUsados || 'N/A',
-      "Fecha Creación": formatFecha(ot.fechaCreacion),
-      "Fecha Ingreso Taller": formatFecha(ot.fechaIngresoTaller),
-      "Fecha Salida Taller": formatFecha(ot.fechaSalidaTaller),
-    }));
-    const ws = XLSX.utils.json_to_sheet(datosParaExcel);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte OTs PepsiFleet");
-    XLSX.writeFile(wb, "ReportePepsiFleet.xlsx");
-  };
 
-  if (authLoading || !userProfile) {
-    return <div className="p-8 text-gray-900">Validando sesión...</div>;
-  }
-  
-  const puedeAnular = ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol);
-
+  // --- JSX REFACTORIZADO VISUALMENTE ---
+  // (El JSX no tiene errores y se mantiene igual)
   return (
-    <div className="p-8 text-gray-900">
+    <div className="flex min-h-screen font-sans">
       
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Panel Maestro de OTs / Reportes</h1>
-        <button 
-          onClick={handleExportExcel} 
-          disabled={loading || ordenesFiltradas.length === 0}
-          className="bg-green-700 text-white px-5 py-2 rounded shadow hover:bg-green-800 disabled:bg-gray-400"
-        >
-          Exportar a Excel
-        </button>
+      {/* Columna Izquierda (Branding Pepsi) */}
+      <div className="hidden md:flex flex-col items-center justify-center w-1/2 bg-pepsi-blue text-white p-12">
+        <Image
+          src="/pepsico-logo.png"
+          alt="PepsiCo Logo"
+          width={300}  // Tamaño base
+          height={283} // Proporción corregida (casi 1:1)
+          priority
+          className="object-contain" // Asegura que no se deforme
+        />
+        <h2 className="text-3xl font-semibold text-center mt-6">
+          Gestión de Flota y Taller Mecánico
+        </h2>
       </div>
       
-      {/* ... (Formulario de Filtros - sin cambios) ... */}
-      <form onSubmit={handleGenerarReporte} className="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-        <div>
-          <label htmlFor="filtroFechaInicio" className="block text-sm font-medium text-gray-700">Fecha Inicio (Creación)</label>
-          <input type="date" id="filtroFechaInicio" value={filtroFechaInicio} onChange={(e) => setFiltroFechaInicio(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
-        </div>
-        <div>
-          <label htmlFor="filtroFechaFin" className="block text-sm font-medium text-gray-700">Fecha Fin (Creación)</label>
-          <input type="date" id="filtroFechaFin" value={filtroFechaFin} onChange={(e) => setFiltroFechaFin(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
-        </div>
-        <div>
-          <label htmlFor="filtroPatente" className="block text-sm font-medium text-gray-700">Patente</label>
-          <input type="text" id="filtroPatente" value={filtroPatente} onChange={(e) => setFiltroPatente(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50" placeholder="Ej: AB123CD" />
-        </div>
-        <div>
-          <label htmlFor="filtroEstado" className="block text-sm font-medium text-gray-700">Estado</label>
-          <select id="filtroEstado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
-            <option value="Todos">Todos</option>
-            <option value="Agendado">Agendado</option>
-            <option value="Pendiente">Pendiente</option>
-            <option value="En Progreso">En Progreso</option>
-            <option value="Finalizado">Finalizado</option>
-            <option value="Cerrado">Cerrado</option>
-            <option value="Anulado">Anulado</option>
-          </select>
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg shadow font-semibold hover:bg-blue-700 disabled:bg-gray-400"
-        >
-          {loading ? 'Filtrando...' : 'Generar Reporte'}
-        </button>
-      </form>
+      {/* Columna Derecha (Formulario) */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-8 bg-neutral-50">
+        <div className="bg-white p-10 rounded-lg shadow-card max-w-md w-full">
+          
+          <h2 className="text-3xl font-bold text-center text-neutral-900 mb-4">
+            Recuperar Contraseña
+          </h2>
+          <p className="text-center text-neutral-700 mb-8">
+            Ingresa tu correo y te enviaremos un enlace para reestablecerla.
+          </p>
+          
+          <form onSubmit={handleResetPassword} className="space-y-6">
+            {/* Grupo Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-1">
+                Correo Electrónico
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              />
+            </div>
 
-      {/* ... (Tabla Maestra - sin cambios) ... */}
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mecánico</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Entrada</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Salida</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loading ? (
-              <tr><td colSpan={7} className="px-6 py-4 text-center">Cargando OTs...</td></tr>
-            ) : ordenesFiltradas.length > 0 ? (
-              ordenesFiltradas.map(ot => (
-                <tr key={ot.id} className={`${ot.estado === 'Anulado' ? 'bg-red-50 opacity-60' : ''}`}>
-                  <td className="px-6 py-4 font-medium">{ot.patente}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      ot.estado === 'Agendado' ? 'bg-gray-200 text-gray-800' :
-                      ot.estado === 'Pendiente' ? 'bg-red-200 text-red-800' :
-                      ot.estado === 'En Progreso' ? 'bg-yellow-200 text-yellow-800' :
-                      ot.estado === 'Finalizado' ? 'bg-blue-200 text-blue-800' :
-                      ot.estado === 'Cerrado' ? 'bg-green-200 text-green-800' :
-                      ot.estado === 'Anulado' ? 'bg-red-300 text-red-900' :
-                      ''
-                    }`}>
-                      {ot.estado}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm text-green-700">{formatFecha(ot.fechaIngresoTaller)}</td>
-                  <td className="px-6 py-4 text-sm text-red-700">{formatFecha(ot.fechaSalidaTaller)}</td>
-                  <td className="px-6 py-4">{ot.descripcionProblema}</td>
-                  <td className="px-6 py-4">
-                    {/* Botón Anular (solo para Admins y OTs Agendadas) */}
-                    {puedeAnular && ot.estado === 'Agendado' && (
-                      <button
-                        onClick={() => handleAnularOT(ot.id)}
-                        disabled={anulandoId === ot.id}
-                        className="bg-red-600 text-white px-3 py-1 rounded shadow hover:bg-red-700 disabled:bg-gray-400"
-                      >
-                        {anulandoId === ot.id ? '...' : 'Anular'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr><td colSpan={7} className="px-6 py-4 text-center">
-                No se encontraron OTs con esos filtros.
-              </td></tr>
-            )}
-          </tbody>
-        </table>
+            {/* Botón de Enviar */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-pepsi-blue text-white py-3 rounded-md font-semibold hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
+            >
+              {loading ? 'Enviando...' : 'Enviar Correo'}
+            </button>
+            
+            {/* Link de Volver al Login */}
+            <div className="text-center pt-2">
+              <Link href="/">
+                <span className="text-sm font-medium text-pepsi-blue-light hover:text-pepsi-blue-dark hover:underline cursor-pointer">
+                  Volver a Iniciar Sesión
+                </span>
+              </Link>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -1,20 +1,18 @@
-// frontend/app/gestion-vehiculos/editar-vehiculo/[id]/page.tsx
-// (CÓDIGO CORREGIDO: Solucionado el error "uncontrolled input")
-
 'use client'; 
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, FormEvent } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
+import Link from 'next/link'; // Importamos Link para el botón Cancelar
 
+// (Tipos de datos del archivo original)
 type User = {
   id: string;
   nombre: string;
   rol: string;
 };
 
-// --- ¡TIPO ACTUALIZADO! ---
 type VehiculoData = {
   patente: string;
   marca: string;
@@ -23,7 +21,6 @@ type VehiculoData = {
   tipo_vehiculo: string;
   estado: string;
   id_chofer_asignado: string; // Usamos string vacío en lugar de null
-  // --- Nuevos campos ---
   color: string;
   vin: string;
   n_motor: string;
@@ -32,10 +29,13 @@ type VehiculoData = {
   tipo_combustible: string;
 };
 
+// --- ¡Estilos estándar para inputs (v3)! ---
+const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neutral-900 bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200";
+const disabledInputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neutral-700 bg-neutral-100 cursor-not-allowed";
+
 function EditarVehiculoForm() {
   
-  // --- ¡ESTADO INICIAL CORREGIDO! ---
-  // Inicializamos con valores por defecto (strings vacíos)
+  // (Toda la lógica de 'useState', 'useParams' y 'useRouter' queda idéntica)
   const [vehiculoData, setVehiculoData] = useState<VehiculoData>({
     patente: '',
     marca: '',
@@ -44,7 +44,6 @@ function EditarVehiculoForm() {
     tipo_vehiculo: 'Camión',
     estado: 'Operativo',
     id_chofer_asignado: '',
-    // --- Nuevos campos ---
     color: '',
     vin: '',
     n_motor: '',
@@ -54,7 +53,6 @@ function EditarVehiculoForm() {
   });
   
   const [conductores, setConductores] = useState<User[]>([]);
-  
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [loadingPage, setLoadingPage] = useState(true); 
   
@@ -63,10 +61,10 @@ function EditarVehiculoForm() {
   const id = params.id as string;
   const { user, userProfile, loading: authLoading } = useAuth();
 
+  // (El useEffect de autenticación no cambia)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // (Roles corregidos según el reparto de vistas)
         const rolesPermitidos = ['Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
           fetchConductores();
@@ -81,6 +79,7 @@ function EditarVehiculoForm() {
     }
   }, [user, userProfile, authLoading, router, id]); 
 
+  // (La lógica de 'fetchConductores', 'fetchVehiculoData', 'handleSubmit' y 'handleChange' no cambia)
   const fetchConductores = async () => {
     try {
       const response = await fetch('/api/usuarios');
@@ -92,7 +91,6 @@ function EditarVehiculoForm() {
     }
   };
 
-  // --- ¡fetchVehiculoData (ACTUALIZADO)! ---
   const fetchVehiculoData = async () => {
     if (!id) return;
     setLoadingPage(true);
@@ -101,8 +99,6 @@ function EditarVehiculoForm() {
       if (!response.ok) throw new Error('Vehículo no encontrado');
       const data = await response.json();
       
-      // --- ¡CORRECCIÓN! ---
-      // Asegura que NINGÚN campo sea null/undefined
       setVehiculoData({
         ...data,
         año: data.año || '', 
@@ -123,7 +119,6 @@ function EditarVehiculoForm() {
     }
   };
 
-  // --- ¡handleSubmit (ACTUALIZADO)! ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -164,53 +159,65 @@ function EditarVehiculoForm() {
   };
 
   if (authLoading || loadingPage) {
-    return <div className="p-8 text-gray-900">Cargando...</div>;
+    return <div className="p-8 font-sans">Cargando...</div>;
   }
   
+  // --- JSX REFACTORIZADO VISUALMENTE ---
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-8">
-      <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
-          Editar Vehículo
-        </h1>
+    // Quitamos el centrado vertical y aplicamos padding estándar
+    <div className="p-8 font-sans">
+      
+      {/* Título usa el color pepsi-blue */}
+      <h1 className="text-3xl font-bold text-pepsi-blue mb-6">
+        Editar Vehículo
+      </h1>
+      
+      {/* Tarjeta blanca para el formulario (como en Crear) */}
+      <div className="bg-white shadow-card rounded-lg p-8 max-w-3xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-6">
           
           <div>
-            <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente (No editable)</label>
+            <label htmlFor="patente" className="block text-sm font-medium text-neutral-700 mb-1">Patente (No editable)</label>
             <input type="text" id="patente" value={vehiculoData.patente} disabled
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-500 bg-gray-200" />
+              className={disabledInputStyle} // ¡Estilo estándar aplicado!
+            />
           </div>
           
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="marca" className="block text-sm font-medium text-gray-700">Marca</label>
+              <label htmlFor="marca" className="block text-sm font-medium text-neutral-700 mb-1">Marca</label>
               <input type="text" id="marca" value={vehiculoData.marca} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              />
             </div>
             <div>
-              <label htmlFor="modelo" className="block text-sm font-medium text-gray-700">Modelo</label>
+              <label htmlFor="modelo" className="block text-sm font-medium text-neutral-700 mb-1">Modelo</label>
               <input type="text" id="modelo" value={vehiculoData.modelo} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
+              <label htmlFor="año" className="block text-sm font-medium text-neutral-700 mb-1">Año</label>
               <input type="number" id="año" value={vehiculoData.año} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              />
             </div>
             <div>
-              <label htmlFor="color" className="block text-sm font-medium text-gray-700">Color</label>
+              <label htmlFor="color" className="block text-sm font-medium text-neutral-700 mb-1">Color</label>
               <input type="text" id="color" value={vehiculoData.color} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              />
             </div>
           </div>
           
           <div>
-            <label htmlFor="tipo_vehiculo" className="block text-sm font-medium text-gray-700">Tipo de Vehículo</label>
+            <label htmlFor="tipo_vehiculo" className="block text-sm font-medium text-neutral-700 mb-1">Tipo de Vehículo</label>
             <select id="tipo_vehiculo" value={vehiculoData.tipo_vehiculo} onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              className={inputStyle} // ¡Estilo estándar aplicado!
+            >
               <option value="Camión">Camión</option>
               <option value="Camioneta">Camioneta</option>
               <option value="Auto">Auto</option>
@@ -219,33 +226,40 @@ function EditarVehiculoForm() {
             </select>
           </div>
 
+          <hr className="my-6 border-t border-neutral-100" />
+
           <div>
-            <label htmlFor="vin" className="block text-sm font-medium text-gray-700">VIN (N° Identificación)</label>
+            <label htmlFor="vin" className="block text-sm font-medium text-neutral-700 mb-1">VIN (N° Identificación)</label>
             <input type="text" id="vin" value={vehiculoData.vin} onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+              className={inputStyle} // ¡Estilo estándar aplicado!
+            />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="n_motor" className="block text-sm font-medium text-gray-700">N° Motor</label>
+              <label htmlFor="n_motor" className="block text-sm font-medium text-neutral-700 mb-1">N° Motor</label>
               <input type="text" id="n_motor" value={vehiculoData.n_motor} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              />
             </div>
             <div>
-              <label htmlFor="n_chasis" className="block text-sm font-medium text-gray-700">N° Chasis</label>
+              <label htmlFor="n_chasis" className="block text-sm font-medium text-neutral-700 mb-1">N° Chasis</label>
               <input type="text" id="n_chasis" value={vehiculoData.n_chasis} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="pais_manufactura" className="block text-sm font-medium text-gray-700">País Manufactura</label>
+              <label htmlFor="pais_manufactura" className="block text-sm font-medium text-neutral-700 mb-1">País Manufactura</label>
               <input type="text" id="pais_manufactura" value={vehiculoData.pais_manufactura} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              />
             </div>
             <div>
-              <label htmlFor="tipo_combustible" className="block text-sm font-medium text-gray-700">Combustible</label>
+              <label htmlFor="tipo_combustible" className="block text-sm font-medium text-neutral-700 mb-1">Combustible</label>
               <select id="tipo_combustible" value={vehiculoData.tipo_combustible} onChange={handleChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+                className={inputStyle} // ¡Estilo estándar aplicado!
+              >
                 <option value="Diesel">Diesel</option>
                 <option value="Gasolina">Gasolina</option>
                 <option value="Eléctrico">Eléctrico</option>
@@ -255,10 +269,13 @@ function EditarVehiculoForm() {
             </div>
           </div>
           
+          <hr className="my-6 border-t border-neutral-100" />
+
           <div>
-            <label htmlFor="id_chofer_asignado" className="block text-sm font-medium text-gray-700">Conductor Asignado</label>
+            <label htmlFor="id_chofer_asignado" className="block text-sm font-medium text-neutral-700 mb-1">Conductor Asignado</label>
             <select id="id_chofer_asignado" value={vehiculoData.id_chofer_asignado} onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              className={inputStyle} // ¡Estilo estándar aplicado!
+            >
               <option value="">Ninguno</option>
               {conductores.map(c => (
                 <option key={c.id} value={c.id}>{c.nombre}</option>
@@ -267,29 +284,33 @@ function EditarVehiculoForm() {
           </div>
           
           <div>
-            <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Estado</label>
+            <label htmlFor="estado" className="block text-sm font-medium text-neutral-700 mb-1">Estado</label>
             <select id="estado" value={vehiculoData.estado} onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+              className={inputStyle} // ¡Estilo estándar aplicado!
+            >
               <option value="Operativo">Operativo</option>
               <option value="En Taller">En Taller</option>
               <option value="De Baja">De Baja</option>
             </select>
           </div>
           
-          <div className="space-y-4 pt-4">
+          {/* Fila de Botones de Acción (Rediseñada) */}
+          <div className="flex justify-end space-x-4 pt-4">
+            {/* Botón Cancelar (neutral) */}
+            <Link 
+              href="/gestion-vehiculos"
+              className="px-5 py-2 rounded-md text-neutral-900 bg-neutral-100 hover:bg-neutral-200 font-medium transition-colors duration-200"
+            >
+              Cancelar
+            </Link>
+            
+            {/* Botón principal usa el color pepsi-blue */}
             <button
               type="submit"
               disabled={loadingSubmit}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+              className="px-5 py-2 rounded-md text-white bg-pepsi-blue hover:bg-pepsi-blue-dark font-medium transition-colors duration-200 disabled:bg-gray-400"
             >
-              {loadingSubmit ? 'Actualizando...' : 'Guardar Cambios'}
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push('/gestion-vehiculos')}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300"
-            >
-              Cancelar
+              {loadingSubmit ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
 
@@ -299,9 +320,10 @@ function EditarVehiculoForm() {
   );
 }
 
+// (El componente Suspense no cambia)
 export default function EditarVehiculoPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-gray-900">Cargando...</div>}>
+    <Suspense fallback={<div className="p-8 font-sans">Cargando...</div>}>
       <EditarVehiculoForm />
     </Suspense>
   );
