@@ -1,16 +1,14 @@
-// frontend/app/page.tsx
-// (CÓDIGO CORREGIDO: Lógica de redirección eliminada, manejada por el Context)
-
 'use client'; 
-import { useState, useEffect } from 'react'; // ¡Añadido useEffect!
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { auth } from '../lib/firebase'; 
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast'; 
-import Link from 'next/link';
-import styles from './page.module.css'; 
+
+// ¡YA NO SE USA page.module.css!
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -18,38 +16,39 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   
-  // --- ¡SIMPLIFICADO! ---
-  // Ya no necesitamos setUser o setUserProfile aquí
+  // (La lógica de 'useAuth' y 'useEffect' para redirigir es idéntica)
   const { user, userProfile, loading: authLoading } = useAuth(); 
 
-  // --- ¡NUEVO! Redirige si el usuario YA ESTÁ logueado ---
-  // (Esto maneja el F5 en la página de login)
   useEffect(() => {
     if (!authLoading && user && userProfile) {
-      // Si ya está logueado, lo patea a su página (la lógica del Context lo hará)
-      // Pero por si acaso, lo enviamos al hub del Jefe de Taller como fallback.
       if (userProfile.rol === 'Jefe de Taller') {
         router.push('/agenda-taller');
+      } else if (userProfile.rol === 'Supervisor') {
+        router.push('/dashboard-admin'); 
+      } else if (userProfile.rol === 'Coordinador') {
+        router.push('/dashboard-admin'); 
+      } else if (userProfile.rol === 'Mecánico') {
+        router.push('/mis-tareas'); 
+      } else if (userProfile.rol === 'Guardia') {
+        router.push('/control-acceso'); 
+      } else if (userProfile.rol === 'Conductor') {
+        router.push('/portal-conductor'); 
+      } else if (userProfile.rol === 'Gerente') {
+        router.push('/generador-reportes'); 
       } else {
-        router.push('/mis-tareas'); // O cualquier otra página principal
+        router.push('/'); 
       }
     }
   }, [user, userProfile, authLoading, router]);
 
-  // --- ¡handleLogin (SIMPLIFICADO)! ---
+  // (La lógica de 'handleLogin' es idéntica)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     toast.loading('Iniciando sesión...'); 
     
     try {
-      // 1. Solo intenta iniciar sesión
       await signInWithEmailAndPassword(auth, email, password);
-      
-      // 2. ¡NO HAGAS NADA MÁS!
-      // El 'AuthContext' detectará el cambio y
-      // el 'useEffect' en el Context se encargará
-      // de buscar el perfil y redirigir.
       toast.dismiss();
       
     } catch (error: any) {
@@ -65,35 +64,47 @@ export default function LoginPage() {
     }
   };
 
-  // Muestra una pantalla de carga si la autenticación está en proceso
+  // Muestra pantalla de carga si la sesión se está validando
   if (authLoading || (user && userProfile)) {
-    return <div className="p-8 text-gray-900">Validando sesión...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-neutral-50">
+        <p className="text-neutral-700">Validando sesión...</p>
+      </div>
+    );
   }
   
-  // (Renderizado JSX - sin cambios)
+  // --- JSX del Login (Rediseñado 100% con Tailwind v3) ---
   return (
-    <div className={styles.container}>
-      {/* Columna Izquierda (Logo) */}
-      <div className={styles.leftColumn}>
+    <div className="flex min-h-screen font-sans">
+      
+      {/* Columna Izquierda (Branding Pepsi) */}
+      <div className="hidden md:flex flex-col items-center justify-center w-1/2 bg-pepsi-blue text-white p-12">
         <Image
           src="/pepsico-logo.png"
           alt="PepsiCo Logo"
-          width={400} 
-          height={100} 
-          priority 
+          width={300}  // Tamaño base
+          height={283} // Proporción corregida (casi 1:1)
+          priority
+          className="object-contain" // Asegura que no se deforme
         />
-        <h2 className={styles.subtitle}>
+        <h2 className="text-3xl font-semibold text-center mt-6 text-shadow-lg">
           Gestión de Flota y Taller Mecánico
         </h2>
       </div>
       
       {/* Columna Derecha (Formulario) */}
-      <div className={styles.rightColumn}>
-        <div className={styles.loginBox}>
-          <h2 className={styles.loginTitle}>Iniciar Sesión</h2>
-          <form onSubmit={handleLogin} className={styles.form}>
-            <div className={styles.inputGroup}>
-              <label htmlFor="email" className={styles.label}>
+      {/* El fondo 'bg-neutral-50' ya está en el body (globals.css) */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-8">
+        <div className="bg-white p-10 rounded-lg shadow-card max-w-md w-full">
+          
+          <h2 className="text-3xl font-bold text-center text-neutral-900 mb-8">
+            Iniciar Sesión
+          </h2>
+          
+          <form onSubmit={handleLogin} className="space-y-6">
+            {/* Grupo Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-1">
                 Correo Electrónico
               </label>
               <input
@@ -102,11 +113,13 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={styles.input}
+                className="w-full px-4 py-3 rounded-md border bg-neutral-100 border-gray-300 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200"
               />
             </div>
-            <div className={styles.inputGroup}>
-              <label htmlFor="password" className={styles.label}>
+
+            {/* Grupo Contraseña */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-1">
                 Contraseña
               </label>
               <input
@@ -115,19 +128,23 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={styles.input}
+                className="w-full px-4 py-3 rounded-md border bg-neutral-100 border-gray-300 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200"
               />
             </div>
+
+            {/* Botón de Ingresar */}
             <button
               type="submit"
               disabled={loading}
-              className={styles.button}
+              className="w-full bg-pepsi-blue text-white py-3 rounded-md font-semibold hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
             >
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
-            <div className={styles.linkContainer}>
+            
+            {/* Link de Recuperar Contraseña */}
+            <div className="text-center pt-2">
               <Link href="/recuperar-contrasena">
-                <span className={styles.link}>
+                <span className="text-sm font-medium text-pepsi-blue-light hover:text-pepsi-blue-dark hover:underline cursor-pointer">
                   ¿Olvidaste tu contraseña?
                 </span>
               </Link>

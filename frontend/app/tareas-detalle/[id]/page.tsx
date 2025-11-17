@@ -1,6 +1,3 @@
-// frontend/app/tareas-detalle/[id]/page.tsx
-// (CÓDIGO ACTUALIZADO: Lógica condicional + Detalles del Vehículo)
-
 'use client'; 
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation'; 
@@ -8,6 +5,16 @@ import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast'; 
 
+// --- ¡NUEVO! Iconos para una UI profesional ---
+import { 
+  ArrowLeftIcon, 
+  UserPlusIcon, 
+  CameraIcon, 
+  CheckCircleIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline';
+
+// --- ¡CORREGIDO! Tipos originales restaurados ---
 type DetalleOrdenDeTrabajo = {
   id: string;
   patente: string;
@@ -25,7 +32,6 @@ type Mecanico = {
   nombre: string;
 };
 
-// --- ¡NUEVO TIPO! ---
 type VehiculoDetalles = {
   id: string;
   marca: string;
@@ -39,8 +45,13 @@ type VehiculoDetalles = {
   pais_manufactura?: string;
 };
 
+// --- ¡NUEVO! Estilos estándar para formularios (v3) ---
+const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neutral-900 bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200";
+const disabledInputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neutral-700 bg-neutral-100 cursor-not-allowed";
+
 export default function DetalleOTPage() {
   
+  // (Estados originales restaurados)
   const params = useParams();
   const id = params.id as string; 
   const router = useRouter();
@@ -48,82 +59,23 @@ export default function DetalleOTPage() {
 
   const [ot, setOt] = useState<DetalleOrdenDeTrabajo | null>(null);
   const [loading, setLoading] = useState(true); 
-  
-  // --- ¡NUEVO! Estado para Detalles del Vehículo ---
   const [vehiculoDetalles, setVehiculoDetalles] = useState<VehiculoDetalles | null>(null);
   const [loadingVehiculo, setLoadingVehiculo] = useState(false);
-  
-  // (Estados Modo Mecánico - sin cambios)
   const [nuevoEstado, setNuevoEstado] = useState<'Asignada' | 'En Progreso' | 'Finalizado'>('Asignada');
   const [repuestosUsados, setRepuestosUsados] = useState(''); 
   const [isUpdating, setIsUpdating] = useState(false); 
-  
-  // (Estados de Fotos - sin cambios)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null); 
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
-  
-  // (Estados Modo Admin - sin cambios)
   const [mecanicos, setMecanicos] = useState<Mecanico[]>([]);
   const [mecanicoAsignadoId, setMecanicoAsignadoId] = useState('');
   const [mecanicoAsignadoNombre, setMecanicoAsignadoNombre] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
-  
   const [isClosing, setIsClosing] = useState(false);
 
-  // --- 1. Función de Carga (¡ACTUALIZADA!) ---
-  // Ahora también llama a fetchVehiculoPorPatente
-  const fetchDetalleOT = async () => {
-    if (!id) { setLoading(false); return; }
-    setLoading(true); 
-    try {
-      const response = await fetch(`/api/ordenes-trabajo/${id}`);
-      if (!response.ok) throw new Error('No se pudo cargar la OT');
-      const data: DetalleOrdenDeTrabajo = await response.json();
-      setOt(data); 
-      
-      if (data.estado === 'Asignada' || data.estado === 'En Progreso' || data.estado === 'Finalizado') {
-        setNuevoEstado(data.estado);
-      }
-      if (data.repuestosUsados) setRepuestosUsados(data.repuestosUsados);
-
-      // --- ¡NUEVA LLAMADA! ---
-      // Una vez que tenemos la OT, buscamos los detalles del vehículo
-      if (data.patente) {
-        fetchVehiculoPorPatente(data.patente);
-      }
-      // --- Fin Nueva Llamada ---
-
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // --- ¡NUEVA FUNCIÓN! ---
-  const fetchVehiculoPorPatente = async (patente: string) => {
-    setLoadingVehiculo(true);
-    try {
-      const response = await fetch(`/api/vehiculos/por-patente/${patente}`);
-      if (!response.ok) {
-        // No es un error crítico si no se encuentra
-        setVehiculoDetalles(null);
-      } else {
-        const data = await response.json();
-        setVehiculoDetalles(data);
-      }
-    } catch (err) {
-      console.error("Error al buscar vehículo por patente:", err);
-      setVehiculoDetalles(null);
-    } finally {
-      setLoadingVehiculo(false);
-    }
-  };
-
-  // --- 2. useEffect (sin cambios) ---
+  // (Lógica de 'useEffect' original restaurada)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -141,8 +93,50 @@ export default function DetalleOTPage() {
       }
     }
   }, [user, userProfile, authLoading, router, id]);
+  
+  // --- ¡CORREGIDO! Lógica original de funciones restaurada ---
+  const fetchDetalleOT = async () => {
+    if (!id) { setLoading(false); return; }
+    setLoading(true); 
+    try {
+      const response = await fetch(`/api/ordenes-trabajo/${id}`);
+      if (!response.ok) throw new Error('No se pudo cargar la OT');
+      const data: DetalleOrdenDeTrabajo = await response.json();
+      setOt(data); 
+      
+      if (data.estado === 'Asignada' || data.estado === 'En Progreso' || data.estado === 'Finalizado') {
+        setNuevoEstado(data.estado);
+      }
+      if (data.repuestosUsados) setRepuestosUsados(data.repuestosUsados);
 
-  // (Carga de Mecánicos - sin cambios)
+      if (data.patente) {
+        fetchVehiculoPorPatente(data.patente);
+      }
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const fetchVehiculoPorPatente = async (patente: string) => {
+    setLoadingVehiculo(true);
+    try {
+      const response = await fetch(`/api/vehiculos/por-patente/${patente}`);
+      if (!response.ok) {
+        setVehiculoDetalles(null);
+      } else {
+        const data = await response.json();
+        setVehiculoDetalles(data);
+      }
+    } catch (err) {
+      console.error("Error al buscar vehículo por patente:", err);
+      setVehiculoDetalles(null);
+    } finally {
+      setLoadingVehiculo(false);
+    }
+  };
+
   const fetchMecanicos = async () => {
     try {
       const response = await fetch('/api/usuarios');
@@ -157,7 +151,6 @@ export default function DetalleOTPage() {
     }
   };
 
-  // (handleActualizarMecanico - sin cambios)
   const handleActualizarMecanico = async (e: React.FormEvent) => {
     e.preventDefault(); 
     setIsUpdating(true);
@@ -182,7 +175,6 @@ export default function DetalleOTPage() {
     }
   };
   
-  // (Funciones de fotos - sin cambios)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -218,14 +210,12 @@ export default function DetalleOTPage() {
     }
   };
   
-  // (handleMecanicoChange - sin cambios)
   const handleMecanicoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
     const selectedMecanico = mecanicos.find(m => m.id === selectedId);
     setMecanicoAsignadoId(selectedId);
     setMecanicoAsignadoNombre(selectedMecanico ? selectedMecanico.nombre : '');
   };
-  // (handleAsignarOT - sin cambios)
   const handleAsignarOT = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mecanicoAsignadoId) {
@@ -256,7 +246,6 @@ export default function DetalleOTPage() {
       }
     });
   };
-  // (handleCierreAdministrativo - sin cambios)
   const handleCierreAdministrativo = async () => {
     setIsClosing(true);
     const promise = fetch(`/api/ordenes-trabajo/${id}`, {
@@ -281,13 +270,15 @@ export default function DetalleOTPage() {
       }
     });
   };
+  // --- FIN DE LÓGICA RESTAURADA ---
   
-  // (Lógica de Renderizado - sin cambios)
+  
   if (authLoading || !userProfile || loading) {
-    return <div className="p-8 text-gray-900">Validando sesión y cargando OT...</div>;
+    return <div className="p-8 font-sans">Validando sesión y cargando OT...</div>;
   }
-  if (!ot) return <div className="p-8 text-gray-900">OT no encontrada.</div>;
+  if (!ot) return <div className="p-8 font-sans">OT no encontrada.</div>;
 
+  // (Lógica de permisos no cambia)
   const esMecanico = userProfile.rol === 'Mecánico';
   const isAdmin = ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol);
   const puedeEditar = esMecanico && 
@@ -300,10 +291,11 @@ export default function DetalleOTPage() {
                                 ot.estado !== 'Pendiente' && 
                                 ot.estado !== 'Finalizado';
 
+  // --- JSX REFACTORIZADO VISUALMENTE ---
   return (
     <Fragment>
     
-      {/* (Modal de Foto Ampliada - sin cambios) */}
+      {/* --- Modal de Foto Ampliada (Rediseñado) --- */}
       {fotoAmpliada && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm p-4"
@@ -320,303 +312,314 @@ export default function DetalleOTPage() {
           </div>
           <button
             onClick={() => setFotoAmpliada(null)}
-            className="absolute top-4 right-4 bg-white text-black rounded-full w-10 h-10 text-2xl font-bold shadow-lg"
+            className="absolute top-4 right-4 bg-white text-neutral-900 rounded-full w-10 h-10 shadow-lg
+                       flex items-center justify-center hover:bg-neutral-100 transition-colors"
           >
-            &times;
+            <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
       )}
 
-      <div className="p-8 text-gray-900 grid grid-cols-3 gap-8">
+      {/* Contenedor principal de la página */}
+      <div className="p-8 font-sans max-w-7xl mx-auto">
         
-        {/* Columna Izquierda (Contenido) */}
         {showWorkView ? (
-          <div className="col-span-2 space-y-6"> 
-            
-            <h1 className="text-3xl font-bold">Detalle de OT-{ot.id.substring(0, 6)}</h1>
-            
-            {esMecanico && (
+          <>
+            {/* --- Encabezado de Página --- */}
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-pepsi-blue">Detalle de OT-{ot.id.substring(0, 6)}</h1>
+              
               <button
                 onClick={() => router.back()} 
-                className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                className="inline-flex items-center gap-1 text-pepsi-blue-light hover:text-pepsi-blue-dark font-medium transition-colors duration-200 mt-2"
               >
-                ← Volver a Mi Tablero
+                <ArrowLeftIcon className="h-4 w-4" />
+                Volver al listado
               </button>
-            )}
-            
-            {isAdmin && (
-              <button
-                onClick={() => router.back()} 
-                className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-              >
-                ← Volver al listado
-              </button>
-            )}
-            
-            {/* --- ¡NUEVO! TARJETA DE DETALLES DEL VEHÍCULO --- */}
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h2 className="text-xl font-semibold mb-4">Detalles del Vehículo</h2>
-              {loadingVehiculo ? (
-                <p>Cargando detalles...</p>
-              ) : vehiculoDetalles ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <span className="text-sm text-gray-500">Marca</span>
-                    <p className="font-medium">{vehiculoDetalles.marca || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-500">Modelo</span>
-                    <p className="font-medium">{vehiculoDetalles.modelo || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-500">Año</span>
-                    <p className="font-medium">{vehiculoDetalles.año || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-500">Color</span>
-                    <p className="font-medium">{vehiculoDetalles.color || 'N/A'}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <span className="text-sm text-gray-500">VIN</span>
-                    <p className="font-medium">{vehiculoDetalles.vin || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-500">N° Motor</span>
-                    <p className="font-medium">{vehiculoDetalles.n_motor || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-500">N° Chasis</span>
-                    <p className="font-medium">{vehiculoDetalles.n_chasis || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-500">Combustible</span>
-                    <p className="font-medium">{vehiculoDetalles.tipo_combustible || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-500">Origen</span>
-                    <p className="font-medium">{vehiculoDetalles.pais_manufactura || 'N/A'}</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-500">No se encontraron detalles adicionales para esta patente.</p>
-              )}
             </div>
-            
-            {/* Info General (de la OT) */}
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h2 className="text-xl font-semibold mb-4">Información de la OT</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm text-gray-500">Patente</span>
-                  <p className="font-medium text-lg">{ot.patente}</p>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500">Estado Actual</span>
-                  <p className={`font-bold text-lg ${
-                      ot.estado === 'Finalizado' ? 'text-green-600' :
-                      ot.estado === 'Cerrado' ? 'text-gray-500' :
-                      ot.estado === 'En Progreso' ? 'text-yellow-600' :
-                      ot.estado === 'Asignada' ? 'text-blue-600' : 
-                      ot.estado === 'Pendiente' ? 'text-red-600' :
-                      'text-gray-400' 
-                  }`}>
-                    {ot.estado}
-                  </p>
-                </div>
-                {ot.mecanicoAsignadoNombre ? (
-                  <div>
-                    <span className="text-sm text-gray-500">Mecánico Asignado</span>
-                    <p className="font-medium text-lg">{ot.mecanicoAsignadoNombre}</p>
-                  </div>
-                ) : (
-                  <div>
-                    <span className="text-sm text-gray-500">Mecánico Asignado</span>
-                    <p className="font-medium text-lg text-red-600">SIN ASIGNAR</p>
-                  </div>
-                )}
-                <div className="col-span-2">
-                  <span className="text-sm text-gray-500">Descripción del Problema</span>
-                  <p>{ot.descripcionProblema}</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Registro de Trabajo */}
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h2 className="text-xl font-semibold mb-4">Registro de Trabajo (Mecánico)</h2>
-              <div>
-                <label htmlFor="repuestos" className="block text-sm font-medium text-gray-700">Repuestos Utilizados / Trabajo Realizado</label>
-                <textarea
-                  id="repuestos" rows={4}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50"
-                  placeholder={puedeEditar ? "Ej: 1x Filtro de aceite (Código 1234)..." : "Solo el mecánico asignado puede editar."}
-                  value={repuestosUsados}
-                  onChange={(e) => setRepuestosUsados(e.target.value)}
-                  disabled={!puedeEditar} 
-                />
-              </div>
-              <h2 className="text-xl font-semibold mt-6 mb-4">Evidencia Fotográfica</h2>
-              {puedeEditar && (
-                <div className="border border-gray-200 p-4 rounded-lg">
-                  {previewUrl && (
-                    <div className="mb-4 relative w-1/2">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Previsualización:</p>
-                      <Image src={previewUrl} alt="Previsualización" width={200} height={200} className="rounded-md object-cover" />
-                      <button type="button" onClick={handleRemovePreview}
-                        className="absolute top-0 right-0 -mt-2 -mr-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold"
-                      >&times;</button>
-                    </div>
-                  )}
-                  {!previewUrl && (
-                    <div className="mb-4">
-                      <label htmlFor="foto" className="block text-sm font-medium text-gray-700">Seleccionar foto...</label>
-                      <input type="file" id="foto" ref={fileInputRef} onChange={handleFileChange} accept="image/png, image/jpeg"
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      />
-                    </div>
-                  )}
-                  <button type="button" onClick={handleFileUpload} disabled={isUploading || !selectedFile}
-                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400"
-                  >
-                    {isUploading ? 'Subiendo...' : 'Subir Foto'}
-                  </button>
-                  <p className="text-xs text-gray-500 mt-2">Nota: Debes "Subir Foto" antes de guardar cambios.</p>
-                </div>
-              )}
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold">Fotos Subidas:</h3>
-                {ot.fotos && ot.fotos.length > 0 ? (
-                  <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {ot.fotos.map((fotoUrl, index) => (
-                      <div 
-                        key={index} 
-                        className="relative w-full h-40 rounded-lg overflow-hidden shadow-md cursor-pointer transition-transform hover:scale-105"
-                        onClick={() => setFotoAmpliada(fotoUrl)}
-                      >
-                        <Image src={fotoUrl} alt={`Evidencia ${index + 1}`} layout="fill" objectFit="cover" priority={index < 3} />
+
+            {/* --- Grid de 2 Columnas --- */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              
+              {/* --- Columna Izquierda (Información) --- */}
+              <div className="md:col-span-2 space-y-6"> 
+                
+                {/* Tarjeta de Detalles del Vehículo */}
+                <div className="bg-white p-6 rounded-lg shadow-card">
+                  <h2 className="text-xl font-bold text-neutral-900 mb-4">Detalles del Vehículo</h2>
+                  {loadingVehiculo ? ( <p>Cargando detalles...</p> ) : 
+                   vehiculoDetalles ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <span className="text-sm text-neutral-700">Marca</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.marca || 'N/A'}</p>
                       </div>
-                    ))}
+                      <div>
+                        <span className="text-sm text-neutral-700">Modelo</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.modelo || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-neutral-700">Año</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.año || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-neutral-700">Color</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.color || 'N/A'}</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <span className="text-sm text-neutral-700">VIN</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.vin || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-neutral-700">N° Motor</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.n_motor || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-neutral-700">N° Chasis</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.n_chasis || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-neutral-700">Combustible</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.tipo_combustible || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-neutral-700">Origen</span>
+                        <p className="font-medium text-neutral-900">{vehiculoDetalles.pais_manufactura || 'N/A'}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-neutral-700">No se encontraron detalles adicionales para esta patente.</p>
+                  )}
+                </div>
+                
+                {/* Tarjeta de Información de la OT */}
+                <div className="bg-white p-6 rounded-lg shadow-card">
+                  <h2 className="text-xl font-bold text-neutral-900 mb-4">Información de la OT</h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm text-neutral-700">Patente</span>
+                      <p className="font-medium text-lg">{ot.patente}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-neutral-700">Estado Actual</span>
+                      <p className={`font-bold text-lg ${
+                          ot.estado === 'Finalizado' ? 'text-green-600' :
+                          ot.estado === 'Cerrado' ? 'text-neutral-700' :
+                          ot.estado === 'En Progreso' ? 'text-yellow-500' :
+                          ot.estado === 'Asignada' ? 'text-pepsi-blue-light' : 
+                          ot.estado === 'Pendiente' ? 'text-pepsi-red' :
+                          'text-gray-400' 
+                      }`}>
+                        {ot.estado}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-neutral-700">Mecánico Asignado</span>
+                      <p className={`font-medium text-lg ${!ot.mecanicoAsignadoNombre ? 'text-pepsi-red' : 'text-neutral-900'}`}>
+                        {ot.mecanicoAsignadoNombre || 'SIN ASIGNAR'}
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-sm text-neutral-700">Descripción del Problema</span>
+                      <p className="text-neutral-900">{ot.descripcionProblema}</p>
+                    </div>
                   </div>
-                ) : (
-                  <p className="mt-2 text-sm text-gray-500">Aún no se han subido fotos.</p>
-                )}
+                </div>
+                
+                {/* Tarjeta de Registro de Trabajo */}
+                <div className="bg-white p-6 rounded-lg shadow-card">
+                  <h2 className="text-xl font-bold text-neutral-900 mb-4">Registro de Trabajo (Mecánico)</h2>
+                  <div>
+                    <label htmlFor="repuestos" className="block text-sm font-medium text-neutral-700 mb-1">Repuestos Utilizados / Trabajo Realizado</label>
+                    <textarea
+                      id="repuestos" rows={4}
+                      className={puedeEditar ? inputStyle : disabledInputStyle} // Estilo estándar
+                      placeholder={puedeEditar ? "Ej: 1x Filtro de aceite (Código 1234)..." : "Solo el mecánico asignado puede editar."}
+                      value={repuestosUsados}
+                      onChange={(e) => setRepuestosUsados(e.target.value)}
+                      disabled={!puedeEditar} 
+                    />
+                  </div>
+                  <h2 className="text-xl font-bold text-neutral-900 mt-6 mb-4">Evidencia Fotográfica</h2>
+                  
+                  {/* Formulario de Subida de Foto */}
+                  {puedeEditar && (
+                    <div className="border border-neutral-100 p-4 rounded-lg bg-neutral-50">
+                      {previewUrl && (
+                        <div className="mb-4 relative w-1/2">
+                          <p className="text-sm font-medium text-gray-700 mb-2">Previsualización:</p>
+                          <Image src={previewUrl} alt="Previsualización" width={200} height={200} className="rounded-md object-cover" />
+                          <button type="button" onClick={handleRemovePreview}
+                            className="absolute top-0 right-0 -mt-2 -mr-2 bg-pepsi-red text-white rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                          >&times;</button>
+                        </div>
+                      )}
+                      {!previewUrl && (
+                        <div className="mb-4">
+                          <label htmlFor="foto" className="block text-sm font-medium text-neutral-700 mb-1">Seleccionar foto...</label>
+                          <input type="file" id="foto" ref={fileInputRef} onChange={handleFileChange} accept="image/png, image/jpeg"
+                            className="block w-full text-sm text-neutral-700 file:mr-4 file:py-2 file:px-4
+                                       file:rounded-lg file:border-0 file:text-sm file:font-semibold
+                                       file:bg-pepsi-blue-light file:text-white
+                                       hover:file:bg-pepsi-blue-dark file:transition-colors file:duration-200"
+                          />
+                        </div>
+                      )}
+                      <button type="button" onClick={handleFileUpload} disabled={isUploading || !selectedFile}
+                        className="inline-flex items-center gap-2 bg-pepsi-blue-light text-white px-4 py-2 rounded-md 
+                                   hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
+                      >
+                        <CameraIcon className="h-5 w-5" />
+                        {isUploading ? 'Subiendo...' : 'Subir Foto'}
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Galería de Fotos */}
+                  <div className="mt-6">
+                    <h3 className="text-lg font-medium text-neutral-900">Fotos Subidas:</h3>
+                    {ot.fotos && ot.fotos.length > 0 ? (
+                      <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {ot.fotos.map((fotoUrl, index) => (
+                          <div 
+                            key={index} 
+                            className="relative w-full h-40 rounded-lg overflow-hidden shadow-sm border border-neutral-100 
+                                       cursor-pointer transition-transform-shadow duration-200 transform 
+                                       hover:shadow-card-hover hover:border-pepsi-blue-light hover:-translate-y-1"
+                            onClick={() => setFotoAmpliada(fotoUrl)}
+                          >
+                            <Image src={fotoUrl} alt={`Evidencia ${index + 1}`} layout="fill" objectFit="cover" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-neutral-700">Aún no se han subido fotos.</p>
+                    )}
+                  </div>
+                </div>
+                
+              </div>
+              
+              {/* --- Columna Derecha (Acciones) --- */}
+              <div className="col-span-1">
+                <div className="bg-white p-6 rounded-lg shadow-card sticky top-24">
+                  
+                  {/* --- VISTA 1: Formulario de Asignación (ADMIN) --- */}
+                  {showAdminAssignForm && (
+                    <form onSubmit={handleAsignarOT} className="space-y-4">
+                      <h2 className="text-xl font-bold text-pepsi-blue">Asignar Tarea</h2>
+                      <p className="text-sm text-neutral-700">Esta OT está en el Pool. Asigna un mecánico para que pueda empezar.</p>
+                      <div>
+                        <label htmlFor="mecanico" className="block text-sm font-medium text-neutral-700 mb-1">Asignar a Mecánico</label>
+                        <select
+                          id="mecanico"
+                          value={mecanicoAsignadoId}
+                          onChange={handleMecanicoChange}
+                          className={inputStyle} // Estilo estándar
+                        >
+                          <option value="" disabled>Selecciona un mecánico...</option>
+                          {mecanicos.map(mecanico => (
+                            <option key={mecanico.id} value={mecanico.id}>
+                              {mecanico.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isAssigning}
+                        className="w-full flex justify-center items-center gap-2 bg-pepsi-blue text-white py-3 rounded-md font-semibold 
+                                   hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
+                      >
+                        <UserPlusIcon className="h-5 w-5" />
+                        {isAssigning ? 'Asignando...' : 'Confirmar y Asignar'}
+                      </button>
+                    </form>
+                  )}
+                  
+                  {/* --- VISTA 2: Formulario de Gestión (MECÁNICO) --- */}
+                  {esMecanico && (
+                    <form onSubmit={handleActualizarMecanico} className="space-y-4">
+                      <h2 className="text-xl font-bold text-green-600">Acción Requerida</h2>
+                      
+                      {ot.estado === 'Pendiente' && (
+                        <p className="text-sm text-neutral-700">Esta tarea está en el Pool. Esperando asignación de un supervisor.</p>
+                      )}
+                      
+                      {puedeEditar && (
+                        <>
+                          <div>
+                            <label htmlFor="estado" className="block text-sm font-medium text-neutral-700 mb-1">Actualizar Estado</label>
+                            <select
+                              id="estado" value={nuevoEstado} onChange={(e) => setNuevoEstado(e.target.value as any)}
+                              className={inputStyle} // Estilo estándar
+                            >
+                              <option value="Asignada">Asignada (Sin Iniciar)</option>
+                              <option value="En Progreso">En Progreso</option>
+                              <option value="Finalizado">Finalizar Trabajo</option>
+                            </select>
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={isUpdating || ot.estado === 'Finalizado'}
+                            className="w-full bg-pepsi-blue text-white py-3 rounded-md font-semibold 
+                                       hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
+                          >
+                            {isUpdating ? 'Guardando...' : 'Guardar Cambios'}
+                          </button>
+                        </>
+                      )}
+                      
+                      {ot.estado === 'Finalizado' && (
+                         <p className="text-sm text-green-700 font-medium">¡Trabajo finalizado! Pendiente de cierre administrativo.</p>
+                      )}
+                    </form>
+                  )}
+
+                  {/* --- VISTA 4: Formulario de Cierre (ADMIN) --- */}
+                  {showAdminCloseForm && (
+                     <div className="space-y-4">
+                       <h2 className="text-xl font-bold text-green-600">Revisión Final</h2>
+                       <p className="text-sm text-neutral-700">
+                         El mecánico ha marcado esta OT como 'Finalizado'. Revisa el trabajo, las fotos y los repuestos.
+                       </p>
+                       <button
+                          type="button"
+                          onClick={handleCierreAdministrativo}
+                          disabled={isClosing}
+                          className="w-full flex justify-center items-center gap-2 bg-green-600 text-white py-3 rounded-md font-semibold 
+                                     hover:bg-green-700 transition-colors duration-200 disabled:bg-gray-400"
+                        >
+                          <CheckCircleIcon className="h-5 w-5" />
+                          {isClosing ? 'Cerrando...' : 'Cerrar OT (Archivar)'}
+                        </button>
+                     </div>
+                  )}
+
+                  {/* --- VISTA 3: Solo Lectura (ADMIN) --- */}
+                  {showAdminReadOnlyView && (
+                     <div>
+                       <h2 className="text-xl font-bold text-neutral-900 mb-4">Gestión de Tarea</h2>
+                       <p className="text-sm text-neutral-700">
+                         Esta tarea está <strong className="font-semibold">{ot.estado}</strong>.
+                       </p>
+                       {ot.mecanicoAsignadoNombre && (
+                         <p className="text-sm text-neutral-700 mt-2">
+                           Tomada por: <strong className="text-neutral-900">{ot.mecanicoAsignadoNombre}</strong>
+                         </p>
+                       )}
+                     </div>
+                  )}
+                  
+                </div>
               </div>
             </div>
-            
-          </div>
+          </>
         ) : (
-          <div className="col-span-2">
-            <p className="text-red-500">No tienes permiso para ver esta OT.</p>
+          <div className="col-span-3">
+            <p className="text-pepsi-red">No tienes permiso para ver esta OT.</p>
           </div>
         )}
-
-        {/* Columna Derecha (Acciones) */}
-        <div className="col-span-1">
-          
-          {/* --- VISTA 1: Formulario de Asignación (ADMIN) --- */}
-          {showAdminAssignForm && (
-            <form onSubmit={handleAsignarOT} className="bg-white p-6 rounded-lg shadow sticky top-8">
-              <h2 className="text-xl font-semibold mb-4 text-blue-600">Asignar Tarea</h2>
-              <p className="text-sm text-gray-600 mb-4">Esta OT está en el Pool. Asigna un mecánico para que pueda empezar.</p>
-              <label htmlFor="mecanico" className="block text-sm font-medium text-gray-700">Asignar a Mecánico</label>
-              <select
-                id="mecanico"
-                value={mecanicoAsignadoId}
-                onChange={handleMecanicoChange}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
-              >
-                <option value="" disabled>Selecciona un mecánico...</option>
-                {mecanicos.length > 0 ? (
-                  mecanicos.map(mecanico => (
-                    <option key={mecanico.id} value={mecanico.id}>
-                      {mecanico.nombre}
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>Cargando mecánicos...</option>
-                )}
-              </select>
-              <button
-                type="submit"
-                disabled={isAssigning}
-                className="mt-4 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-              >
-                {isAssigning ? 'Asignando...' : 'Confirmar y Asignar'}
-              </button>
-            </form>
-          )}
-          
-          {/* --- VISTA 2: Formulario de Gestión (MECÁNICO) --- */}
-          {esMecanico && (
-            <form onSubmit={handleActualizarMecanico} className="bg-white p-6 rounded-lg shadow sticky top-8">
-              <h2 className="text-xl font-semibold mb-4 text-green-600">Acción Requerida</h2>
-              
-              {ot.estado === 'Pendiente' && (
-                <p className="text-sm text-gray-700">Esta tarea está en el Pool. Esperando asignación de un supervisor.</p>
-              )}
-              
-              {puedeEditar && (
-                <>
-                  <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Actualizar Estado</label>
-                  <select
-                    id="estado" value={nuevoEstado} onChange={(e) => setNuevoEstado(e.target.value as any)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
-                  >
-                    {ot.estado === 'Asignada' && <option value="Asignada">Asignada (Sin Iniciar)</option>}
-                    {(ot.estado === 'Asignada' || ot.estado === 'En Progreso') && <option value="En Progreso">En Progreso</option>}
-                    {ot.estado === 'En Progreso' && <option value="Finalizado">Finalizar Trabajo</option>}
-                    {ot.estado === 'Finalizado' && <option value="Finalizado">Finalizado</option>}
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={isUpdating || ot.estado === 'Finalizado'}
-                    className="mt-4 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-                  >
-                    {isUpdating ? 'Guardando...' : 'Guardar Cambios'}
-                  </button>
-                </>
-              )}
-              
-              {ot.estado === 'Finalizado' && (
-                 <p className="text-sm text-green-700">¡Trabajo finalizado! Pendiente de cierre administrativo.</p>
-              )}
-            </form>
-          )}
-
-          {/* --- VISTA 4: Formulario de Cierre (ADMIN) --- */}
-          {showAdminCloseForm && (
-             <div className="bg-white p-6 rounded-lg shadow sticky top-8">
-               <h2 className="text-xl font-semibold mb-4 text-green-600">Revisión Final</h2>
-               <p className="text-sm text-gray-600 mb-4">
-                 El mecánico ha marcado esta OT como 'Finalizado'. Revisa el trabajo, las fotos y los repuestos.
-               </p>
-               <button
-                  type="button"
-                  onClick={handleCierreAdministrativo}
-                  disabled={isClosing}
-                  className="w-full bg-green-700 text-white py-2 rounded-md hover:bg-green-800 disabled:bg-gray-400"
-                >
-                  {isClosing ? 'Cerrando...' : 'Cerrar OT (Archivar)'}
-                </button>
-             </div>
-          )}
-
-          {/* --- VISTA 3: Solo Lectura (ADMIN) (Actualizada) --- */}
-          {showAdminReadOnlyView && (
-             <div className="bg-white p-6 rounded-lg shadow sticky top-8">
-               <h2 className="text-xl font-semibold mb-4 text-gray-700">Gestión de Tarea</h2>
-               <p className="text-sm text-gray-600">
-                 Esta tarea está {ot.estado}.
-               </p>
-               {ot.mecanicoAsignadoNombre && (
-                 <p className="text-sm text-gray-600 mt-2">
-                   Tomada por: <strong className="text-gray-900">{ot.mecanicoAsignadoNombre}</strong>
-                 </p>
-               )}
-             </div>
-          )}
-          
-        </div>
       </div>
     </Fragment>
   );

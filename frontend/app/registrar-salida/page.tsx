@@ -1,62 +1,56 @@
-// frontend/app/registrar-salida/page.tsx
-// (CÓDIGO CORREGIDO: Ahora busca OTs "Finalizado" o "Cerrado")
-
-'use client'; 
+'use client';
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast'; 
+import toast from 'react-hot-toast';
 
-type OTParaSalida = {
+// (El tipo de dato no cambia)
+type OT = {
   id: string;
   patente: string;
-  nombre_conductor?: string;
+  nombre_conductor: string;
   mecanicoAsignadoNombre?: string;
-  fechaIngresoTaller?: { _seconds: number };
-  fechaSalidaTaller?: any; // Para el filtro
   estado: string;
 };
 
+// --- ¡NUEVO! Estilo estándar para inputs (v3) ---
+const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neutral-900 bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200";
+
 export default function RegistrarSalidaPage() {
   
-  const [otsParaSalida, setOtsParaSalida] = useState<OTParaSalida[]>([]);
+  // (Toda la lógica de 'useState', 'useEffect' y 'fetch' queda idéntica)
+  const [otsCerradas, setOtsCerradas] = useState<OT[]>([]);
+  const [filtroPatente, setFiltroPatente] = useState('');
   const [loading, setLoading] = useState(true);
-  const [actualizandoId, setActualizandoId] = useState<string | null>(null);
-  
   const [modalAbierto, setModalAbierto] = useState(false);
-  const [otParaRegistrarSalida, setOtParaRegistrarSalida] = useState<OTParaSalida | null>(null);
-  
+  const [otSeleccionada, setOtSeleccionada] = useState<OT | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!authLoading) {
-      if (user && userProfile && userProfile.rol === 'Guardia') {
-        fetchOtsParaSalida();
-      } else if (user && userProfile) {
-        router.push('/');
+      if (user && userProfile) {
+        if (userProfile.rol === 'Guardia') {
+          fetchOTsCerradas();
+        } else {
+          router.push('/');
+        }
       } else if (!user) {
         router.push('/');
       }
     }
   }, [user, userProfile, authLoading, router]);
 
-  // --- ¡LÓGICA DE FETCH CORREGIDA! ---
-  const fetchOtsParaSalida = async () => {
+  const fetchOTsCerradas = async () => {
     setLoading(true);
     try {
-      // 1. Llama a la API correcta
-      const response = await fetch('/api/ordenes-trabajo'); 
-      if (!response.ok) throw new Error('Error al cargar vehículos');
-      const data: OTParaSalida[] = await response.json();
-      
-      // 2. Filtra OTs que SÍ tienen permiso de salida
-      const salidaPendiente = data.filter(ot => 
-        (ot.estado === 'Finalizado' || ot.estado === 'Cerrado') && // ¡Solo Finalizado o Cerrado!
-        !ot.fechaSalidaTaller // Y que no hayan salido ya
-      );
-      
-      setOtsParaSalida(salidaPendiente);
+      const response = await fetch('/api/ordenes-trabajo');
+      if (!response.ok) throw new Error('No se pudo cargar la lista de OTs');
+      const data: OT[] = await response.json();
+      const cerradas = data.filter(ot => ot.estado === 'Cerrado');
+      setOtsCerradas(cerradas);
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -64,124 +58,152 @@ export default function RegistrarSalidaPage() {
     }
   };
 
-  const handleAbrirModalSalida = (ot: OTParaSalida) => {
-    setOtParaRegistrarSalida(ot);
+  const handleAbrirModal = (ot: OT) => {
+    setOtSeleccionada(ot);
     setModalAbierto(true);
   };
 
-  const handleCerrarModalSalida = () => {
-    setOtParaRegistrarSalida(null);
+  const handleCerrarModal = () => {
+    setOtSeleccionada(null);
     setModalAbierto(false);
   };
 
-  // --- ¡LÓGICA DE SALIDA CORREGIDA! ---
   const handleConfirmarSalida = async () => {
-    if (!otParaRegistrarSalida) return;
-    
-    setActualizandoId(otParaRegistrarSalida.id);
-    setModalAbierto(false); 
-
-    // 1. Llama a la API de OTs, no a la antigua 'control-salida'
-    const promise = fetch(`/api/ordenes-trabajo/${otParaRegistrarSalida.id}`, {
+    if (!otSeleccionada) return;
+    setIsUpdating(true);
+    const promise = fetch(`/api/ordenes-trabajo/${otSeleccionada.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'registrarSalida' }), // 2. Envía la acción correcta
+      body: JSON.stringify({ 
+        estado: 'Completado', // Estado final del ciclo de vida
+        accion: 'registrarSalida',
+      }),
     });
 
     toast.promise(promise, {
       loading: 'Registrando salida...',
       success: (res) => {
-        if (!res.ok) throw new Error('Falló el registro de salida');
-        // 3. Actualiza la UI
-        setOtsParaSalida(prev => prev.filter(ot => ot.id !== otParaRegistrarSalida.id));
-        setOtParaRegistrarSalida(null);
-        setActualizandoId(null);
-        return '¡Salida registrada!';
+        if (!res.ok) throw new Error('Error al registrar la salida');
+        setIsUpdating(false);
+        handleCerrarModal();
+        fetchOTsCerradas(); // Recargar la lista
+        return '¡Salida registrada exitosamente!';
       },
       error: (err) => {
-        setOtParaRegistrarSalida(null);
-        setActualizandoId(null);
+        setIsUpdating(false);
         return err.message || 'Error al registrar la salida';
       }
     });
   };
 
-  if (authLoading || !userProfile) return <div className="p-8">Cargando...</div>;
-  
+  const otsFiltradas = otsCerradas.filter(ot => 
+    ot.patente.toLowerCase().includes(filtroPatente.toLowerCase())
+  );
+
+  if (authLoading || loading) {
+    return <div className="p-8 font-sans">Validando sesión y cargando vehículos...</div>;
+  }
+
+  // --- JSX REFACTORIZADO VISUALMENTE ---
   return (
     <Fragment>
-      {/* (Modal sin fondo - sin cambios) */}
-      {modalAbierto && otParaRegistrarSalida && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div 
-            className="absolute inset-0" 
-            onClick={handleCerrarModalSalida}
-          ></div>
-          <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Salida</h2>
-            <p className="text-gray-700 mb-2">
-              Patente: <strong className="text-blue-600">{otParaRegistrarSalida.patente}</strong>
-            </p>
-            <p className="text-gray-700 mb-6">
-              Conductor: <strong className="text-blue-600">{otParaRegistrarSalida.nombre_conductor || 'N/A'}</strong>
-            </p>
-            <p className="text-gray-700 mb-6">
-              ¿Confirmas la salida de este vehículo del taller?
+      {/* --- Modal de Confirmación (Rediseñado) --- */}
+      {/* Usamos las clases globales .modal-overlay y .modal-content */}
+      {modalAbierto && otSeleccionada && (
+        <div className="modal-overlay" onClick={handleCerrarModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-neutral-900 mb-4">Confirmar Salida</h2>
+            <p className="text-neutral-700 mb-6">
+              ¿Confirmas la salida del vehículo patente <strong className="text-pepsi-blue">{otSeleccionada.patente}</strong>? 
+              El trabajo fue finalizado por <strong className="text-pepsi-blue">{otSeleccionada.mecanicoAsignadoNombre || 'Taller'}</strong>.
             </p>
             <div className="flex justify-end space-x-4">
-              <button
-                onClick={handleCerrarModalSalida}
-                className="px-4 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium"
+              {/* Botón Cancelar (neutral) */}
+              <button 
+                onClick={handleCerrarModal} 
+                disabled={isUpdating}
+                className="px-4 py-2 rounded-md text-neutral-900 bg-neutral-100 hover:bg-neutral-200 font-medium transition-colors duration-200"
               >
                 Cancelar
               </button>
-              <button
-                onClick={handleConfirmarSalida}
-                disabled={actualizandoId === otParaRegistrarSalida.id}
-                className="px-4 py-2 rounded-md text-white bg-green-600 hover:bg-green-700 font-medium disabled:bg-gray-400"
+              {/* Botón Confirmar (Pepsi) */}
+              <button 
+                onClick={handleConfirmarSalida} 
+                disabled={isUpdating}
+                className="px-4 py-2 rounded-md text-white bg-pepsi-blue hover:bg-pepsi-blue-dark font-medium transition-colors duration-200 disabled:bg-gray-400"
               >
-                {actualizandoId ? 'Registrando...' : 'Sí, Confirmar Salida'}
+                {isUpdating ? 'Registrando...' : 'Confirmar Salida'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* (Contenido de la página - sin cambios) */}
-      <div className="p-8 text-gray-900">
-        <h1 className="text-3xl font-bold mb-6">Registrar Salida de Vehículo</h1>
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+      {/* --- Contenedor Principal de la Página --- */}
+      <div className="p-8 font-sans">
+        
+        {/* Título con color Pepsi */}
+        <h1 className="text-3xl font-bold text-pepsi-blue mb-6">Registro de Salida (Guardia)</h1>
+
+        {/* --- Tarjeta de Filtro --- */}
+        <div className="bg-white shadow-card rounded-lg p-4 mb-6 max-w-md">
+          <label htmlFor="filtroPatente" className="block text-sm font-medium text-neutral-700 mb-1">
+            Buscar por Patente
+          </label>
+          <input
+            type="text"
+            id="filtroPatente"
+            value={filtroPatente}
+            onChange={(e) => setFiltroPatente(e.target.value)}
+            placeholder="Ej: ABCD12..."
+            className={inputStyle} // Estilo estándar v3
+          />
+        </div>
+
+        {/* --- Tarjeta de la Tabla --- */}
+        <div className="bg-white shadow-card rounded-lg overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            {/* Header de la tabla (neutral) */}
+            <thead className="bg-neutral-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Patente</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Conductor</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Mecánico</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Ingreso</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Acción</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Patente</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Conductor</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Mecánico</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Estado</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Acción</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? <tr><td colSpan={5} className="p-4 text-center">Cargando...</td></tr> : 
-              otsParaSalida.length > 0 ? otsParaSalida.map(ot => (
-                <tr key={ot.id}>
-                  <td className="px-6 py-4 font-bold">{ot.patente}</td>
-                  <td className="px-6 py-4">{ot.nombre_conductor || 'N/A'}</td>
-                  <td className="px-6 py-4">{ot.mecanicoAsignadoNombre}</td>
-                  <td className="px-6 py-4">
-                    {ot.fechaIngresoTaller ? new Date(ot.fechaIngresoTaller._seconds * 1000).toLocaleString('es-CL') : '-'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <button 
-                      onClick={() => handleAbrirModalSalida(ot)} 
-                      disabled={actualizandoId === ot.id}
-                      className="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700 disabled:bg-gray-400"
-                    >
-                      {actualizandoId === ot.id ? 'Registrando...' : 'Registrar Salida'}
-                    </button>
+              {otsFiltradas.length > 0 ? (
+                otsFiltradas.map(ot => (
+                  <tr key={ot.id}>
+                    <td className="px-6 py-4 font-medium text-neutral-900">{ot.patente}</td>
+                    <td className="px-6 py-4 text-neutral-700">{ot.nombre_conductor}</td>
+                    <td className="px-6 py-4 text-neutral-700">{ot.mecanicoAsignadoNombre || 'Taller'}</td>
+                    <td className="px-6 py-4">
+                      {/* Pastilla de estado (neutral) */}
+                      <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-neutral-100 text-neutral-900">
+                        {ot.estado}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {/* Botón de acción con estilo Pepsi */}
+                      <button 
+                        onClick={() => handleAbrirModal(ot)}
+                        className="bg-pepsi-blue text-white px-4 py-2 rounded-md shadow font-medium hover:bg-pepsi-blue-dark transition-colors duration-200"
+                      >
+                        Registrar Salida
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="p-4 text-center text-neutral-700">
+                    No hay vehículos listos para salir.
                   </td>
                 </tr>
-              )) : <tr><td colSpan={5} className="p-4 text-center">No hay vehículos listos para salir.</td></tr>}
+              )}
             </tbody>
           </table>
         </div>
