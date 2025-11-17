@@ -1,156 +1,177 @@
-'use client'; 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { auth } from '../lib/firebase'; 
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useAuth } from '../context/AuthContext';
-import toast from 'react-hot-toast'; 
+// frontend/app/page.tsx
+// (CÓDIGO REDISEÑADO: MODERNO, ALINEADO Y CON MARCA PEPSI)
 
-// ¡YA NO SE USA page.module.css!
+'use client';
+import { useState, useEffect, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image'; 
+import { useAuth } from '@/context/AuthContext'; // Mantener el import para la funcionalidad
+import toast from 'react-hot-toast';
+import { ArrowRightIcon } from '@heroicons/react/24/outline'; // Icono para el botón
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   
-  // (La lógica de 'useAuth' y 'useEffect' para redirigir es idéntica)
-  const { user, userProfile, loading: authLoading } = useAuth(); 
+  // SOLUCIÓN: Usar useAuth como un tipo explícito para forzar la re-evaluación de la interfaz
+  const authContext = useAuth();
+  // Desestructuración segura:
+  const { login, user, userProfile } = authContext;
+  
+  const router = useRouter();
 
+  // Lógica de redirección (CRÍTICA: NO TOCAR)
   useEffect(() => {
-    if (!authLoading && user && userProfile) {
-      if (userProfile.rol === 'Jefe de Taller') {
-        router.push('/agenda-taller');
-      } else if (userProfile.rol === 'Supervisor') {
-        router.push('/dashboard-admin'); 
-      } else if (userProfile.rol === 'Coordinador') {
-        router.push('/dashboard-admin'); 
-      } else if (userProfile.rol === 'Mecánico') {
-        router.push('/mis-tareas'); 
-      } else if (userProfile.rol === 'Guardia') {
-        router.push('/control-acceso'); 
-      } else if (userProfile.rol === 'Conductor') {
-        router.push('/portal-conductor'); 
-      } else if (userProfile.rol === 'Gerente') {
-        router.push('/generador-reportes'); 
-      } else {
-        router.push('/'); 
+    if (user && userProfile) {
+      // Redirección basada en el rol
+      const rol = userProfile.rol;
+      if (rol === 'Conductor') router.push('/portal-conductor');
+      else if (rol === 'Mecánico') router.push('/mis-tareas');
+      else if (rol === 'Guardia') router.push('/control-acceso');
+      else if (['Supervisor', 'Coordinador', 'Jefe de Taller'].includes(rol)) {
+        router.push('/dashboard-admin');
       }
+      else if (rol === 'Gerente') router.push('/generador-reportes');
+      else router.push('/dashboard-admin'); // Fallback
     }
-  }, [user, userProfile, authLoading, router]);
+  }, [user, userProfile, router]);
 
-  // (La lógica de 'handleLogin' es idéntica)
-  const handleLogin = async (e: React.FormEvent) => {
+  // Lógica de HandleSubmit (CRÍTICA: NO TOCAR)
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    toast.loading('Iniciando sesión...'); 
-    
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast.dismiss();
-      
+      await login(email, password);
+      // El useEffect anterior se encargará de la redirección
     } catch (error: any) {
-      toast.dismiss();
-      console.error("Error en login:", error);
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        toast.error('Email o contraseña incorrectos.');
+      console.error(error);
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        toast.error('Credenciales inválidas. Revisa tu email y contraseña.');
       } else {
-        toast.error(error.message || 'Error al iniciar sesión');
+        toast.error('Error al iniciar sesión. Intenta de nuevo.');
       }
     } finally {
-      setLoading(false); 
+      setLoading(false);
     }
   };
 
-  // Muestra pantalla de carga si la sesión se está validando
-  if (authLoading || (user && userProfile)) {
+  // El componente de carga inicial debe estar en layout.tsx, pero lo mantenemos aquí si el layout no lo gestiona.
+  // Si user es null y loading es false, mostramos el formulario.
+  if (user && userProfile) {
+    // Si la redirección aún no ocurre, mostramos una pantalla de carga para evitar el parpadeo.
     return (
-      <div className="flex justify-center items-center min-h-screen bg-neutral-50">
-        <p className="text-neutral-700">Validando sesión...</p>
-      </div>
+        <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
+            <p className="text-xl text-neutral-700">Redirigiendo...</p>
+        </div>
     );
   }
-  
-  // --- JSX del Login (Rediseñado 100% con Tailwind v3) ---
+
+
+  // --- RENDERIZADO CON DISEÑO PEPSI ---
   return (
-    <div className="flex min-h-screen font-sans">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
       
-      {/* Columna Izquierda (Branding Pepsi) */}
-      <div className="hidden md:flex flex-col items-center justify-center w-1/2 bg-pepsi-blue text-white p-12">
-        <Image
-          src="/pepsico-logo.png"
-          alt="PepsiCo Logo"
-          width={300}  // Tamaño base
-          height={283} // Proporción corregida (casi 1:1)
-          priority
-          className="object-contain" // Asegura que no se deforme
-        />
-        <h2 className="text-3xl font-semibold text-center mt-6 text-shadow-lg">
-          Gestión de Flota y Taller Mecánico
-        </h2>
-      </div>
-      
-      {/* Columna Derecha (Formulario) */}
-      {/* El fondo 'bg-neutral-50' ya está en el body (globals.css) */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-8">
-        <div className="bg-white p-10 rounded-lg shadow-card max-w-md w-full">
+      <div className="max-w-md w-full bg-white shadow-xl rounded-lg p-8 border border-gray-200">
+        
+        {/* 1. Logo de PepsiCo */}
+        <div className="flex justify-center mb-6">
           
-          <h2 className="text-3xl font-bold text-center text-neutral-900 mb-8">
-            Iniciar Sesión
-          </h2>
-          
-          <form onSubmit={handleLogin} className="space-y-6">
-            {/* Grupo Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-1">
-                Correo Electrónico
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-md border bg-neutral-100 border-gray-300 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200"
-              />
-            </div>
-
-            {/* Grupo Contraseña */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-1">
-                Contraseña
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-md border bg-neutral-100 border-gray-300 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200"
-              />
-            </div>
-
-            {/* Botón de Ingresar */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-pepsi-blue text-white py-3 rounded-md font-semibold hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
-            >
-              {loading ? 'Ingresando...' : 'Ingresar'}
-            </button>
-            
-            {/* Link de Recuperar Contraseña */}
-            <div className="text-center pt-2">
-              <Link href="/recuperar-contrasena">
-                <span className="text-sm font-medium text-pepsi-blue-light hover:text-pepsi-blue-dark hover:underline cursor-pointer">
-                  ¿Olvidaste tu contraseña?
-                </span>
-              </Link>
-            </div>
-          </form>
+          <Image
+            src="/pepsico-logo.png" 
+            alt="Logo PepsiCo"
+            width={150}
+            height={40}
+            priority
+          />
         </div>
+
+        {/* 2. Título */}
+        <h1 className="text-2xl font-bold text-center text-neutral-900 mb-2">
+          Control de Taller
+        </h1>
+        <p className="text-center text-neutral-600 mb-6">
+          Inicia sesión para acceder al sistema.
+        </p>
+
+        {/* 3. Formulario */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          
+          {/* Email */}
+          <div>
+            <label 
+              htmlFor="email" 
+              className="block text-sm font-medium text-neutral-700 mb-1"
+            >
+              Correo Electrónico
+            </label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50 focus:ring-pepsi-blue focus:border-pepsi-blue"
+              placeholder="tu@correo.com"
+            />
+          </div>
+
+          {/* Contraseña */}
+          <div>
+            <label 
+              htmlFor="password"
+              className="block text-sm font-medium text-neutral-700 mb-1"
+            >
+              Contraseña
+            </label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50 focus:ring-pepsi-blue focus:border-pepsi-blue"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {/* Link de Recuperar Contraseña */}
+          <div className="text-right">
+            <Link href="/recuperar-contrasena">
+              <span className="text-sm text-pepsi-blue hover:text-pepsi-blue-dark font-medium cursor-pointer">
+                ¿Olvidaste tu contraseña?
+              </span>
+            </Link>
+          </div>
+
+          {/* Botón de Ingreso (Color Pepsi) */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white 
+                       bg-pepsi-blue hover:bg-pepsi-blue-dark 
+                       focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pepsi-blue
+                       disabled:bg-gray-400 transition-colors duration-200"
+          >
+            {loading ? (
+              <>
+                {/* Spinner de carga */}
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Ingresando...
+              </>
+            ) : (
+              <>
+                Ingresar
+                <ArrowRightIcon className="h-5 w-5 ml-2" />
+              </>
+            )}
+          </button>
+
+        </form>
       </div>
     </div>
   );

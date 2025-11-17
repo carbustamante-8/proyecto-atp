@@ -1,116 +1,100 @@
 // frontend/context/AuthContext.tsx
-// (CÓDIGO ACTUALIZADO: El Contexto ahora maneja la redirección post-login)
+"use client"; // <--- ¡SOLUCIÓN! Indica que este archivo usa hooks de React
 
-'use client'; 
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { getAuth, User, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { app } from '@/lib/firebase'; // Asegúrate que esta ruta sea correcta
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
-// ¡NUEVAS IMPORTACIONES!
-import { useRouter, usePathname } from 'next/navigation';
-import toast from 'react-hot-toast';
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-export type UserProfile = {
+// --- TIPOS ---
+type UserProfile = {
   id: string;
   nombre: string;
-  email: string;
   rol: string;
-  estado: string; 
+  // Añade otros campos que uses del perfil
 };
 
+// 1. Definición de la Interfaz del Contexto
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
-  setUser: (user: User | null) => void;
-  setUserProfile: (profile: UserProfile | null) => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  // ¡NUEVO! Hooks de Navegación
-  const router = useRouter();
-  const pathname = usePathname();
 
+  // Listener de Auth
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
-      if (user) {
-        setUser(user);
-        const userProfileRef = doc(db, "usuarios", user.uid);
-        const unsubscribeProfile = onSnapshot(userProfileRef, (doc) => {
-          if (doc.exists()) {
-            setUserProfile({ id: doc.id, ...doc.data() } as UserProfile);
-          } else {
-            setUserProfile(null); 
-          }
-          setLoading(false);
-        }, (error) => {
-          console.error("Error al escuchar perfil:", error);
-          setUserProfile(null);
-          setLoading(false);
-        });
-        
-        return () => unsubscribeProfile(); 
-      } else {
-        setUser(null);
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) {
         setUserProfile(null);
         setLoading(false);
       }
     });
-
-    return () => unsubscribe(); 
+    return () => unsubscribeAuth();
   }, []);
 
-  // --- ¡NUEVO useEffect para REDIRECCIÓN INTELIGENTE! ---
+  // Listener de Firestore para obtener el perfil/rol
   useEffect(() => {
-    // 1. No hagas nada si estamos cargando
-    if (loading) {
-      return;
+    let unsubscribeFirestore: () => void = () => {};
+    if (user) {
+      setLoading(true);
+      const userDocRef = doc(db, 'usuarios', user.uid);
+      unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          // Nota: Asegúrate que los campos coincidan con tu base de datos
+          setUserProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
+        } else {
+          setUserProfile(null);
+        }
+        setLoading(false);
+      }, (error) => {
+        console.error("Error al obtener perfil de usuario:", error);
+        setLoading(false);
+      });
+    } else {
+      setUserProfile(null);
+      setLoading(false);
     }
+    return () => unsubscribeFirestore();
+  }, [user]);
 
-    // 2. Si el usuario está cargado y está en la página de Login...
-    if (user && userProfile && (pathname === '/' || pathname === '/recuperar-contrasena')) {
-      toast.success(`¡Bienvenido, ${userProfile.nombre}!`);
-      
-      // 3. Redirígelo a su "home" correcto
-      if (userProfile.rol === 'Jefe de Taller') {
-        router.push('/agenda-taller');
-      } else if (userProfile.rol === 'Supervisor') {
-        router.push('/dashboard-admin');  
-      } else if (userProfile.rol === 'Coordinador') {
-        router.push('/dashboard-admin');
-      } else if (userProfile.rol === 'Mecánico') {
-        router.push('/mis-tareas');
-      } else if (userProfile.rol === 'Guardia') {
-        router.push('/control-acceso');
-      } else if (userProfile.rol === 'Conductor') {
-        router.push('/portal-conductor');
-      } else if (userProfile.rol === 'Gerente') {
-        router.push('/generador-reportes');
-      } else {
-        router.push('/'); // Fallback
-      }
-    }
-  }, [user, userProfile, loading, pathname, router]); // Se activa cuando el login termina
+  // Implementación de la función login
+  const login = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+  };
 
   const value = {
     user,
     userProfile,
     loading,
-    setUser,
-    setUserProfile 
+    login, 
+    logout,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
+// Hook personalizado
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

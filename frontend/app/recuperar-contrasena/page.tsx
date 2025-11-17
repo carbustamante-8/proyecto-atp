@@ -1,242 +1,133 @@
+// frontend/app/recuperar-contrasena/page.tsx
 'use client';
-import { useState, useEffect } from 'react';
+
+import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import Link from 'next/link';
+import Image from 'next/image';
 import toast from 'react-hot-toast';
 
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
-import * as XLSX from 'xlsx';
+// IMPORTACIONES DIRECTAS DE FIREBASE
+import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
+import { app } from '@/lib/firebase'; // Asumiendo que /lib/firebase.ts inicializa la app
 
-import { 
-  DocumentChartBarIcon, 
-  ArrowDownTrayIcon 
-} from '@heroicons/react/24/outline';
+const auth = getAuth(app);
 
-// --- ¡CORREGIDO! ---
-// Este es el tipo de dato real que viene de Firebase
-type FirebaseTimestamp = {
-  _seconds: number;
-  _nanoseconds: number;
-};
-
-// --- ¡CORREGIDO! ---
-// Actualizamos el tipo para que use FirebaseTimestamp
-type ReporteData = {
-  id: string;
-  patente: string;
-  descripcionProblema: string;
-  estado: string;
-  fechaCreacion: FirebaseTimestamp; // <-- Tipo corregido
-  fechaCierre?: FirebaseTimestamp; // <-- Tipo corregido
-  mecanicoAsignadoNombre?: string;
-  repuestosUsados?: string;
-  costoTotal?: number;
-};
-
-// --- ¡NUEVO! ---
-// Función para formatear fechas de Firebase de forma segura
-const formatFirebaseDate = (timestamp: FirebaseTimestamp | undefined | null): string => {
-  if (!timestamp || !timestamp._seconds) {
-    return 'N/A';
-  }
-  return new Date(timestamp._seconds * 1000).toLocaleDateString('es-CL');
-};
-
-export default function GeneradorReportesPage() {
-
-  // (Estados no cambian)
-  const [fechaInicio, setFechaInicio] = useState<Date | null>(new Date());
-  const [fechaFin, setFechaFin] = useState<Date | null>(new Date());
-  const [reporteData, setReporteData] = useState<ReporteData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingReport, setLoadingReport] = useState(false);
-  
-  const { user, userProfile, loading: authLoading } = useAuth();
+export default function RecuperarContrasenaPage() {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [mensajeEnviado, setMensajeEnviado] = useState(false);
   const router = useRouter();
 
-  // (useEffect y handleGenerarReporte no cambian)
-  useEffect(() => {
-    if (!authLoading) {
-      if (user && userProfile) {
-        const rolesPermitidos = ['Supervisor', 'Jefe de Taller', 'Coordinador', 'Gerente'];
-        if (!rolesPermitidos.includes(userProfile.rol)) {
-          toast.error('Acceso denegado');
-          router.push('/');
-        } else {
-          setLoading(false);
-        }
-      } else if (!user) {
-        router.push('/');
-      }
-    }
-  }, [user, userProfile, authLoading, router]);
-
-  const handleGenerarReporte = async () => {
-    if (!fechaInicio || !fechaFin) {
-      toast.error('Por favor, selecciona un rango de fechas.');
-      return;
-    }
-    setLoadingReport(true);
-    setReporteData([]); 
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
     
-    const inicio = new Date(fechaInicio.setHours(0, 0, 0, 0));
-    const fin = new Date(fechaFin.setHours(23, 59, 59, 999));
+    // Validar email básico antes de enviar
+    if (!email.includes('@') || !email.includes('.')) {
+        toast.error('Por favor, ingresa un correo electrónico válido.');
+        setLoading(false);
+        return;
+    }
 
     try {
-      const response = await fetch(`/api/reportes?inicio=${inicio.toISOString()}&fin=${fin.toISOString()}`);
-      if (!response.ok) throw new Error('No se pudo generar el reporte');
-      const data = await response.json();
-      setReporteData(data);
-      if (data.length === 0) {
-        toast('No se encontraron datos para ese rango.', { icon: 'ℹ️' });
-      }
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setLoadingReport(false);
-    }
-  };
-
-  const handleExportarExcel = () => {
-    if (reporteData.length === 0) {
-      toast.error('No hay datos para exportar. Genera un reporte primero.');
-      return;
-    }
-    
-    // --- ¡CORREGIDO! ---
-    // Mapeamos los datos para formatear las fechas ANTES de exportar
-    const datosParaExcel = reporteData.map(ot => ({
-      ...ot,
-      fechaCreacion: formatFirebaseDate(ot.fechaCreacion),
-      fechaCierre: formatFirebaseDate(ot.fechaCierre)
-    }));
-    
-    const ws = XLSX.utils.json_to_sheet(datosParaExcel);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "ReporteTaller");
-    XLSX.writeFile(wb, `Reporte_Taller_PepsiCo_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  if (authLoading || loading) {
-    return <div className="p-8 font-sans">Validando sesión y cargando reportes...</div>;
-  }
-
-  // --- JSX REFACTORIZADO VISUALMENTE ---
-  return (
-    <div className="p-8 font-sans">
+      // Llama directamente a la función de Firebase para el reseteo
+      await sendPasswordResetEmail(auth, email);
       
-      <h1 className="text-3xl font-bold text-pepsi-blue mb-6">Generador de Reportes</h1>
-
-      {/* --- Tarjeta de Filtros (Formulario) --- */}
-      <div className="bg-white shadow-card rounded-lg p-6 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-          
-          {/* Filtro Fecha Inicio */}
-          <div className="w-full">
-            <label htmlFor="fechaInicio" className="block text-sm font-medium text-neutral-700 mb-1">
-              Fecha de Inicio
-            </label>
-            <DatePicker
-              selected={fechaInicio}
-              onChange={(date) => setFechaInicio(date)}
-              selectsStart
-              startDate={fechaInicio}
-              endDate={fechaFin}
-              dateFormat="dd/MM/yyyy"
-              className="mt-1"
-              wrapperClassName="w-full"
-            />
-          </div>
-          
-          {/* Filtro Fecha Fin */}
-          <div className="w-full">
-            <label htmlFor="fechaFin" className="block text-sm font-medium text-neutral-700 mb-1">
-              Fecha de Fin
-            </label>
-            <DatePicker
-              selected={fechaFin}
-              onChange={(date) => setFechaFin(date)}
-              selectsEnd
-              startDate={fechaInicio}
-              endDate={fechaFin}
-              minDate={fechaInicio || undefined} // Corrección de TypeScript
-              dateFormat="dd/MM/yyyy"
-              className="mt-1"
-              wrapperClassName="w-full"
-            />
-          </div>
-          
-          {/* Botones de Acción */}
-          <button
-            onClick={handleGenerarReporte}
-            disabled={loadingReport}
-            className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-pepsi-blue text-white px-5 py-3 rounded-md shadow 
-                       font-medium hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
-          >
-            <DocumentChartBarIcon className="h-5 w-5" />
-            {loadingReport ? 'Generando...' : 'Generar Reporte'}
-          </button>
-          
-          <button
-            onClick={handleExportarExcel}
-            disabled={reporteData.length === 0}
-            className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-3 rounded-md shadow 
-                       font-medium hover:bg-green-700 transition-colors duration-200 disabled:bg-gray-400"
-          >
-            <ArrowDownTrayIcon className="h-5 w-5" />
-            Exportar a Excel
-          </button>
+      setMensajeEnviado(true);
+      toast.success('¡Enlace de recuperación enviado!');
+      
+    } catch (error: any) {
+      console.error("Error al enviar email de recuperación:", error);
+      
+      if (error.code === 'auth/user-not-found') {
+        toast.error('No hay una cuenta registrada con ese correo.');
+      } else {
+        toast.error('Ocurrió un error al intentar enviar el enlace.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // --- RENDERIZADO CON DISEÑO PEPSI ---
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
+      <div className="max-w-md w-full bg-white shadow-xl rounded-lg p-8 border border-gray-200">
+        
+        {/* Logo de PepsiCo */}
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/pepsico-logo.png" 
+            alt="Logo PepsiCo"
+            width={150}
+            height={40}
+            priority
+          />
         </div>
-      </div>
 
-      {/* --- Tarjeta de la Tabla de Resultados --- */}
-      <div className="bg-white shadow-card rounded-lg overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-neutral-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Patente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Mecánico</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Fecha Creación</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Fecha Cierre</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Estado</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Descripción</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loadingReport ? (
-              <tr><td colSpan={6} className="p-4 text-center text-neutral-700">Generando reporte...</td></tr>
-            ) : reporteData.length > 0 ? (
-              reporteData.map(ot => (
-                <tr key={ot.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-neutral-900">{ot.patente}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
-                  
-                  {/* --- ¡AQUÍ ESTÁ LA CORRECCIÓN DEL RUNTIME ERROR! --- */}
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{formatFirebaseDate(ot.fechaCreacion)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{formatFirebaseDate(ot.fechaCierre)}</td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      ot.estado === 'Completado' ? 'bg-indigo-100 text-indigo-800' :
-                      ot.estado === 'Cerrado' ? 'bg-green-100 text-green-900' :
-                      'bg-neutral-100 text-neutral-900'
-                    }`}>
-                      {ot.estado}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-neutral-700">{ot.descripcionProblema}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} className="p-4 text-center text-neutral-700">
-                  Selecciona un rango de fechas y presiona "Generar Reporte".
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <h1 className="text-2xl font-bold text-center text-neutral-900 mb-2">
+          Recuperar Contraseña
+        </h1>
+        <p className="text-center text-neutral-600 mb-6">
+          Ingresa tu correo para recibir un enlace para restablecer tu clave.
+        </p>
+
+        {mensajeEnviado ? (
+          <div className="text-center p-6 bg-green-50 border border-green-200 rounded-md">
+            <p className="font-semibold text-green-700 mb-4">
+              Hemos enviado un enlace de recuperación a <strong className="break-all">{email}</strong>. Por favor, revisa tu bandeja de entrada.
+            </p>
+            <Link href="/">
+              <span className="text-sm text-pepsi-blue hover:text-pepsi-blue-dark font-medium cursor-pointer">
+                Volver a la página de inicio de sesión
+              </span>
+            </Link>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* Email Input */}
+            <div>
+              <label 
+                htmlFor="email" 
+                className="block text-sm font-medium text-neutral-700 mb-1"
+              >
+                Correo Electrónico
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50 focus:ring-pepsi-blue focus:border-pepsi-blue"
+                placeholder="tu@correo.com"
+              />
+            </div>
+
+            {/* Botón de Envío */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white 
+                         bg-pepsi-red hover:bg-red-700 
+                         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pepsi-red
+                         disabled:bg-gray-400 transition-colors duration-200"
+            >
+              {loading ? 'Enviando...' : 'Enviar Enlace de Recuperación'}
+            </button>
+            
+            {/* Link de Retorno */}
+            <div className="text-center pt-2">
+              <Link href="/">
+                <span className="text-sm text-neutral-600 hover:text-neutral-900 font-medium cursor-pointer">
+                  Cancelar y Volver al Login
+                </span>
+              </Link>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
