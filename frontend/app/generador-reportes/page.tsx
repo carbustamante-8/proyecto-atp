@@ -1,246 +1,267 @@
 // frontend/app/generador-reportes/page.tsx
-'use client';
+'use client'; 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast';
+import { useAuth } from '@/context/AuthContext'; 
+import toast from 'react-hot-toast'; 
+import * as XLSX from 'xlsx'; 
+import DatePicker from 'react-datepicker'; 
+import 'react-datepicker/dist/react-datepicker.css'; 
+import { DocumentChartBarIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
-// Importamos DatePicker y sus estilos base
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
-
-// Importamos la librería de Excel
-import * as XLSX from 'xlsx';
-
-// --- ¡NUEVO! Iconos para la UI ---
-import { 
-  DocumentChartBarIcon, 
-  ArrowDownTrayIcon 
-} from '@heroicons/react/24/outline';
-
-// --- ¡CORREGIDO! ---
-// Este es el tipo de dato real que viene de Firebase
-type FirebaseTimestamp = {
-  _seconds: number;
-  _nanoseconds: number;
+type OrdenDeTrabajo = {
+  id: string;
+  patente: string;
+  descripcionProblema: string;
+  estado: string; 
+  mecanicoAsignadoNombre?: string | null;
+  fechaCreacion: { _seconds: number } | null | undefined; 
+  fechaIngresoTaller?: { _seconds: number } | null; 
+  fechaSalidaTaller?: { _seconds: number } | null; 
+  repuestosUsados?: string; 
 };
 
-// --- ¡CORREGIDO! ---
-// Actualizamos el tipo para que use FirebaseTimestamp
-type ReporteData = {
-  id: string;
-  patente: string;
-  descripcionProblema: string;
-  estado: string;
-  fechaCreacion: FirebaseTimestamp; // <-- Tipo corregido
-  fechaCierre?: FirebaseTimestamp; // <-- Tipo corregido
-  mecanicoAsignadoNombre?: string;
-  repuestosUsados?: string;
-  costoTotal?: number;
-};
-
-// --- ¡NUEVO! ---
-// Función para formatear fechas de Firebase de forma segura
-const formatFirebaseDate = (timestamp: FirebaseTimestamp | undefined | null): string => {
-  if (!timestamp || !timestamp._seconds) {
-    return 'N/A';
-  }
-  // Formato: dd/MM/yyyy
-  return new Date(timestamp._seconds * 1000).toLocaleDateString('es-CL');
+// Función para formatear fechas de forma segura (Defensa contra el error _seconds)
+const formatFecha = (fecha: { _seconds: number } | undefined | null) => {
+  if (!fecha || typeof fecha._seconds === 'undefined') return 'N/A';
+  return new Date(fecha._seconds * 1000).toLocaleString('es-CL');
 };
 
 export default function GeneradorReportesPage() {
+  
+  const [ordenes, setOrdenes] = useState<OrdenDeTrabajo[]>([]); 
+  const [ordenesFiltradas, setOrdenesFiltradas] = useState<OrdenDeTrabajo[]>([]); 
+  const [loading, setLoading] = useState(true);
+  
+  const [filtroEstado, setFiltroEstado] = useState('Todos');
+  const [filtroPatente, setFiltroPatente] = useState(''); 
+  const [filtroFechaInicio, setFiltroFechaInicio] = useState(''); 
+  const [filtroFechaFin, setFiltroFechaFin] = useState(''); 
 
-  // (Estados no cambian)
-  const [fechaInicio, setFechaInicio] = useState<Date | null>(new Date());
-  const [fechaFin, setFechaFin] = useState<Date | null>(new Date());
-  const [reporteData, setReporteData] = useState<ReporteData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingReport, setLoadingReport] = useState(false);
-  
-  const { user, userProfile, loading: authLoading } = useAuth();
-  const router = useRouter();
+  const [anulandoId, setAnulandoId] = useState<string | null>(null);
+  
+  const { user, userProfile, loading: authLoading } = useAuth();
+  const router = useRouter();
 
-  // (useEffect no cambia)
-  useEffect(() => {
-    if (!authLoading) {
-      if (user && userProfile) {
-        const rolesPermitidos = ['Supervisor', 'Jefe de Taller', 'Coordinador', 'Gerente'];
-        if (!rolesPermitidos.includes(userProfile.rol)) {
-          toast.error('Acceso denegado');
-          router.push('/');
-        } else {
-          setLoading(false);
-        }
-      } else if (!user) {
-        router.push('/');
-      }
-    }
-  }, [user, userProfile, authLoading, router]);
+  useEffect(() => {
+    if (!authLoading && user && userProfile) {
+      const rolesPermitidos = ['Jefe de Taller', 'Supervisor', 'Coordinador', 'Gerente'];
+      if (rolesPermitidos.includes(userProfile.rol)) {
+        fetchTodasLasOrdenes();
+      } else {
+        router.push('/'); 
+      }
+    } else if (!user && !authLoading) {
+      router.push('/');
+    }
+  }, [user, userProfile, authLoading, router]);
 
-  // (handleGenerarReporte no cambia)
-  const handleGenerarReporte = async () => {
-    if (!fechaInicio || !fechaFin) {
-      toast.error('Por favor, selecciona un rango de fechas.');
-      return;
-    }
-    setLoadingReport(true);
-    setReporteData([]); 
-    
-    const inicio = new Date(fechaInicio.setHours(0, 0, 0, 0));
-    const fin = new Date(fechaFin.setHours(23, 59, 59, 999));
+  const fetchTodasLasOrdenes = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/ordenes-trabajo'); 
+      if (!response.ok) throw new Error('No se pudieron cargar las órdenes');
+      const data: OrdenDeTrabajo[] = await response.json();
+      data.sort((a, b) => (b.fechaCreacion?._seconds || 0) - (a.fechaCreacion?._seconds || 0));
+      setOrdenes(data);
+      setOrdenesFiltradas(data); 
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleGenerarReporte = (e: React.FormEvent) => {
+    e.preventDefault(); 
+    setLoading(true);
+    let filtradas = ordenes;
+    
+    if (filtroEstado !== 'Todos') {
+      filtradas = filtradas.filter(ot => ot.estado === filtroEstado);
+    }
+    
+    if (filtroPatente) {
+      filtradas = filtradas.filter(ot => 
+        ot.patente && ot.patente.toLowerCase().includes(filtroPatente.toLowerCase())
+      );
+    }
+    
+    if (filtroFechaInicio) {
+      const inicioTs = new Date(filtroFechaInicio).getTime();
+      filtradas = filtradas.filter(ot => 
+        ot.fechaCreacion && (ot.fechaCreacion._seconds * 1000) >= inicioTs
+      );
+    }
+    
+    if (filtroFechaFin) {
+      const finTs = new Date(filtroFechaFin).getTime() + (24 * 60 * 60 * 1000 - 1); 
+      filtradas = filtradas.filter(ot => 
+        ot.fechaCreacion && (ot.fechaCreacion._seconds * 1000) <= finTs
+      );
+    }
+    
+    setOrdenesFiltradas(filtradas);
+    toast.success(`Reporte generado. ${filtradas.length} resultados.`);
+    setLoading(false);
+  };
 
-    try {
-      const response = await fetch(`/api/reportes?inicio=${inicio.toISOString()}&fin=${fin.toISOString()}`);
-      if (!response.ok) throw new Error('No se pudo generar el reporte');
-      const data = await response.json();
-      setReporteData(data);
-      if (data.length === 0) {
-        toast('No se encontraron datos para ese rango.', { icon: 'ℹ️' });
-      }
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setLoadingReport(false);
-    }
-  };
+  const handleAnularOT = async (otId: string) => {
+    setAnulandoId(otId);
+    
+    const promise = fetch(`/api/ordenes-trabajo/${otId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estado: 'Anulado', 
+        accion: 'anularOT' 
+      }),
+    });
 
-  const handleExportarExcel = () => {
-    if (reporteData.length === 0) {
-      toast.error('No hay datos para exportar. Genera un reporte primero.');
-      return;
-    }
-    
-    // --- ¡CORREGIDO! ---
-    // Mapeamos los datos para formatear las fechas ANTES de exportar
-    const datosParaExcel = reporteData.map(ot => ({
-      "Patente": ot.patente,
-      "Mecánico": ot.mecanicoAsignadoNombre || 'N/A',
-      "Estado": ot.estado,
-      "Descripción": ot.descripcionProblema,
-      "Fecha Creación": formatFirebaseDate(ot.fechaCreacion),
-      "Fecha Cierre": formatFirebaseDate(ot.fechaCierre),
-      "Repuestos Usados": ot.repuestosUsados || '',
-      "Costo Total": ot.costoTotal || 0,
-    }));
-    
-    const ws = XLSX.utils.json_to_sheet(datosParaExcel);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "ReporteTaller");
-    XLSX.writeFile(wb, `Reporte_Taller_PepsiCo_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
+    toast.promise(promise, {
+      loading: 'Anulando OT...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error al anular la OT');
+        setOrdenes(prev => prev.map(ot => 
+          ot.id === otId ? { ...ot, estado: 'Anulado' } : ot
+        ));
+        setAnulandoId(null);
+        return '¡OT Anulada!';
+      },
+      error: (err) => {
+        setAnulandoId(null);
+        return err.message || 'Error al anular la OT';
+      }
+    });
+  };
+  
+  const handleExportExcel = () => {
+    if (ordenesFiltradas.length === 0) {
+      toast.error("No hay datos para exportar. Genera un reporte primero.");
+      return;
+    }
+    const datosParaExcel = ordenesFiltradas.map(ot => ({
+      "ID OT": ot.id ? ot.id.substring(0, 6) : 'N/A',
+      "Patente": ot.patente,
+      "Estado": ot.estado,
+      "Mecánico Asignado": ot.mecanicoAsignadoNombre || 'N/A',
+      "Descripción": ot.descripcionProblema,
+      "Repuestos": ot.repuestosUsados || 'N/A',
+      "Fecha Creación": formatFecha(ot.fechaCreacion),
+      "Fecha Ingreso Taller": formatFecha(ot.fechaIngresoTaller),
+      "Fecha Salida Taller": formatFecha(ot.fechaSalidaTaller),
+    }));
+    const ws = XLSX.utils.json_to_sheet(datosParaExcel);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte OTs PepsiFleet");
+    XLSX.writeFile(wb, "ReportePepsiFleet.xlsx");
+  };
 
-  if (authLoading || loading) {
-    return <div className="p-8 font-sans">Validando sesión y cargando reportes...</div>;
-  }
+  if (authLoading || !userProfile) {
+    return <div className="p-8 text-gray-900">Validando sesión...</div>;
+  }
+  
+  const puedeAnular = ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol);
 
-  return (
-    <div className="p-8 font-sans">
-      
-      <h1 className="text-3xl font-bold text-pepsi-blue mb-6">Generador de Reportes</h1>
+  return (
+    <div className="p-8 text-gray-900">
+      
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Panel Maestro de OTs / Reportes</h1>
+        <button 
+          onClick={handleExportExcel} 
+          disabled={loading || ordenesFiltradas.length === 0}
+          className="bg-green-700 text-white px-5 py-2 rounded shadow hover:bg-green-800 disabled:bg-gray-400"
+        >
+          Exportar a Excel
+        </button>
+      </div>
+      
+      <form onSubmit={handleGenerarReporte} className="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        <div>
+          <label htmlFor="filtroFechaInicio" className="block text-sm font-medium text-gray-700">Fecha Inicio (Creación)</label>
+          <input type="date" id="filtroFechaInicio" value={filtroFechaInicio} onChange={(e) => setFiltroFechaInicio(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+        </div>
+        <div>
+          <label htmlFor="filtroFechaFin" className="block text-sm font-medium text-gray-700">Fecha Fin (Creación)</label>
+          <input type="date" id="filtroFechaFin" value={filtroFechaFin} onChange={(e) => setFiltroFechaFin(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+        </div>
+        <div>
+          <label htmlFor="filtroPatente" className="block text-sm font-medium text-gray-700">Patente</label>
+          <input type="text" id="filtroPatente" value={filtroPatente} onChange={(e) => setFiltroPatente(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50" placeholder="Ej: AB123CD" />
+        </div>
+        <div>
+          <label htmlFor="filtroEstado" className="block text-sm font-medium text-gray-700">Estado</label>
+          <select id="filtroEstado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+            <option value="Todos">Todos</option>
+            <option value="Agendado">Agendado</option>
+            <option value="Pendiente">Pendiente</option>
+            <option value="En Progreso">En Progreso</option>
+            <option value="Finalizado">Finalizado</option>
+            <option value="Cerrado">Cerrado</option>
+            <option value="Anulado">Anulado</option>
+          </select>
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg shadow font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {loading ? 'Filtrando...' : 'Generar Reporte'}
+        </button>
+      </form>
 
-      {/* --- Tarjeta de Filtros (Formulario) --- */}
-      <div className="bg-white shadow-card rounded-lg p-6 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-          
-          {/* Filtro Fecha Inicio */}
-          <div className="w-full">
-            <label htmlFor="fechaInicio" className="block text-sm font-medium text-neutral-700 mb-1">
-              Fecha de Inicio
-            </label>
-            <DatePicker
-              selected={fechaInicio}
-              onChange={(date) => setFechaInicio(date)}
-              selectsStart
-              startDate={fechaInicio}
-              endDate={fechaFin}
-              dateFormat="dd/MM/yyyy"
-              className="mt-1"
-              wrapperClassName="w-full"
-            />
-          </div>
-          
-          {/* Filtro Fecha Fin */}
-          <div className="w-full">
-            <label htmlFor="fechaFin" className="block text-sm font-medium text-neutral-700 mb-1">
-              Fecha de Fin
-            </label>
-            <DatePicker
-              selected={fechaFin}
-              onChange={(date) => setFechaFin(date)}
-              selectsEnd
-              startDate={fechaInicio}
-              endDate={fechaFin}
-              
-              minDate={fechaInicio || undefined} 
-              
-              dateFormat="dd/MM/yyyy"
-              className="mt-1"
-              wrapperClassName="w-full"
-            />
-          </div>
-          
-          {/* Botón Generar Reporte */}
-          <button
-            onClick={handleGenerarReporte}
-            disabled={loadingReport}
-            className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-pepsi-blue text-white px-5 py-3 rounded-md shadow 
-                       font-medium hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
-          >
-            <DocumentChartBarIcon className="h-5 w-5" />
-            {loadingReport ? 'Generando...' : 'Generar Reporte'}
-          </button>
-          
-          {/* Botón Exportar Excel (Verde) */}
-          <button
-            onClick={handleExportarExcel}
-            disabled={reporteData.length === 0}
-            className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-3 rounded-md shadow 
-                       font-medium hover:bg-green-700 transition-colors duration-200 disabled:bg-gray-400"
-          >
-            <ArrowDownTrayIcon className="h-5 w-5" />
-            Exportar a Excel
-          </button>
-        </div>
-      </div>
-
-      {/* --- Tarjeta de la Tabla de Resultados --- */}
-      <div className="bg-white shadow-card rounded-lg overflow-x-auto">
-        {/* FIX DE HYDRATION: Eliminar espacios y saltos de línea entre tags <table>, <thead>, <tr>, etc. */}
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-neutral-50"><tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Patente</th><th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Mecánico</th><th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Fecha Creación</th><th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Fecha Cierre</th><th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Estado</th><th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Descripción</th>
-          </tr></thead>
+      {/* --- Tabla Maestra (FIX DE HYDRATION APLICADO) --- */}
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50"><tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mecánico</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Entrada</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Salida</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
+          </tr></thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {loadingReport ? (
-              <tr><td colSpan={6} className="p-4 text-center text-neutral-700">Generando reporte...</td></tr>
-            ) : reporteData.length > 0 ? (
-              reporteData.map(ot => (
-                <tr key={ot.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-neutral-900">{ot.patente}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{formatFirebaseDate(ot.fechaCreacion)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{formatFirebaseDate(ot.fechaCierre)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      ot.estado === 'Completado' ? 'bg-indigo-100 text-indigo-800' :
-                      ot.estado === 'Cerrado' ? 'bg-green-100 text-green-900' :
-                      'bg-neutral-100 text-neutral-900'
-                    }`}>
-                      {ot.estado}
-                  </span>
-                  </td>
-                  <td className="px-6 py-4 text-neutral-700">{ot.descripcionProblema}</td>
-                </tr>
-              ))
-            ) : (
-              <tr><td colSpan={6} className="p-4 text-center text-neutral-700">
-                Selecciona un rango de fechas y presiona "Generar Reporte".
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+            {loading ? (
+              <tr><td colSpan={7} className="px-6 py-4 text-center">Cargando OTs...</td></tr>
+            ) : ordenesFiltradas.length > 0 ? (
+              ordenesFiltradas.map(ot => (
+                <tr key={ot.id} className={`${ot.estado === 'Anulado' ? 'bg-red-50 opacity-60' : ''}`}>
+                  <td className="px-6 py-4 font-medium">{ot.patente}</td>
+                  <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    ot.estado === 'Agendado' ? 'bg-gray-200 text-gray-800' :
+                    ot.estado === 'Pendiente' ? 'bg-red-200 text-red-800' :
+                    ot.estado === 'En Progreso' ? 'bg-yellow-200 text-yellow-800' :
+                    ot.estado === 'Finalizado' ? 'bg-blue-200 text-blue-800' :
+                    ot.estado === 'Cerrado' ? 'bg-green-200 text-green-800' :
+                    ot.estado === 'Anulado' ? 'bg-red-300 text-red-900' :
+                    ''
+                  }`}>{ot.estado}</span></td>
+                  <td className="px-6 py-4">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-green-700">{formatFecha(ot.fechaIngresoTaller)}</td>
+                  <td className="px-6 py-4 text-sm text-red-700">{formatFecha(ot.fechaSalidaTaller)}</td>
+                  <td className="px-6 py-4">{ot.descripcionProblema}</td>
+                  <td className="px-6 py-4">{puedeAnular && ot.estado === 'Agendado' && (<button
+                      onClick={() => handleAnularOT(ot.id)}
+                      disabled={anulandoId === ot.id}
+                      className="bg-red-600 text-white px-3 py-1 rounded shadow hover:bg-red-700 disabled:bg-gray-400"
+                    >{anulandoId === ot.id ? '...' : 'Anular'}</button>)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr><td colSpan={7} className="px-6 py-4 text-center">
+                {filtroPatente || filtroEstado !== 'Todos' || filtroFechaInicio || filtroFechaFin ? 'No se encontraron OTs con esos filtros.' : 'Carga completa. Genera un reporte.'}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }

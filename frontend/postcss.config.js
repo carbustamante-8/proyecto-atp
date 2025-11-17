@@ -1,8 +1,9 @@
-// CREA este archivo (o renombra y reemplaza el .mjs)
-// Esta es la sintaxis correcta de v3 (CommonJS)
-module.exports = {
+const config = {
   plugins: {
+    // Esta es la sintaxis limpia y compatible que Next.js espera
     tailwindcss: {},
     autoprefixer: {},
   },
 };
+
+export default config;
