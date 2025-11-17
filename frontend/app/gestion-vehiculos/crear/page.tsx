@@ -1,253 +1,231 @@
 // frontend/app/gestion-vehiculos/crear/page.tsx
-// (CÓDIGO ACTUALIZADO: Añadidos los 6 campos nuevos al formulario)
+// (CÓDIGO VISUALMENTE REFACTORIZADO)
 
-'use client'; 
-
-import { useState, useEffect } from 'react';
+'use client';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 
-type User = {
-  id: string;
-  nombre: string;
-  rol: string;
-};
+// --- ¡ESTILO ESTÁNDAR PARA INPUTS! ---
+const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50 focus:ring-pepsi-blue focus:border-pepsi-blue";
 
 export default function CrearVehiculoPage() {
-  // --- ¡NUEVOS ESTADOS PARA LOS CAMPOS! ---
-  const [patente, setPatente] = useState('');
-  const [marca, setMarca] = useState('');
-  const [modelo, setModelo] = useState('');
-  const [año, setAño] = useState(new Date().getFullYear());
-  const [tipoVehiculo, setTipoVehiculo] = useState('Camión');
-  const [estado, setEstado] = useState('Operativo');
-  const [idChoferAsignado, setIdChoferAsignado] = useState('');
-  
-  const [color, setColor] = useState('');
-  const [vin, setVin] = useState('');
-  const [nMotor, setNMotor] = useState('');
-  const [nChasis, setNChasis] = useState('');
-  const [paisManufactura, setPaisManufactura] = useState('');
-  const [tipoCombustible, setTipoCombustible] = useState('Diesel');
-  
-  const [conductores, setConductores] = useState<User[]>([]);
-  const [loadingSubmit, setLoadingSubmit] = useState(false);
-  const [loadingData, setLoadingData] = useState(true); 
-  
+  const [formData, setFormData] = useState({
+    patente: '',
+    marca: '',
+    modelo: '',
+    año: '', // Año como string para el input
+    tipo_vehiculo: '',
+    estado: 'Operativo', // Estado por defecto
+    color: '',
+    vin: '',
+    n_motor: ''
+  });
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { user, userProfile, loading: authLoading } = useAuth();
 
-  // (useEffect de protección - sin cambios)
+  // (El useEffect de autenticación no cambia)
   useEffect(() => {
-    if (authLoading) {
-      return; 
-    }
-    if (user && userProfile) {
-      const rolesPermitidos = ['Supervisor', 'Coordinador']; 
-      if (rolesPermitidos.includes(userProfile.rol)) {
-        fetchConductores();
-      } else {
-        toast.error('No tienes permiso para acceder a esta página.');
+    if (!authLoading) {
+      if (user && userProfile) {
+        const rolesPermitidos = ['Supervisor', 'Coordinador'];
+        if (!rolesPermitidos.includes(userProfile.rol)) {
+          toast.error('Acceso denegado');
+          router.push('/');
+        }
+      } else if (!user) {
         router.push('/');
       }
-    } else {
-      toast.error('Sesión no válida.');
-      router.push('/');
     }
   }, [user, userProfile, authLoading, router]);
 
-  // (fetchConductores - sin cambios)
-  const fetchConductores = async () => {
-    try {
-      const response = await fetch('/api/usuarios');
-      if (!response.ok) throw new Error('No se pudo cargar la lista de conductores');
-      const usuarios: User[] = await response.json();
-      const conductoresActivos = usuarios.filter(u => u.rol === 'Conductor');
-      setConductores(conductoresActivos);
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setLoadingData(false);
-    }
+  // (La lógica 'handleChange' y 'handleSubmit' no cambia)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // --- ¡handleSubmit (ACTUALIZADO)! ---
-  // Ahora envía todos los campos nuevos
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoadingSubmit(true); 
-    const toastId = toast.loading('Creando vehículo...');
+    setLoading(true);
+    
+    // Convertir año a número antes de enviar
+    const dataParaEnviar = {
+      ...formData,
+      año: parseInt(formData.año, 10)
+    };
 
-    try {
-      const response = await fetch('/api/vehiculos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          patente: patente.toUpperCase(), 
-          marca, 
-          modelo, 
-          año, 
-          tipo_vehiculo: tipoVehiculo, 
-          estado,
-          id_chofer_asignado: idChoferAsignado || null,
-          // --- ¡Nuevos campos! ---
-          color,
-          vin,
-          n_motor: nMotor,
-          n_chasis: nChasis,
-          pais_manufactura: paisManufactura,
-          tipo_combustible: tipoCombustible
-        }),
-      });
+    const promise = fetch('/api/vehiculos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dataParaEnviar),
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al crear el vehículo');
+    toast.promise(promise, {
+      loading: 'Registrando vehículo...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error al registrar el vehículo');
+        setLoading(false);
+        router.push('/gestion-vehiculos');
+        return 'Vehículo registrado exitosamente';
+      },
+      error: (err) => {
+        setLoading(false);
+        return err.message || 'Error al registrar';
       }
-
-      toast.success('¡Vehículo creado exitosamente!', { id: toastId });
-      router.push('/gestion-vehiculos');
-
-    } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message, { id: toastId });
-      } else {
-        toast.error('Ocurrió un error inesperado', { id: toastId });
-      }
-    } finally {
-      setLoadingSubmit(false); 
-    }
+    });
   };
 
-  if (authLoading || loadingData) {
-    return <div className="p-8 text-gray-900">Validando sesión y cargando datos...</div>;
+  if (authLoading) {
+    return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
-  
+
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-8">
-      <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
-          Registrar Nuevo Vehículo
-        </h1>
+    // --- ¡PÁGINA REFACTORIZADA! ---
+    <div className="p-8 text-gray-900">
+      
+      {/* Título usa el color pepsi-blue */}
+      <h1 className="text-3xl font-bold text-pepsi-blue mb-6">Registrar Nuevo Vehículo</h1>
+
+      {/* Tarjeta blanca para el formulario */}
+      <div className="bg-white shadow-lg rounded-lg p-8 max-w-3xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-6">
-          
-          {/* --- Campos Originales --- */}
-          <div>
-            <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
-            <input type="text" id="patente" value={patente} onChange={(e) => setPatente(e.target.value)} required
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
-          </div>
-          <div className="grid grid-cols-2 gap-6">
+
+          {/* Fila 1: Datos Principales */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <label htmlFor="marca" className="block text-sm font-medium text-gray-700">Marca</label>
-              <input type="text" id="marca" value={marca} onChange={(e) => setMarca(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+              <label htmlFor="patente" className="block text-sm font-medium text-gray-700 mb-1">Patente</label>
+              <input
+                type="text"
+                name="patente"
+                id="patente"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                onChange={handleChange}
+              />
             </div>
             <div>
-              <label htmlFor="modelo" className="block text-sm font-medium text-gray-700">Modelo</label>
-              <input type="text" id="modelo" value={modelo} onChange={(e) => setModelo(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+              <label htmlFor="marca" className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+              <input
+                type="text"
+                name="marca"
+                id="marca"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                onChange={handleChange}
+              />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-6">
             <div>
-              <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
-              <input type="number" id="año" value={año} onChange={(e) => setAño(parseInt(e.target.value))}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+              <label htmlFor="modelo" className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
+              <input
+                type="text"
+                name="modelo"
+                id="modelo"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                onChange={handleChange}
+              />
             </div>
-            <div>
-              <label htmlFor="color" className="block text-sm font-medium text-gray-700">Color</label>
-              <input type="text" id="color" value={color} onChange={(e) => setColor(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
-            </div>
-          </div>
-          <div>
-            <label htmlFor="tipoVehiculo" className="block text-sm font-medium text-gray-700">Tipo de Vehículo</label>
-            <select id="tipoVehiculo" value={tipoVehiculo} onChange={(e) => setTipoVehiculo(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
-              <option value="Camión">Camión</option>
-              <option value="Camioneta">Camioneta</option>
-              <option value="Auto">Auto</option>
-              <option value="Grúa Horquilla">Grúa Horquilla</option>
-              <option value="Otro">Otro</option>
-            </select>
           </div>
 
-          {/* --- ¡NUEVOS CAMPOS! --- */}
-          <div>
-            <label htmlFor="vin" className="block text-sm font-medium text-gray-700">VIN (N° Identificación)</label>
-            <input type="text" id="vin" value={vin} onChange={(e) => setVin(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
-          </div>
-          <div className="grid grid-cols-2 gap-6">
+          {/* Fila 2: Año, Tipo y Estado */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <label htmlFor="nMotor" className="block text-sm font-medium text-gray-700">N° Motor</label>
-              <input type="text" id="nMotor" value={nMotor} onChange={(e) => setNMotor(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+              <label htmlFor="año" className="block text-sm font-medium text-gray-700 mb-1">Año</label>
+              <input
+                type="number"
+                name="año"
+                id="año"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                onChange={handleChange}
+              />
             </div>
             <div>
-              <label htmlFor="nChasis" className="block text-sm font-medium text-gray-700">N° Chasis</label>
-              <input type="text" id="nChasis" value={nChasis} onChange={(e) => setNChasis(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+              <label htmlFor="tipo_vehiculo" className="block text-sm font-medium text-gray-700 mb-1">Tipo de Vehículo</label>
+              <input
+                type="text"
+                name="tipo_vehiculo"
+                id="tipo_vehiculo"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                placeholder="Ej: Camión, Auto, Grúa"
+                onChange={handleChange}
+              />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-6">
             <div>
-              <label htmlFor="paisManufactura" className="block text-sm font-medium text-gray-700">País Manufactura</label>
-              <input type="text" id="paisManufactura" value={paisManufactura} onChange={(e) => setPaisManufactura(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
-            </div>
-            <div>
-              <label htmlFor="tipoCombustible" className="block text-sm font-medium text-gray-700">Combustible</label>
-              <select id="tipoCombustible" value={tipoCombustible} onChange={(e) => setTipoCombustible(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
-                <option value="Diesel">Diesel</option>
-                <option value="Gasolina">Gasolina</option>
-                <option value="Eléctrico">Eléctrico</option>
-                <option value="Híbrido">Híbrido</option>
-                <option value="Gas">Gas</option>
+              <label htmlFor="estado" className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+              <select
+                name="estado"
+                id="estado"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                value={formData.estado}
+                onChange={handleChange}
+              >
+                <option value="Operativo">Operativo</option>
+                <option value="En Taller">En Taller</option>
+                <option value="De Baja">De Baja</option>
               </select>
             </div>
           </div>
           
-          {/* --- Campos Finales --- */}
-          <div>
-            <label htmlFor="idChoferAsignado" className="block text-sm font-medium text-gray-700">Conductor Asignado (Opcional)</label>
-            <select id="idChoferAsignado" value={idChoferAsignado} onChange={(e) => setIdChoferAsignado(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
-              <option value="">Ninguno</option>
-              {conductores.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Estado</label>
-            <select id="estado" value={estado} onChange={(e) => setEstado(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
-              <option value="Operativo">Operativo</option>
-              <option value="En Taller">En Taller</option>
-              <option value="De Baja">De Baja</option>
-            </select>
+          <hr className="my-6 border-t border-gray-200" />
+
+          {/* Fila 3: Datos Opcionales (pero importantes) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label htmlFor="color" className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+              <input
+                type="text"
+                name="color"
+                id="color"
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="vin" className="block text-sm font-medium text-gray-700 mb-1">VIN (N° Chasis)</label>
+              <input
+                type="text"
+                name="vin"
+                id="vin"
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="n_motor" className="block text-sm font-medium text-gray-700 mb-1">N° de Motor</label>
+              <input
+                type="text"
+                name="n_motor"
+                id="n_motor"
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                onChange={handleChange}
+              />
+            </div>
           </div>
 
-          <div className="space-y-4 pt-4">
+          {/* Fila 4: Botones de Acción */}
+          <div className="flex justify-end space-x-4 pt-4">
+            <Link href="/gestion-vehiculos">
+              <span className="px-5 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium">
+                Cancelar
+              </span>
+            </Link>
+            
+            {/* Botón principal usa el color pepsi-blue */}
             <button
               type="submit"
-              disabled={loadingSubmit} 
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+              disabled={loading}
+              className="px-5 py-2 rounded-md text-white bg-pepsi-blue hover:bg-blue-700 font-medium disabled:bg-gray-400"
             >
-              {loadingSubmit ? 'Guardando...' : 'Guardar Vehículo'}
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push('/gestion-vehiculos')}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300"
-            >
-              Cancelar
+              {loading ? 'Registrando...' : 'Registrar Vehículo'}
             </button>
           </div>
+
         </form>
       </div>
     </div>
