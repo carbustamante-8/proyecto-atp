@@ -1,21 +1,15 @@
-// frontend/app/layout.tsx
-// (ACTUALIZADO: Importa la fuente 'Poppins' y la aplica)
-
 import type { Metadata } from "next";
-// --- ¡CAMBIO DE FUENTE! ---
 import { Poppins } from "next/font/google";
-import "./globals.css";
+import "./globals.css"; // <- Esto importa el CSS
 import { AuthProvider } from '@/context/AuthContext';
 import { Toaster } from "react-hot-toast";
 import Navbar from "@/components/Navbar";
 
-// Configura la fuente Poppins
 const poppins = Poppins({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
-  variable: '--font-poppins', // Opcional si quieres usarla como variable
+  variable: '--font-poppins',
 });
-// --- FIN CAMBIO DE FUENTE ---
 
 export const metadata: Metadata = {
   title: "Pepsi-Fleet",
@@ -29,20 +23,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      {/* ¡Aplica la fuente y el color de fondo! */}
-      <body className={`${poppins.className} bg-background`}>
+      {/* ¡AQUÍ ESTÁ LA CORRECCIÓN!
+        Quitamos la clase 'bg-background' del body.
+        El color de fondo se aplicará desde globals.css
+      */}
+      <body className={poppins.className}> {/* ANTES: ${poppins.className} bg-background */}
         <AuthProvider>
           <Toaster 
             position="top-right"
-            toastOptions={{
-              className: 'font-sans', // Asegura que los toasts usen la fuente
-            }}
+            toastOptions={{ className: 'font-sans' }}
           />
           <Navbar />
-          {/* Este 'main' es importante. 
-            El Navbar ahora es FIJO (fixed), así que el contenido principal 
-            necesita un padding-top (pt-16) para no quedar oculto debajo.
-          */}
           <main className="pt-16">
             {children}
           </main>

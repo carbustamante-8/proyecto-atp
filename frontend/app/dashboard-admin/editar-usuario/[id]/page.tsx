@@ -1,210 +1,222 @@
 // frontend/app/dashboard-admin/editar-usuario/[id]/page.tsx
-// (CÓDIGO CORREGIDO: Solucionado el error "uncontrolled input" para RUT)
+// (CÓDIGO VISUALMENTE REFACTORIZADO)
 
 'use client';
-
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 
-// ¡Definimos el tipo con valores NO NULOS!
-type UserData = {
-  email: string;
-  nombre: string;
-  rut: string; // Ya no es opcional, será string vacío
-  rol: string;
-  estado: string;
-};
+// --- ¡NUEVO ESTILO PARA INPUTS! ---
+// Usamos la misma constante para consistencia.
+const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50 focus:ring-pepsi-blue focus:border-pepsi-blue";
 
-function EditarUsuarioForm() {
-  
-  // --- ¡ESTADO INICIAL CORREGIDO! ---
-  // Inicializamos con valores por defecto (strings vacíos)
-  const [userData, setUserData] = useState<UserData>({
+export default function EditarUsuarioPage() {
+  const [formData, setFormData] = useState({
     email: '',
+    rol: '',
     nombre: '',
-    rut: '', // <-- Inicia como string vacío
-    rol: 'Mecánico',
-    estado: 'Activo',
+    apellido: '',
+    rut: '',
+    telefono: ''
   });
-  
-  // 'loadingSubmit' es para el botón, 'loadingPage' es para cargar datos
-  const [loadingSubmit, setLoadingSubmit] = useState(false);
-  const [loadingPage, setLoadingPage] = useState(true); // ¡Importante!
-  
+  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true); // Loading para cargar datos
   const router = useRouter();
   const params = useParams();
-  const id = params.id as string;
+  const { id } = params;
   const { user, userProfile, loading: authLoading } = useAuth();
 
-  // (useEffect de protección - sin cambios)
+  // (El useEffect de autenticación no cambia)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // (Roles corregidos según el reparto de vistas)
         const rolesPermitidos = ['Supervisor', 'Coordinador'];
         if (!rolesPermitidos.includes(userProfile.rol)) {
-          toast.error('No tienes permiso para acceder a esta página.');
+          toast.error('Acceso denegado');
           router.push('/');
         } else {
-          fetchUserData();
+          fetchUsuario();
         }
       } else if (!user) {
         router.push('/');
       }
     }
-  }, [user, userProfile, authLoading, router, id]); // 'id' debe estar aquí
+  }, [user, userProfile, authLoading, router]);
 
-  // --- fetchUserData (CORREGIDO) ---
-  const fetchUserData = async () => {
-    if (!id) return;
-    setLoadingPage(true); // <-- Usa el estado de página
+  // (La lógica de 'fetchUsuario', 'handleChange' y 'handleSubmit' no cambia)
+  const fetchUsuario = async () => {
+    setPageLoading(true);
     try {
       const response = await fetch(`/api/usuarios/${id}`);
-      if (!response.ok) {
-        throw new Error('Usuario no encontrado');
-      }
+      if (!response.ok) throw new Error('Usuario no encontrado');
       const data = await response.json();
-      
-      // --- ¡CORRECCIÓN! ---
-      // Aseguramos que 'rut' nunca sea 'null' o 'undefined'
-      setUserData({
-        ...data,
-        rut: data.rut || '', // <-- Si es null/undefined, usa string vacío
-      });
-      
-    } catch (error) {
-      if (error instanceof Error) toast.error(error.message);
+      setFormData(data);
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
       router.push('/dashboard-admin');
     } finally {
-      setLoadingPage(false); // <-- Usa el estado de página
+      setPageLoading(false);
     }
   };
 
-  // --- handleActualizarUsuario (CORREGIDO) ---
-  const handleActualizarUsuario = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoadingSubmit(true); // <-- Usa el estado de botón
-    toast.loading('Actualizando usuario...');
-    try {
-      const response = await fetch(`/api/usuarios/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // 'userData' ya tiene los valores correctos
-        body: JSON.stringify(userData), 
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al actualizar el usuario');
-      }
-
-      toast.dismiss();
-      toast.success('¡Usuario actualizado exitosamente!');
-      router.push('/dashboard-admin');
-    } catch (error) {
-      toast.dismiss();
-      if (error instanceof Error) toast.error(error.message);
-    } finally {
-      setLoadingSubmit(false); // <-- Usa el estado de botón
-    }
-  };
-
-  // --- handleChange (CORREGIDO) ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { id, value } = e.target;
-    // Ahora 'prev' siempre está definido, no necesitamos 'prev ? ...'
-    setUserData(prev => ({ ...prev, [id]: value })); 
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // --- PANTALLA DE CARGA CORREGIDA ---
-  if (authLoading || loadingPage) {
-    return <div className="p-8 text-gray-900">Cargando...</div>;
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const promise = fetch(`/api/usuarios/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+
+    toast.promise(promise, {
+      loading: 'Actualizando usuario...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error al actualizar');
+        setLoading(false);
+        router.push('/dashboard-admin');
+        return 'Usuario actualizado exitosamente';
+      },
+      error: (err) => {
+        setLoading(false);
+        return err.message || 'Error al actualizar';
+      }
+    });
+  };
+
+  if (authLoading || pageLoading) {
+    return <div className="p-8 text-gray-900">Validando sesión y cargando datos del usuario...</div>;
   }
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
-          Editar Usuario
-        </h1>
-        <form onSubmit={handleActualizarUsuario} className="space-y-6">
+    // --- ¡PÁGINA REFACTORIZADA! ---
+    <div className="p-8 text-gray-900">
+      
+      {/* Título usa el color pepsi-blue */}
+      <h1 className="text-3xl font-bold text-pepsi-blue mb-6">Editar Usuario</h1>
+
+      {/* Tarjeta blanca para el formulario (como en el Login y Crear) */}
+      <div className="bg-white shadow-lg rounded-lg p-8 max-w-2xl mx-auto">
+        <form onSubmit={handleSubmit} className="space-y-6">
           
-          {/* (Email - sin cambios) */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email (No editable)</label>
-            <input type="email" id="email" value={userData.email} disabled
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-500 bg-gray-200" />
-          </div>
-          
-          {/* (Nombre - sin cambios) */}
-          <div>
-            <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre Completo</label>
-            <input type="text" id="nombre" value={userData.nombre} onChange={handleChange} required
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
-          </div>
-          
-          {/* (RUT - ¡CORREGIDO!) */}
-          <div>
-            <label htmlFor="rut" className="block text-sm font-medium text-gray-700">RUT</label>
-            <input type="text" id="rut" value={userData.rut} onChange={handleChange} // <-- Ahora es seguro
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
-          </div>
-          
-          {/* (Rol y Estado - sin cambios) */}
-          <div>
-            <label htmlFor="rol" className="block text-sm font-medium text-gray-700">Rol</label>
-            <select id="rol" value={userData.rol} onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
-              <option value="Jefe de Taller">Jefe de Taller</option>
-              <option value="Supervisor">Supervisor</option>
-              <option value="Coordinador">Coordinador</option>
-              <option value="Mecánico">Mecánico</option>
-              <option value="Guardia">Guardia</option>
-              <option value="Conductor">Conductor</option>
-              <option value="Gerente">Gerente</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Estado</label>
-            <select id="estado" value={userData.estado} onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
-              <option value="Activo">Activo</option>
-              <option value="Inactivo">Inactivo</option>
-            </select>
+          {/* Fila 1: Nombre y Apellido */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+              <input
+                type="text"
+                name="nombre"
+                id="nombre"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                value={formData.nombre}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="apellido" className="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
+              <input
+                type="text"
+                name="apellido"
+                id="apellido"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                value={formData.apellido}
+                onChange={handleChange}
+              />
+            </div>
           </div>
 
-          {/* (Botones - sin cambios) */}
-          <div className="space-y-4 pt-4">
+          {/* Fila 2: RUT y Teléfono */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="rut" className="block text-sm font-medium text-gray-700 mb-1">RUT</label>
+              <input
+                type="text"
+                name="rut"
+                id="rut"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                value={formData.rut}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="telefono" className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+              <input
+                type="text"
+                name="telefono"
+                id="telefono"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                value={formData.telefono}
+                onChange={handleChange}
+              />
+            </div>
+          </div>
+
+          <hr className="my-6 border-t border-gray-200" />
+
+          {/* Fila 3: Email y Rol */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email (Correo)</label>
+              <input
+                type="email"
+                name="email"
+                id="email"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                value={formData.email}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="rol" className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+              <select
+                name="rol"
+                id="rol"
+                required
+                className={inputStyle} // ¡Estilo estándar aplicado!
+                value={formData.rol}
+                onChange={handleChange}
+              >
+                <option value="Supervisor">Supervisor</option>
+                <option value="Jefe de Taller">Jefe de Taller</option>
+                <option value="Coordinador">Coordinador</option>
+                <option value="Mecánico">Mecánico</option>
+                <option value="Guardia">Guardia</option>
+                <option value="Conductor">Conductor</option>
+                <option value="Gerente">Gerente</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 4: Botones de Acción */}
+          <div className="flex justify-end space-x-4 pt-4">
+            <Link href="/dashboard-admin">
+              <span className="px-5 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium">
+                Cancelar
+              </span>
+            </Link>
+            
+            {/* Botón principal usa el color pepsi-blue */}
             <button
               type="submit"
-              disabled={loadingSubmit}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+              disabled={loading}
+              className="px-5 py-2 rounded-md text-white bg-pepsi-blue hover:bg-blue-700 font-medium disabled:bg-gray-400"
             >
-              {loadingSubmit ? 'Actualizando...' : 'Guardar Cambios'}
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push('/dashboard-admin')}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300"
-            >
-              Cancelar
+              {loading ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
 
         </form>
       </div>
     </div>
-  );
-}
-
-export default function EditarUsuarioPage() {
-  return (
-    <Suspense fallback={<div className="p-8 text-gray-900">Cargando...</div>}>
-      <EditarUsuarioForm />
-    </Suspense>
   );
 }

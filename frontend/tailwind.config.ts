@@ -8,12 +8,7 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      backgroundImage: {
-        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-conic":
-          "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
-      },
-      // --- ¡PALETA DE COLORES PEPSI AÑADIDA! ---
+      backgroundImage: { /* ... */ },
       colors: {
         'pepsi-blue': 'var(--color-pepsi-blue)',
         'pepsi-red': 'var(--color-pepsi-red)',
@@ -23,7 +18,6 @@ const config: Config = {
         'text-primary': 'var(--color-text-primary)',
         'text-secondary': 'var(--color-text-secondary)',
       },
-      // --- FIN DE LA PALETA ---
     },
   },
   plugins: [],

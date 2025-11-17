@@ -2,14 +2,11 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // (La línea 'tailwind: true,' se elimina)
 
-  // (Aquí puede haber otras configuraciones que ya tenías, como 'experimental')
-
-  // --- ¡AÑADE ESTA SECCIÓN COMPLETA! ---
   images: {
     remotePatterns: [
       {
-        // Autoriza todas las imágenes de Vercel Blob
         protocol: 'https',
         hostname: '*.public.blob.vercel-storage.com',
         port: '',
@@ -17,8 +14,6 @@ const nextConfig = {
       },
     ],
   },
-  // --- FIN DE LA SECCIÓN ---
-
 };
 
 export default nextConfig;

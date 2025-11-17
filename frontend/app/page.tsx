@@ -81,15 +81,27 @@ export default function LoginPage() {
   // --- JSX del Login (Moderno) ---
   return (
     <div className={styles.container}>
-      {/* Columna Izquierda (Logo) */}
+{/* Columna Izquierda (Logo) */}
       <div className={styles.leftColumn}>
+        
+        {/* --- CÓDIGO CORREGIDO --- */}
+        {/* Antes: width={400} height={100} (Esto aplasta la imagen)
+          Ahora: Usamos proporciones correctas (ej. 300x283) y estilos
+                 para asegurar que sea responsiva.
+        */}
         <Image
           src="/pepsico-logo.png"
           alt="PepsiCo Logo"
-          width={400} 
-          height={100} 
-          priority 
+          width={300}  // Un tamaño base razonable
+          height={283} // Proporcional a la imagen original (aprox. 800x755)
+          priority
+          style={{
+            maxWidth: '100%', // Se ajustará si la pantalla es más pequeña
+            height: 'auto',   // Mantiene la proporción automáticamente
+          }}
         />
+        {/* --- FIN DE LA CORRECCIÓN --- */}
+        
         <h2 className={styles.subtitle}>
           Gestión de Flota y Taller Mecánico
         </h2>
