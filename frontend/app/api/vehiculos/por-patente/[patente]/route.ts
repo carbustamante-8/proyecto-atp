@@ -1,5 +1,5 @@
 // frontend/app/api/vehiculos/por-patente/[patente]/route.ts
-// (CÓDIGO CORREGIDO: La búsqueda ahora quita espacios y es case-insensitive)
+// (API NUEVA: Permite buscar un vehículo por su patente)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -12,34 +12,30 @@ export async function GET(request: NextRequest, context: Context) {
   let patente: string;
   try {
     const params = await context.params;
-    patente = params.patente; 
+    patente = params.patente; // Obtiene la patente de la URL
 
     if (!patente) {
       return NextResponse.json({ error: 'Falta la patente' }, { status: 400 });
     }
 
-    // --- ¡CORRECCIÓN ROBUSTA! ---
-    // 1. Limpia la patente de la URL (quita espacios y a mayúsculas)
+    // --- ¡LÓGICA ROBUSTA (Busca con y sin espacios)! ---
     const patenteLimpiaBuscada = patente.toUpperCase().trim();
 
-    // 2. Trae todos los vehículos (no podemos hacer .trim() en un 'where')
     const vehiculosSnapshot = await adminDb.collection('vehiculos').get();
 
-    // 3. Filtra manualmente en el servidor
     const vehiculoEncontrado = vehiculosSnapshot.docs.find(doc => {
       const patenteDb = doc.data().patente;
       if (!patenteDb) return false;
       
-      // Compara ambos limpios, en mayúsculas y sin espacios
+      // Compara ambos limpios
       return patenteDb.toUpperCase().trim() === patenteLimpiaBuscada;
     });
-    // --- FIN DE LA CORRECCIÓN ---
+    // --- FIN LÓGICA ROBUSTA ---
 
     if (!vehiculoEncontrado) {
       return NextResponse.json({ error: 'Vehículo no encontrado con esa patente' }, { status: 404 });
     }
     
-    // Devuelve el vehículo encontrado
     return NextResponse.json({ id: vehiculoEncontrado.id, ...vehiculoEncontrado.data() });
 
   } catch (error: any) {
