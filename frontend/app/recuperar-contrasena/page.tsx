@@ -1,89 +1,242 @@
-// frontend/app/recuperar-contrasena/page.tsx
-// (CÓDIGO ACTUALIZADO: Añadido botón "Volver al Login")
-
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // <-- ¡IMPORTACIÓN AÑADIDA!
-import { auth, db } from '@/lib/firebase'; // <--- ESTO ES CORRECTO
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
-export default function RecuperarContrasenaPage() {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import * as XLSX from 'xlsx';
+
+import { 
+  DocumentChartBarIcon, 
+  ArrowDownTrayIcon 
+} from '@heroicons/react/24/outline';
+
+// --- ¡CORREGIDO! ---
+// Este es el tipo de dato real que viene de Firebase
+type FirebaseTimestamp = {
+  _seconds: number;
+  _nanoseconds: number;
+};
+
+// --- ¡CORREGIDO! ---
+// Actualizamos el tipo para que use FirebaseTimestamp
+type ReporteData = {
+  id: string;
+  patente: string;
+  descripcionProblema: string;
+  estado: string;
+  fechaCreacion: FirebaseTimestamp; // <-- Tipo corregido
+  fechaCierre?: FirebaseTimestamp; // <-- Tipo corregido
+  mecanicoAsignadoNombre?: string;
+  repuestosUsados?: string;
+  costoTotal?: number;
+};
+
+// --- ¡NUEVO! ---
+// Función para formatear fechas de Firebase de forma segura
+const formatFirebaseDate = (timestamp: FirebaseTimestamp | undefined | null): string => {
+  if (!timestamp || !timestamp._seconds) {
+    return 'N/A';
+  }
+  return new Date(timestamp._seconds * 1000).toLocaleDateString('es-CL');
+};
+
+export default function GeneradorReportesPage() {
+
+  // (Estados no cambian)
+  const [fechaInicio, setFechaInicio] = useState<Date | null>(new Date());
+  const [fechaFin, setFechaFin] = useState<Date | null>(new Date());
+  const [reporteData, setReporteData] = useState<ReporteData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingReport, setLoadingReport] = useState(false);
+  
+  const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const promise = sendPasswordResetEmail(auth, email);
-
-    toast.promise(promise, {
-      loading: 'Enviando correo...',
-      success: () => {
-        setLoading(false);
-        router.push('/'); // Devuelve al login
-        return '¡Correo enviado! Revisa tu bandeja de entrada.';
-      },
-      error: (err) => {
-        setLoading(false);
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
-          return 'No se encontró ningún usuario con ese correo.';
+  // (useEffect y handleGenerarReporte no cambian)
+  useEffect(() => {
+    if (!authLoading) {
+      if (user && userProfile) {
+        const rolesPermitidos = ['Supervisor', 'Jefe de Taller', 'Coordinador', 'Gerente'];
+        if (!rolesPermitidos.includes(userProfile.rol)) {
+          toast.error('Acceso denegado');
+          router.push('/');
+        } else {
+          setLoading(false);
         }
-        return 'Error al enviar el correo. Intenta de nuevo.';
+      } else if (!user) {
+        router.push('/');
       }
-    });
+    }
+  }, [user, userProfile, authLoading, router]);
+
+  const handleGenerarReporte = async () => {
+    if (!fechaInicio || !fechaFin) {
+      toast.error('Por favor, selecciona un rango de fechas.');
+      return;
+    }
+    setLoadingReport(true);
+    setReporteData([]); 
+    
+    const inicio = new Date(fechaInicio.setHours(0, 0, 0, 0));
+    const fin = new Date(fechaFin.setHours(23, 59, 59, 999));
+
+    try {
+      const response = await fetch(`/api/reportes?inicio=${inicio.toISOString()}&fin=${fin.toISOString()}`);
+      if (!response.ok) throw new Error('No se pudo generar el reporte');
+      const data = await response.json();
+      setReporteData(data);
+      if (data.length === 0) {
+        toast('No se encontraron datos para ese rango.', { icon: 'ℹ️' });
+      }
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setLoadingReport(false);
+    }
   };
 
+  const handleExportarExcel = () => {
+    if (reporteData.length === 0) {
+      toast.error('No hay datos para exportar. Genera un reporte primero.');
+      return;
+    }
+    
+    // --- ¡CORREGIDO! ---
+    // Mapeamos los datos para formatear las fechas ANTES de exportar
+    const datosParaExcel = reporteData.map(ot => ({
+      ...ot,
+      fechaCreacion: formatFirebaseDate(ot.fechaCreacion),
+      fechaCierre: formatFirebaseDate(ot.fechaCierre)
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(datosParaExcel);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "ReporteTaller");
+    XLSX.writeFile(wb, `Reporte_Taller_PepsiCo_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  if (authLoading || loading) {
+    return <div className="p-8 font-sans">Validando sesión y cargando reportes...</div>;
+  }
+
+  // --- JSX REFACTORIZADO VISUALMENTE ---
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="max-w-md w-full bg-white p-10 rounded-lg shadow-2xl">
-        <h2 className="text-4xl font-bold text-center text-gray-900 mb-8">
-          Recuperar Contraseña
-        </h2>
-        <p className="text-center text-gray-600 mb-6">
-          Ingresa tu correo electrónico y te enviaremos un enlace para reestablecer tu contraseña.
-        </p>
-        <form onSubmit={handleResetPassword} className="space-y-6">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Correo Electrónico
+    <div className="p-8 font-sans">
+      
+      <h1 className="text-3xl font-bold text-pepsi-blue mb-6">Generador de Reportes</h1>
+
+      {/* --- Tarjeta de Filtros (Formulario) --- */}
+      <div className="bg-white shadow-card rounded-lg p-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+          
+          {/* Filtro Fecha Inicio */}
+          <div className="w-full">
+            <label htmlFor="fechaInicio" className="block text-sm font-medium text-neutral-700 mb-1">
+              Fecha de Inicio
             </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm text-gray-900 bg-gray-50"
+            <DatePicker
+              selected={fechaInicio}
+              onChange={(date) => setFechaInicio(date)}
+              selectsStart
+              startDate={fechaInicio}
+              endDate={fechaFin}
+              dateFormat="dd/MM/yyyy"
+              className="mt-1"
+              wrapperClassName="w-full"
             />
           </div>
+          
+          {/* Filtro Fecha Fin */}
+          <div className="w-full">
+            <label htmlFor="fechaFin" className="block text-sm font-medium text-neutral-700 mb-1">
+              Fecha de Fin
+            </label>
+            <DatePicker
+              selected={fechaFin}
+              onChange={(date) => setFechaFin(date)}
+              selectsEnd
+              startDate={fechaInicio}
+              endDate={fechaFin}
+              minDate={fechaInicio || undefined} // Corrección de TypeScript
+              dateFormat="dd/MM/yyyy"
+              className="mt-1"
+              wrapperClassName="w-full"
+            />
+          </div>
+          
+          {/* Botones de Acción */}
+          <button
+            onClick={handleGenerarReporte}
+            disabled={loadingReport}
+            className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-pepsi-blue text-white px-5 py-3 rounded-md shadow 
+                       font-medium hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
+          >
+            <DocumentChartBarIcon className="h-5 w-5" />
+            {loadingReport ? 'Generando...' : 'Generar Reporte'}
+          </button>
+          
+          <button
+            onClick={handleExportarExcel}
+            disabled={reporteData.length === 0}
+            className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-3 rounded-md shadow 
+                       font-medium hover:bg-green-700 transition-colors duration-200 disabled:bg-gray-400"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5" />
+            Exportar a Excel
+          </button>
+        </div>
+      </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
-            >
-              {loading ? 'Enviando...' : 'Enviar Correo'}
-            </button>
-          </div>
-          
-          {/* --- ¡NUEVO BOTÓN DE VOLVER! --- */}
-          <div className="text-center pt-4">
-            <Link href="/">
-              <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
-                ← Volver al Login
-              </span>
-            </Link>
-          </div>
-          {/* --- FIN DEL BOTÓN --- */}
-          
-        </form>
+      {/* --- Tarjeta de la Tabla de Resultados --- */}
+      <div className="bg-white shadow-card rounded-lg overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-neutral-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Patente</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Mecánico</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Fecha Creación</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Fecha Cierre</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Estado</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Descripción</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {loadingReport ? (
+              <tr><td colSpan={6} className="p-4 text-center text-neutral-700">Generando reporte...</td></tr>
+            ) : reporteData.length > 0 ? (
+              reporteData.map(ot => (
+                <tr key={ot.id}>
+                  <td className="px-6 py-4 whitespace-nowrap font-medium text-neutral-900">{ot.patente}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
+                  
+                  {/* --- ¡AQUÍ ESTÁ LA CORRECCIÓN DEL RUNTIME ERROR! --- */}
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{formatFirebaseDate(ot.fechaCreacion)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{formatFirebaseDate(ot.fechaCierre)}</td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      ot.estado === 'Completado' ? 'bg-indigo-100 text-indigo-800' :
+                      ot.estado === 'Cerrado' ? 'bg-green-100 text-green-900' :
+                      'bg-neutral-100 text-neutral-900'
+                    }`}>
+                      {ot.estado}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-neutral-700">{ot.descripcionProblema}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="p-4 text-center text-neutral-700">
+                  Selecciona un rango de fechas y presiona "Generar Reporte".
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

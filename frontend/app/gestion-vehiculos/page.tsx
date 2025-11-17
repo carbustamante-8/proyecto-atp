@@ -5,6 +5,13 @@ import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
+// --- ¡NUEVO! Iconos para la UI ---
+import { 
+  PlusIcon, 
+  PencilSquareIcon, 
+  TrashIcon 
+} from '@heroicons/react/24/outline';
+
 // (El tipo Vehiculo no cambia)
 type Vehiculo = {
   id: string;
@@ -21,7 +28,8 @@ type Vehiculo = {
 };
 
 export default function GestionVehiculosPage() {
-  // (Toda la lógica de 'useState' y 'useEffect' queda idéntica)
+  
+  // (Toda la lógica de 'useState', 'useEffect' y 'fetch' queda idéntica)
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -68,8 +76,6 @@ export default function GestionVehiculosPage() {
     setVehiculoParaEliminar(null);
     setModalAbierto(false);
   };
-  
-  // (La lógica de 'handleConfirmarEliminar' no cambia)
   const handleConfirmarEliminar = async () => {
     if (!vehiculoParaEliminar) return;
     const idVehiculo = vehiculoParaEliminar.id;
@@ -91,32 +97,34 @@ export default function GestionVehiculosPage() {
   };
 
   if (authLoading || loading) {
-    return <div className="p-8 text-gray-900">Validando sesión y cargando vehículos...</div>;
+    return <div className="p-8 font-sans">Validando sesión y cargando vehículos...</div>;
   }
 
+  // --- JSX REFACTORIZADO VISUALMENTE ---
   return (
     <Fragment>
-      {/* --- ¡MODAL REFACTORIZADO! --- */}
-      {/* Ahora usa las clases globales .modal-overlay y .modal-content 
-          definidas en globals.css para consistencia. */}
+      {/* --- Modal de Confirmación (Rediseñado) --- */}
+      {/* Usamos las clases globales .modal-overlay y .modal-content */}
       {modalAbierto && vehiculoParaEliminar && (
-        <div className="modal-overlay"> {/* Usa clase global */}
-          <div className="absolute inset-0" onClick={handleCerrarModal}></div>
-          <div className="modal-content"> {/* Usa clase global */}
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
-            <p className="text-gray-700 mb-6">
+        <div className="modal-overlay" onClick={handleCerrarModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-neutral-900 mb-4">Confirmar Eliminación</h2>
+            <p className="text-neutral-700 mb-6">
               ¿Estás seguro de que quieres eliminar el vehículo patente 
-              {/* Color de acento de la marca */}
-              <strong className="text-pepsi-blue"> {vehiculoParaEliminar.patente}</strong> ({vehiculoParaEliminar.modelo})?
+              <strong className="text-pepsi-blue"> {vehiculoParaEliminar.patente}</strong> ({vehiculoParaEliminar.modelo})? Esta acción no se puede deshacer.
             </p>
             <div className="flex justify-end space-x-4">
-              <button onClick={handleCerrarModal} className="px-4 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium">
+              {/* Botón Cancelar (neutral) */}
+              <button 
+                onClick={handleCerrarModal} 
+                className="px-4 py-2 rounded-md text-neutral-900 bg-neutral-100 hover:bg-neutral-200 font-medium transition-colors duration-200"
+              >
                 Cancelar
               </button>
               {/* Botón de peligro usa el color pepsi-red */}
               <button 
                 onClick={handleConfirmarEliminar} 
-                className="px-4 py-2 rounded-md text-white bg-pepsi-red hover:bg-red-700 font-medium"
+                className="px-4 py-2 rounded-md text-white bg-pepsi-red hover:bg-pepsi-red-dark font-medium transition-colors duration-200"
               >
                 Sí, Eliminar
               </button>
@@ -125,44 +133,48 @@ export default function GestionVehiculosPage() {
         </div>
       )}
 
-      {/* --- ¡PÁGINA REFACTORIZADA! --- */}
-      {/* Mantiene el padding pero el contenido principal va en la "tarjeta" */}
-      <div className="p-8 text-gray-900">
+      {/* --- Contenedor Principal de la Página --- */}
+      <div className="p-8 font-sans">
+        
+        {/* Encabezado con Título y Botón de Acción */}
         <div className="flex justify-between items-center mb-6">
-          
           {/* Título usa el color pepsi-blue */}
           <h1 className="text-3xl font-bold text-pepsi-blue">Gestión de Vehículos</h1>
           
           {/* Botón principal usa el color pepsi-blue */}
-          <Link href="/gestion-vehiculos/crear">
-            <span className="bg-pepsi-blue text-white px-5 py-2 rounded-lg shadow font-semibold hover:bg-blue-700 transition-colors">
-              + Registrar Vehículo
-            </span>
+          <Link 
+            href="/gestion-vehiculos/crear"
+            className="inline-flex items-center gap-2 bg-pepsi-blue text-white px-5 py-2 rounded-lg shadow font-semibold 
+                       hover:bg-pepsi-blue-dark transition-colors duration-200"
+          >
+            <PlusIcon className="h-5 w-5" />
+            Registrar Vehículo
           </Link>
         </div>
         
-        {/* La tarjeta blanca de la tabla ya estaba bien estilizada, la mantenemos */}
-        <div className="bg-white shadow-lg rounded-lg overflow-x-auto">
+        {/* Tarjeta blanca para la tabla */}
+        <div className="bg-white shadow-card rounded-lg overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            {/* Header de la tabla (neutral) */}
+            <thead className="bg-neutral-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca/Modelo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Año</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">VIN</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Color</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Patente</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Marca/Modelo</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Año</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">VIN</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Color</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Estado</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {vehiculos.map((v) => (
                 <tr key={v.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{v.patente}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.marca || 'N/A'} {v.modelo}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.año}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.vin || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.color || 'N/A'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap font-medium text-neutral-900">{v.patente}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{v.marca || 'N/A'} {v.modelo}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{v.año}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{v.vin || 'N/A'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{v.color || 'N/A'}</td>
                   
                   {/* (Celda de estado no cambia) */}
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -173,16 +185,21 @@ export default function GestionVehiculosPage() {
                       {v.estado}
                     </span>
                   </td>
-                  
-                  {/* Acciones de la tabla usan los colores de la marca */}
+
+                  {/* Acciones de la tabla con iconos y colores de la marca */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
-                    <Link href={`/gestion-vehiculos/editar-vehiculo/${v.id}`}>
-                      <span className="text-pepsi-blue hover:text-blue-700 font-medium cursor-pointer">Editar</span>
+                    <Link 
+                      href={`/gestion-vehiculos/editar-vehiculo/${v.id}`}
+                      className="inline-flex items-center gap-1 text-pepsi-blue-light hover:text-pepsi-blue-dark font-medium transition-colors duration-200"
+                    >
+                      <PencilSquareIcon className="h-4 w-4" />
+                      Editar
                     </Link>
                     <button 
                       onClick={() => handleAbrirModal(v)} 
-                      className="text-pepsi-red hover:text-red-700 font-medium"
+                      className="inline-flex items-center gap-1 text-pepsi-red hover:text-pepsi-red-dark font-medium transition-colors duration-200"
                     >
+                      <TrashIcon className="h-4 w-4" />
                       Eliminar
                     </button>
                   </td>
