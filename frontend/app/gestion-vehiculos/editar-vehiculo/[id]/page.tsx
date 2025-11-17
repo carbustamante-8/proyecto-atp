@@ -1,5 +1,5 @@
 // frontend/app/gestion-vehiculos/editar-vehiculo/[id]/page.tsx
-// (CÓDIGO VISUALMENTE REFACTORIZADO)
+// (CÓDIGO VISUALMENTE REFACTORIZADO Y LÓGICA CORREGIDA)
 
 'use client'; 
 
@@ -37,7 +37,6 @@ const disabledInputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md t
 
 function EditarVehiculoForm() {
   
-  // (La lógica de 'useState', 'useRouter', 'useParams' no cambia)
   const [vehiculoData, setVehiculoData] = useState<VehiculoData>({
     patente: '',
     marca: '',
@@ -63,9 +62,6 @@ function EditarVehiculoForm() {
   const id = params.id as string;
   const { user, userProfile, loading: authLoading } = useAuth();
 
-  // (Toda la lógica de 'useEffect', 'fetchConductores', 'fetchVehiculoData', 
-  // 'handleSubmit' y 'handleChange' queda exactamente igual)
-  
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -133,6 +129,13 @@ function EditarVehiculoForm() {
     
     setLoadingSubmit(true);
     const toastId = toast.loading('Actualizando vehículo...');
+    
+    // --- ¡CORRECCIÓN DEFINITIVA! Limpia el ID del chofer asignado antes de enviarlo ---
+    const choferIdToSend = vehiculoData.id_chofer_asignado 
+      ? vehiculoData.id_chofer_asignado.trim() // Limpieza
+      : null;
+    // --- FIN CORRECCIÓN ---
+    
     try {
       const response = await fetch(`/api/vehiculos/${id}`, {
         method: 'PUT',
@@ -140,7 +143,7 @@ function EditarVehiculoForm() {
         body: JSON.stringify({
           ...vehiculoData,
           año: añoNum,
-          id_chofer_asignado: vehiculoData.id_chofer_asignado || null 
+          id_chofer_asignado: choferIdToSend // <-- ENVIAMOS EL ID LIMPIO
         }),
       });
       if (!response.ok) {
@@ -161,21 +164,15 @@ function EditarVehiculoForm() {
     setVehiculoData(prev => ({ ...prev, [id]: value })); 
   };
   
-  // (El 'if' de loading no cambia)
   if (authLoading || loadingPage) {
     return <div className="p-8 text-gray-900">Cargando...</div>;
   }
   
   return (
-    // --- ¡PÁGINA REFACTORIZADA! ---
-    // Quitamos el centrado vertical para que fluya con el Navbar
     <div className="p-8 text-gray-900">
       
-      {/* Tarjeta blanca para el formulario. 
-          Usamos max-w-3xl (como en Crear) y mx-auto para centrarla */}
       <div className="bg-white shadow-lg rounded-lg p-8 max-w-3xl mx-auto">
         
-        {/* Título usa el color pepsi-blue y se alinea a la izquierda */}
         <h1 className="text-3xl font-bold text-pepsi-blue mb-6">
           Editar Vehículo
         </h1>
@@ -185,7 +182,7 @@ function EditarVehiculoForm() {
           <div>
             <label htmlFor="patente" className="block text-sm font-medium text-gray-700 mb-1">Patente (No editable)</label>
             <input type="text" id="patente" value={vehiculoData.patente} disabled
-              className={disabledInputStyle} // ¡Estilo estándar aplicado!
+              className={disabledInputStyle}
             />
           </div>
           
@@ -193,13 +190,13 @@ function EditarVehiculoForm() {
             <div>
               <label htmlFor="marca" className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
               <input type="text" id="marca" value={vehiculoData.marca} onChange={handleChange}
-                className={inputStyle} // ¡Estilo estándar aplicado!
+                className={inputStyle}
               />
             </div>
             <div>
               <label htmlFor="modelo" className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
               <input type="text" id="modelo" value={vehiculoData.modelo} onChange={handleChange}
-                className={inputStyle} // ¡Estilo estándar aplicado!
+                className={inputStyle}
               />
             </div>
           </div>
@@ -208,13 +205,13 @@ function EditarVehiculoForm() {
             <div>
               <label htmlFor="año" className="block text-sm font-medium text-gray-700 mb-1">Año</label>
               <input type="number" id="año" value={vehiculoData.año} onChange={handleChange}
-                className={inputStyle} // ¡Estilo estándar aplicado!
+                className={inputStyle}
               />
             </div>
             <div>
               <label htmlFor="color" className="block text-sm font-medium text-gray-700 mb-1">Color</label>
               <input type="text" id="color" value={vehiculoData.color} onChange={handleChange}
-                className={inputStyle} // ¡Estilo estándar aplicado!
+                className={inputStyle}
               />
             </div>
           </div>
@@ -222,7 +219,7 @@ function EditarVehiculoForm() {
           <div>
             <label htmlFor="tipo_vehiculo" className="block text-sm font-medium text-gray-700 mb-1">Tipo de Vehículo</label>
             <select id="tipo_vehiculo" value={vehiculoData.tipo_vehiculo} onChange={handleChange}
-              className={inputStyle} // ¡Estilo estándar aplicado!
+              className={inputStyle}
             >
               <option value="Camión">Camión</option>
               <option value="Camioneta">Camioneta</option>
@@ -237,20 +234,20 @@ function EditarVehiculoForm() {
           <div>
             <label htmlFor="vin" className="block text-sm font-medium text-gray-700 mb-1">VIN (N° Identificación)</label>
             <input type="text" id="vin" value={vehiculoData.vin} onChange={handleChange}
-              className={inputStyle} // ¡Estilo estándar aplicado!
+              className={inputStyle}
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label htmlFor="n_motor" className="block text-sm font-medium text-gray-700 mb-1">N° Motor</label>
               <input type="text" id="n_motor" value={vehiculoData.n_motor} onChange={handleChange}
-                className={inputStyle} // ¡Estilo estándar aplicado!
+                className={inputStyle}
               />
             </div>
             <div>
               <label htmlFor="n_chasis" className="block text-sm font-medium text-gray-700 mb-1">N° Chasis</label>
               <input type="text" id="n_chasis" value={vehiculoData.n_chasis} onChange={handleChange}
-                className={inputStyle} // ¡Estilo estándar aplicado!
+                className={inputStyle}
               />
             </div>
           </div>
@@ -258,13 +255,13 @@ function EditarVehiculoForm() {
             <div>
               <label htmlFor="pais_manufactura" className="block text-sm font-medium text-gray-700 mb-1">País Manufactura</label>
               <input type="text" id="pais_manufactura" value={vehiculoData.pais_manufactura} onChange={handleChange}
-                className={inputStyle} // ¡Estilo estándar aplicado!
+                className={inputStyle}
               />
             </div>
             <div>
               <label htmlFor="tipo_combustible" className="block text-sm font-medium text-gray-700 mb-1">Combustible</label>
               <select id="tipo_combustible" value={vehiculoData.tipo_combustible} onChange={handleChange}
-                className={inputStyle} // ¡Estilo estándar aplicado!
+                className={inputStyle}
               >
                 <option value="Diesel">Diesel</option>
                 <option value="Gasolina">Gasolina</option>
@@ -281,7 +278,7 @@ function EditarVehiculoForm() {
           <div>
             <label htmlFor="id_chofer_asignado" className="block text-sm font-medium text-gray-700 mb-1">Conductor Asignado</label>
             <select id="id_chofer_asignado" value={vehiculoData.id_chofer_asignado} onChange={handleChange}
-              className={inputStyle} // ¡Estilo estándar aplicado!
+              className={inputStyle}
             >
               <option value="">Ninguno</option>
               {conductores.map(c => (
@@ -293,7 +290,7 @@ function EditarVehiculoForm() {
           <div>
             <label htmlFor="estado" className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
             <select id="estado" value={vehiculoData.estado} onChange={handleChange}
-              className={inputStyle} // ¡Estilo estándar aplicado!
+              className={inputStyle}
             >
               <option value="Operativo">Operativo</option>
               <option value="En Taller">En Taller</option>
@@ -301,8 +298,6 @@ function EditarVehiculoForm() {
             </select>
           </div>
           
-          {/* --- ¡BOTONES REFACTORIZADOS! --- */}
-          {/* Usamos flex horizontal, alineado a la derecha */}
           <div className="flex justify-end space-x-4 pt-4">
             <Link href="/gestion-vehiculos">
               <span className="px-5 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 font-medium cursor-pointer">
@@ -325,7 +320,6 @@ function EditarVehiculoForm() {
   );
 }
 
-// (El componente Suspense no cambia)
 export default function EditarVehiculoPage() {
   return (
     <Suspense fallback={<div className="p-8 text-gray-900">Cargando...</div>}>

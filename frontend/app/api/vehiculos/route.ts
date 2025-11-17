@@ -1,5 +1,5 @@
 // frontend/app/api/vehiculos/route.ts
-// (CÓDIGO CORREGIDO: POST ahora limpia la patente antes de guardarla)
+// (CÓDIGO CORREGIDO: POST ahora limpia la patente y acepta id_chofer_asignado)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -23,14 +23,13 @@ export async function GET() {
 }
 
 /**
- * Función POST: (¡ACTUALIZADA!)
- * Limpia (trim) y pone en mayúsculas la patente antes de guardarla.
+ * Función POST: (¡ACTUALIZADA! Acepta id_chofer_asignado y lo limpia)
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { 
-      patente, marca, modelo, año, tipo_vehiculo, estado, id_chofer_asignado,
+      patente, marca, modelo, año, tipo_vehiculo, estado, id_chofer_asignado, // <-- Acepta el nuevo campo
       color, vin, n_motor, n_chasis, pais_manufactura, tipo_combustible 
     } = body;
 
@@ -38,30 +37,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'La patente es obligatoria' }, { status: 400 });
     }
     
-    // --- ¡CORRECCIÓN! Limpia la patente ---
+    // 1. Limpieza y validación de Patente (CRÍTICO)
     const patenteLimpia = patente.toUpperCase().trim();
     if (!patenteLimpia) {
       return NextResponse.json({ error: 'La patente no puede estar vacía' }, { status: 400 });
     }
-    // --- FIN CORRECCIÓN ---
-
-    // Validación de patente duplicada
+    
+    // 2. Validación de patente duplicada (sin cambios)
     const querySnapshot = await adminDb.collection('vehiculos')
-      .where('patente', '==', patenteLimpia) // Busca la patente limpia
+      .where('patente', '==', patenteLimpia) 
       .get();
     
     if (!querySnapshot.empty) {
       return NextResponse.json({ error: 'La patente ya está registrada' }, { status: 400 });
     }
+    
+    // 3. Limpieza del ID del Conductor (CRÍTICO)
+    const choferIdLimpio = id_chofer_asignado 
+        ? id_chofer_asignado.trim() 
+        : null;
 
     const nuevoVehiculo = {
-      patente: patenteLimpia, // <-- Guarda la patente limpia
+      patente: patenteLimpia, 
       marca: marca || '',
       modelo: modelo || '',
       año: Number(año) || null,
       tipo_vehiculo: tipo_vehiculo || 'Camión',
       estado: estado || 'Operativo',
-      id_chofer_asignado: id_chofer_asignado || null,
+      id_chofer_asignado: choferIdLimpio, // <-- Guarda el ID limpio, o null
       fechaCreacion: admin.firestore.FieldValue.serverTimestamp(),
       color: color || '',
       vin: vin || '',
