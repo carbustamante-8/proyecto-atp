@@ -1,19 +1,19 @@
 // frontend/app/agenda-taller/page.tsx
-// (CÓDIGO CORREGIDO: Añadida validación en .sort() para evitar error ts(18048))
+// (CÓDIGO ACTUALIZADO: Añadida la tabla "Pendientes de Asignar")
 
 'use client'; 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
-import Link from 'next/link'; 
+import Link from 'next/link'; // ¡Importante para el botón de asignar!
 
 type OTAgendada = {
   id: string;
   patente: string;
   nombre_conductor?: string;
   descripcionProblema: string;
-  fechaHoraAgendada?: { _seconds: number }; // Es opcional
+  fechaHoraAgendada?: { _seconds: number };
   estado: string; 
 };
 
@@ -28,6 +28,7 @@ export default function AgendaTallerPage() {
 
   useEffect(() => {
     if (!authLoading && user && userProfile) {
+      // (Usamos los roles que definimos en el "reparto de vistas")
       if (['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol)) {
         fetchAgendaYPendientes();
       } else {
@@ -50,9 +51,6 @@ export default function AgendaTallerPage() {
       const agendadas = data.filter(ot => 
         ot.estado === 'Agendado' && ot.fechaHoraAgendada?._seconds
       );
-      
-      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-      // Añadimos valores por defecto (|| 0) para que TypeScript no se queje
       agendadas.sort((a, b) => (a.fechaHoraAgendada?._seconds || 0) - (b.fechaHoraAgendada?._seconds || 0));
       setCitasAgendadas(agendadas);
       
@@ -95,9 +93,6 @@ export default function AgendaTallerPage() {
                 citasAgendadas.map(ot => (
                   <tr key={ot.id}>
                     <td className="px-6 py-4 font-semibold text-blue-600">
-                      {/* Hacemos la misma comprobación segura aquí por si acaso, 
-                        aunque el filtro ya debería haberlo hecho.
-                      */}
                       {ot.fechaHoraAgendada?._seconds ? 
                         new Date(ot.fechaHoraAgendada._seconds * 1000).toLocaleString('es-CL') : 'Fecha no definida'
                       }
@@ -115,7 +110,7 @@ export default function AgendaTallerPage() {
         </div>
       </div>
 
-      {/* --- Tabla 2: Pendientes de Asignar (El Pool del Admin) --- */}
+      {/* --- ¡NUEVA TABLA! Tabla 2: Pendientes de Asignar (El Pool del Admin) --- */}
       <div>
         <h1 className="text-3xl font-bold mb-6">Pool de Tareas (Pendientes de Asignar)</h1>
         <p className="text-gray-600 mb-6 -mt-6 text-sm">Vehículos que el Guardia ya ingresó y están esperando asignación de mecánico.</p>
@@ -139,6 +134,7 @@ export default function AgendaTallerPage() {
                     <td className="px-6 py-4">{ot.nombre_conductor || '-'}</td>
                     <td className="px-6 py-4">{ot.descripcionProblema}</td>
                     <td className="px-6 py-4">
+                      {/* Este Link te lleva a la página de detalle donde está el formulario */}
                       <Link href={`/tareas-detalle/${ot.id}`}>
                         <span className="bg-blue-600 text-white px-3 py-1 rounded shadow hover:bg-blue-700 cursor-pointer">
                           Asignar

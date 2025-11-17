@@ -1,5 +1,5 @@
 // frontend/app/tareas-detalle/[id]/page.tsx
-// (CÓDIGO ACTUALIZADO: Añadido botón "Cerrar OT" para Admins en esta vista)
+// (CÓDIGO ACTUALIZADO: Lógica condicional + Detalles del Vehículo)
 
 'use client'; 
 import { useState, useEffect, useRef, Fragment } from 'react';
@@ -25,6 +25,20 @@ type Mecanico = {
   nombre: string;
 };
 
+// --- ¡NUEVO TIPO! ---
+type VehiculoDetalles = {
+  id: string;
+  marca: string;
+  modelo: string;
+  año: number;
+  vin?: string;
+  n_motor?: string;
+  n_chasis?: string;
+  color?: string;
+  tipo_combustible?: string;
+  pais_manufactura?: string;
+};
+
 export default function DetalleOTPage() {
   
   const params = useParams();
@@ -35,25 +49,32 @@ export default function DetalleOTPage() {
   const [ot, setOt] = useState<DetalleOrdenDeTrabajo | null>(null);
   const [loading, setLoading] = useState(true); 
   
+  // --- ¡NUEVO! Estado para Detalles del Vehículo ---
+  const [vehiculoDetalles, setVehiculoDetalles] = useState<VehiculoDetalles | null>(null);
+  const [loadingVehiculo, setLoadingVehiculo] = useState(false);
+  
+  // (Estados Modo Mecánico - sin cambios)
   const [nuevoEstado, setNuevoEstado] = useState<'Asignada' | 'En Progreso' | 'Finalizado'>('Asignada');
   const [repuestosUsados, setRepuestosUsados] = useState(''); 
   const [isUpdating, setIsUpdating] = useState(false); 
   
+  // (Estados de Fotos - sin cambios)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null); 
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
   
+  // (Estados Modo Admin - sin cambios)
   const [mecanicos, setMecanicos] = useState<Mecanico[]>([]);
   const [mecanicoAsignadoId, setMecanicoAsignadoId] = useState('');
   const [mecanicoAsignadoNombre, setMecanicoAsignadoNombre] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
-
-  // --- ¡NUEVO! Estado para Cierre Administrativo ---
+  
   const [isClosing, setIsClosing] = useState(false);
 
-  // --- 1. Función de Carga (sin cambios) ---
+  // --- 1. Función de Carga (¡ACTUALIZADA!) ---
+  // Ahora también llama a fetchVehiculoPorPatente
   const fetchDetalleOT = async () => {
     if (!id) { setLoading(false); return; }
     setLoading(true); 
@@ -67,6 +88,14 @@ export default function DetalleOTPage() {
         setNuevoEstado(data.estado);
       }
       if (data.repuestosUsados) setRepuestosUsados(data.repuestosUsados);
+
+      // --- ¡NUEVA LLAMADA! ---
+      // Una vez que tenemos la OT, buscamos los detalles del vehículo
+      if (data.patente) {
+        fetchVehiculoPorPatente(data.patente);
+      }
+      // --- Fin Nueva Llamada ---
+
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -74,6 +103,26 @@ export default function DetalleOTPage() {
     }
   };
   
+  // --- ¡NUEVA FUNCIÓN! ---
+  const fetchVehiculoPorPatente = async (patente: string) => {
+    setLoadingVehiculo(true);
+    try {
+      const response = await fetch(`/api/vehiculos/por-patente/${patente}`);
+      if (!response.ok) {
+        // No es un error crítico si no se encuentra
+        setVehiculoDetalles(null);
+      } else {
+        const data = await response.json();
+        setVehiculoDetalles(data);
+      }
+    } catch (err) {
+      console.error("Error al buscar vehículo por patente:", err);
+      setVehiculoDetalles(null);
+    } finally {
+      setLoadingVehiculo(false);
+    }
+  };
+
   // --- 2. useEffect (sin cambios) ---
   useEffect(() => {
     if (!authLoading) {
@@ -93,7 +142,7 @@ export default function DetalleOTPage() {
     }
   }, [user, userProfile, authLoading, router, id]);
 
-  // --- Carga de Mecánicos (sin cambios) ---
+  // (Carga de Mecánicos - sin cambios)
   const fetchMecanicos = async () => {
     try {
       const response = await fetch('/api/usuarios');
@@ -108,7 +157,7 @@ export default function DetalleOTPage() {
     }
   };
 
-  // --- 3. Funciones de MODO MECÁNICO (sin cambios) ---
+  // (handleActualizarMecanico - sin cambios)
   const handleActualizarMecanico = async (e: React.FormEvent) => {
     e.preventDefault(); 
     setIsUpdating(true);
@@ -169,14 +218,14 @@ export default function DetalleOTPage() {
     }
   };
   
-  // --- Funciones de MODO ADMIN (Asignar) (sin cambios) ---
+  // (handleMecanicoChange - sin cambios)
   const handleMecanicoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
     const selectedMecanico = mecanicos.find(m => m.id === selectedId);
     setMecanicoAsignadoId(selectedId);
     setMecanicoAsignadoNombre(selectedMecanico ? selectedMecanico.nombre : '');
   };
-
+  // (handleAsignarOT - sin cambios)
   const handleAsignarOT = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mecanicoAsignadoId) {
@@ -207,11 +256,9 @@ export default function DetalleOTPage() {
       }
     });
   };
-
-  // --- ¡NUEVA FUNCIÓN! MODO ADMIN (Cerrar) ---
+  // (handleCierreAdministrativo - sin cambios)
   const handleCierreAdministrativo = async () => {
     setIsClosing(true);
-    
     const promise = fetch(`/api/ordenes-trabajo/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -220,13 +267,12 @@ export default function DetalleOTPage() {
         accion: 'cierreAdministrativo'
       }),
     });
-
     toast.promise(promise, {
       loading: 'Cerrando OT...',
       success: (res) => {
         if (!res.ok) throw new Error('Error al cerrar la OT');
         setIsClosing(false);
-        router.push('/cierre-ots'); // Devuelve a la lista de Cierres
+        router.push('/cierre-ots'); 
         return '¡OT Cerrada Administrativamente!';
       },
       error: (err) => {
@@ -235,9 +281,8 @@ export default function DetalleOTPage() {
       }
     });
   };
-
   
-  // --- Lógica de Renderizado ---
+  // (Lógica de Renderizado - sin cambios)
   if (authLoading || !userProfile || loading) {
     return <div className="p-8 text-gray-900">Validando sesión y cargando OT...</div>;
   }
@@ -245,22 +290,15 @@ export default function DetalleOTPage() {
 
   const esMecanico = userProfile.rol === 'Mecánico';
   const isAdmin = ['Jefe de Taller', 'Supervisor', 'Coordinador'].includes(userProfile.rol);
-  
   const puedeEditar = esMecanico && 
                       ot.mecanicoAsignadoId === userProfile.id && 
                       (ot.estado === 'Asignada' || ot.estado === 'En Progreso');
-                      
   const showAdminAssignForm = isAdmin && ot.estado === 'Pendiente';
   const showWorkView = esMecanico || isAdmin;
-
-  // --- ¡NUEVA LÓGICA DE VISTA! ---
   const showAdminCloseForm = isAdmin && ot.estado === 'Finalizado';
-  
-  // La vista de "Solo Lectura" del Admin ahora es más específica
   const showAdminReadOnlyView = isAdmin && 
                                 ot.estado !== 'Pendiente' && 
-                                ot.estado !== 'Finalizado'; // No mostrar si está Pendiente o Finalizado
-
+                                ot.estado !== 'Finalizado';
 
   return (
     <Fragment>
@@ -306,7 +344,6 @@ export default function DetalleOTPage() {
               </button>
             )}
             
-            {/* Botón Volver para Admin (ahora funciona para Cierre, Agenda, etc.) */}
             {isAdmin && (
               <button
                 onClick={() => router.back()} 
@@ -316,10 +353,58 @@ export default function DetalleOTPage() {
               </button>
             )}
             
-            {/* Info General */}
+            {/* --- ¡NUEVO! TARJETA DE DETALLES DEL VEHÍCULO --- */}
             <div className="bg-white p-6 rounded-lg shadow">
-              {/* ... (contenido info general sin cambios) ... */}
-              <h2 className="text-xl font-semibold mb-4">Información General</h2>
+              <h2 className="text-xl font-semibold mb-4">Detalles del Vehículo</h2>
+              {loadingVehiculo ? (
+                <p>Cargando detalles...</p>
+              ) : vehiculoDetalles ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <span className="text-sm text-gray-500">Marca</span>
+                    <p className="font-medium">{vehiculoDetalles.marca || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Modelo</span>
+                    <p className="font-medium">{vehiculoDetalles.modelo || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Año</span>
+                    <p className="font-medium">{vehiculoDetalles.año || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Color</span>
+                    <p className="font-medium">{vehiculoDetalles.color || 'N/A'}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <span className="text-sm text-gray-500">VIN</span>
+                    <p className="font-medium">{vehiculoDetalles.vin || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">N° Motor</span>
+                    <p className="font-medium">{vehiculoDetalles.n_motor || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">N° Chasis</span>
+                    <p className="font-medium">{vehiculoDetalles.n_chasis || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Combustible</span>
+                    <p className="font-medium">{vehiculoDetalles.tipo_combustible || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Origen</span>
+                    <p className="font-medium">{vehiculoDetalles.pais_manufactura || 'N/A'}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500">No se encontraron detalles adicionales para esta patente.</p>
+              )}
+            </div>
+            
+            {/* Info General (de la OT) */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h2 className="text-xl font-semibold mb-4">Información de la OT</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm text-gray-500">Patente</span>
@@ -346,7 +431,7 @@ export default function DetalleOTPage() {
                 ) : (
                   <div>
                     <span className="text-sm text-gray-500">Mecánico Asignado</span>
-                    <p className="font-medium text-lg text-red-600">SIN ASIGNAR (En Pool)</p>
+                    <p className="font-medium text-lg text-red-600">SIN ASIGNAR</p>
                   </div>
                 )}
                 <div className="col-span-2">
@@ -358,7 +443,6 @@ export default function DetalleOTPage() {
             
             {/* Registro de Trabajo */}
             <div className="bg-white p-6 rounded-lg shadow">
-              {/* ... (contenido registro de trabajo y fotos sin cambios) ... */}
               <h2 className="text-xl font-semibold mb-4">Registro de Trabajo (Mecánico)</h2>
               <div>
                 <label htmlFor="repuestos" className="block text-sm font-medium text-gray-700">Repuestos Utilizados / Trabajo Realizado</label>
@@ -434,7 +518,6 @@ export default function DetalleOTPage() {
             <form onSubmit={handleAsignarOT} className="bg-white p-6 rounded-lg shadow sticky top-8">
               <h2 className="text-xl font-semibold mb-4 text-blue-600">Asignar Tarea</h2>
               <p className="text-sm text-gray-600 mb-4">Esta OT está en el Pool. Asigna un mecánico para que pueda empezar.</p>
-              
               <label htmlFor="mecanico" className="block text-sm font-medium text-gray-700">Asignar a Mecánico</label>
               <select
                 id="mecanico"
@@ -500,7 +583,7 @@ export default function DetalleOTPage() {
             </form>
           )}
 
-          {/* --- ¡NUEVA VISTA 4! Formulario de Cierre (ADMIN) --- */}
+          {/* --- VISTA 4: Formulario de Cierre (ADMIN) --- */}
           {showAdminCloseForm && (
              <div className="bg-white p-6 rounded-lg shadow sticky top-8">
                <h2 className="text-xl font-semibold mb-4 text-green-600">Revisión Final</h2>

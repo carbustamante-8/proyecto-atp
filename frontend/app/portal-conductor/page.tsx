@@ -1,22 +1,32 @@
 // frontend/app/portal-conductor/page.tsx
-// (CÓDIGO CORREGIDO: El useEffect ahora espera a que authLoading sea false)
+// (CÓDIGO ACTUALIZADO: Añadida la subida de fotos)
 
 'use client'; 
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react'; // ¡Añadido useRef!
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
 import toast from 'react-hot-toast'; 
+import Image from 'next/image'; // ¡Añadido Image!
 
+// (Tipo VehiculoAsignado - sin cambios)
 type VehiculoAsignado = {
   id: string;
   patente: string;
   modelo: string;
+  marca: string;
   año: number;
   tipo_vehiculo: string;
   estado: string;
+  color?: string;
+  vin?: string;
+  n_motor?: string;
+  n_chasis?: string;
+  pais_manufactura?: string;
+  tipo_combustible?: string;
 };
 
+// (Tipo SolicitudConEstado - sin cambios)
 type SolicitudConEstado = {
   id: string;
   descripcion: string;
@@ -35,33 +45,31 @@ export default function PortalConductorPage() {
   const [misSolicitudes, setMisSolicitudes] = useState<SolicitudConEstado[]>([]);
   const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
   
+  // --- ¡NUEVO! Estados para Fotos ---
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- ¡useEffect (ACTUALIZADO CON PROTECCIÓN DE CARGA)! ---
+  // (useEffect - sin cambios)
   useEffect(() => {
-    // 1. Si la autenticación AÚN ESTÁ CARGANDO, no hagas nada.
     if (authLoading) {
       return; 
     }
-
-    // 2. La autenticación TERMINÓ. Ahora, revisa si hay usuario.
     if (user && userProfile) {
-      // 3. Hay usuario. ¿Es Conductor?
       if (userProfile.rol === 'Conductor') {
-        // ¡SÍ! Ahora es seguro llamar a las APIs
         fetchMiVehiculo(userProfile.id); 
         fetchMisSolicitudes(userProfile.id);
       } else {
-        // No es Conductor, redirige
         toast.error('Acceso denegado');
         router.push('/'); 
       }
     } else {
-      // 4. No hay usuario (sesión expirada o nunca iniciada)
       router.push('/');
     }
-  }, [user, userProfile, authLoading, router]); // Depende de que 'authLoading' cambie a 'false'
+  }, [user, userProfile, authLoading, router]);
 
   // (fetchMiVehiculo - sin cambios)
   const fetchMiVehiculo = async (conductorId: string) => {
@@ -103,12 +111,36 @@ export default function PortalConductorPage() {
     }
   };
 
-  // (handleSolicitud - sin cambios)
+  // --- ¡handleSolicitud (ACTUALIZADO)! ---
+  // Ahora sube la foto (si existe) ANTES de crear la solicitud.
   const handleSolicitud = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!descripcionFalla || !userProfile || !miVehiculo) return;
+    
     setIsSubmitting(true);
-    try {
+    
+    // Usamos toast.promise para manejar todo el flujo
+    const promise = (async () => {
+      let fotoUrl = null;
+
+      // 1. Si hay un archivo, subirlo primero
+      if (selectedFile) {
+        const filename = `solicitud-${userProfile.id}/${Date.now()}-${selectedFile.name}`;
+        // Llama a la API de subida
+        const uploadResponse = await fetch(`/api/upload-foto?filename=${filename}`, { 
+          method: 'POST', 
+          body: selectedFile 
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Falló la subida de la foto.');
+        }
+        
+        const newBlob = await uploadResponse.json();
+        fotoUrl = newBlob.url; // Guarda la URL de Vercel Blob
+      }
+
+      // 2. Crear la solicitud con la URL de la foto (o null)
       const response = await fetch('/api/solicitudes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,18 +149,30 @@ export default function PortalConductorPage() {
           nombre_conductor: userProfile.nombre,
           patente_vehiculo: miVehiculo.patente,
           descripcion_falla: descripcionFalla,
+          fotoEvidenciaUrl: fotoUrl, // ¡Enviamos la URL!
         }),
       });
-      if (!response.ok) throw new Error('Falló el envío de la solicitud');
+      
+      if (!response.ok) {
+        throw new Error('Falló el envío de la solicitud');
+      }
+    })();
 
-      toast.success('¡Solicitud enviada exitosamente!');
-      setDescripcionFalla(''); 
-      fetchMisSolicitudes(userProfile.id); 
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Manejador del Toast
+    toast.promise(promise, {
+      loading: 'Enviando solicitud...',
+      success: () => {
+        setDescripcionFalla(''); 
+        handleRemovePreview(); // Limpia la foto
+        fetchMisSolicitudes(userProfile.id); // Refresca la lista
+        setIsSubmitting(false);
+        return '¡Solicitud enviada exitosamente!';
+      },
+      error: (err) => {
+        setIsSubmitting(false);
+        return err.message || 'Ocurrió un error inesperado.';
+      }
+    });
   };
   
   // (getEstadoConductor - sin cambios)
@@ -155,34 +199,83 @@ export default function PortalConductorPage() {
     return { texto: 'Procesado', color: 'text-gray-500' };
   };
 
-  // --- PANTALLA DE CARGA ACTUALIZADA ---
+  // --- ¡NUEVAS FUNCIONES DE FOTO! ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file)); 
+    }
+  };
+
+  const handleRemovePreview = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''; 
+    }
+  };
+
   if (authLoading || !userProfile) {
     return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
   
-  // (Ya no necesitamos esta comprobación, el useEffect la maneja)
-  // if (userProfile.rol !== 'Conductor') { ... }
-
   return (
     <div className="p-8 text-gray-900 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8"> 
       
       {/* Columna Izquierda (Acciones) */}
       <div className="md:col-span-1 space-y-8">
         
-        {/* --- SECCIÓN 1: MI VEHÍCULO --- */}
+        {/* (Sección 1: Mi Vehículo - sin cambios) */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-blue-600">Mi Vehículo Asignado</h2>
           {loadingVehiculo ? (
             <p>Buscando tu vehículo...</p>
           ) : miVehiculo ? (
-            <div className="space-y-3">
-              <div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div className="col-span-2">
                 <span className="text-sm text-gray-500">Patente</span>
                 <p className="font-medium text-lg">{miVehiculo.patente}</p>
               </div>
               <div>
+                <span className="text-sm text-gray-500">Marca</span>
+                <p className="font-medium">{miVehiculo.marca || 'N/A'}</p>
+              </div>
+              <div>
                 <span className="text-sm text-gray-500">Modelo</span>
-                <p className="font-medium text-lg">{miVehiculo.modelo} ({miVehiculo.año})</p>
+                <p className="font-medium">{miVehiculo.modelo || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">Año</span>
+                <p className="font-medium">{miVehiculo.año || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">Color</span>
+                <p className="font-medium">{miVehiculo.color || 'N/A'}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-sm text-gray-500">Tipo de Vehículo</span>
+                <p className="font-medium">{miVehiculo.tipo_vehiculo || 'N/A'}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-sm text-gray-500">VIN</span>
+                <p className="font-medium">{miVehiculo.vin || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">N° Motor</span>
+                <p className="font-medium">{miVehiculo.n_motor || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">N° Chasis</span>
+                <p className="font-medium">{miVehiculo.n_chasis || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">Combustible</span>
+                <p className="font-medium">{miVehiculo.tipo_combustible || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-sm text-gray-500">Origen</span>
+                <p className="font-medium">{miVehiculo.pais_manufactura || 'N/A'}</p>
               </div>
             </div>
           ) : (
@@ -190,8 +283,7 @@ export default function PortalConductorPage() {
           )}
         </div>
 
-        {/* --- SECCIÓN 2: SOLICITAR MANTENIMIENTO --- */}
-        {/* (Este bloque ahora se mostrará correctamente cuando 'miVehiculo' cargue) */}
+        {/* --- SECCIÓN 2: SOLICITAR MANTENIMIENTO (ACTUALIZADA) --- */}
         {miVehiculo && (
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-2xl font-semibold mb-4 text-blue-600">Solicitar Mantenimiento</h2>
@@ -209,6 +301,35 @@ export default function PortalConductorPage() {
                   placeholder="Ej: Ruido extraño en el motor..."
                 />
               </div>
+              
+              {/* --- ¡NUEVO BLOQUE DE FOTO! --- */}
+              <div className="border border-gray-200 p-4 rounded-lg">
+                <label htmlFor="foto" className="block text-sm font-medium text-gray-700 mb-2">
+                  Adjuntar Foto (Opcional)
+                </label>
+                
+                {previewUrl && (
+                  <div className="mb-4 relative w-1/2">
+                    <p className="text-xs font-medium text-gray-700 mb-1">Previsualización:</p>
+                    <Image src={previewUrl} alt="Previsualización" width={150} height={150} className="rounded-md object-cover" />
+                    <button type="button" onClick={handleRemovePreview}
+                      className="absolute top-0 right-0 -mt-2 -mr-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                    >&times;</button>
+                  </div>
+                )}
+                
+                {!previewUrl && (
+                  <input 
+                    type="file" id="foto" 
+                    ref={fileInputRef}
+                    onChange={handleFileChange} 
+                    accept="image/png, image/jpeg"
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                )}
+              </div>
+              {/* --- FIN BLOQUE DE FOTO --- */}
+              
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -221,7 +342,7 @@ export default function PortalConductorPage() {
         )}
       </div>
 
-      {/* --- Columna Derecha (Estado de Solicitudes) --- */}
+      {/* (Columna Derecha: Estado de Solicitudes - sin cambios) */}
       <div className="md:col-span-2">
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-blue-600">Estado de mis Solicitudes</h2>
@@ -260,6 +381,7 @@ export default function PortalConductorPage() {
           </div>
         </div>
       </div>
+
     </div>
   );
 }

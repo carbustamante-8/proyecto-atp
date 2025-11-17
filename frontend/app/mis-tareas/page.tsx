@@ -30,8 +30,12 @@ export default function MisTareasPage() {
           fetchOrdenes();
         } else {
           // Redirección para otros roles
-          if (userProfile.rol === 'Jefe de Taller') router.push('/dashboard-admin');
+          if (userProfile.rol === 'Jefe de Taller') router.push('/agenda-taller');
+          else if (userProfile.rol === 'Supervisor') router.push('/dashboard-admin');
+          else if (userProfile.rol === 'Coordinador') router.push('/dashboard-admin');
           else if (userProfile.rol === 'Guardia') router.push('/control-acceso');
+          else if (userProfile.rol === 'Conductor') router.push('/portal-conductor');
+          else if (userProfile.rol === 'Gerente') router.push('/generador-reportes');
           else router.push('/');
         }
       } else if (!user) {

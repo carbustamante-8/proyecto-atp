@@ -1,31 +1,38 @@
 // frontend/app/solicitudes-pendientes/page.tsx
+// (CÓDIGO ACTUALIZADO: Añadida columna "Evid." para ver la foto)
+
 'use client'; 
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext'; 
 import toast from 'react-hot-toast'; 
 
+// --- ¡TIPO ACTUALIZADO! ---
 type Solicitud = {
   id: string;
   patente_vehiculo: string;
   nombre_conductor: string;
-  id_conductor: string;
+  id_conductor: string; 
   descripcion_falla: string;
   fechaCreacion: { _seconds: number };
   estado: string;
+  fotoEvidenciaUrl?: string; // ¡Campo de la foto!
 };
 
 export default function BandejaDeTallerPage() {
+  
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [loading, setLoading] = useState(true);
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
+  
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter(); 
 
+  // (useEffect y fetchSolicitudesPendientes - sin cambios)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // --- ¡ROL CORREGIDO! ---
         const rolesPermitidos = ['Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
           fetchSolicitudesPendientes();
@@ -40,7 +47,6 @@ export default function BandejaDeTallerPage() {
   }, [user, userProfile, authLoading, router]);
 
   const fetchSolicitudesPendientes = async () => {
-    // ... (sin cambios)
     setLoading(true);
     try {
       const response = await fetch('/api/solicitudes');
@@ -54,8 +60,8 @@ export default function BandejaDeTallerPage() {
     }
   };
 
+  // (handleAgendarOT - sin cambios)
   const handleAgendarOT = (solicitud: Solicitud) => {
-    // ... (sin cambios)
     toast.success('Redirigiendo para agendar...');
     const params = new URLSearchParams();
     params.set('patente', solicitud.patente_vehiculo);
@@ -66,8 +72,8 @@ export default function BandejaDeTallerPage() {
     router.push(`/crear-ot?${params.toString()}`);
   };
 
+  // (handleRechazarSolicitud - sin cambios)
   const handleRechazarSolicitud = async (solicitud: Solicitud) => {
-    // ... (sin cambios)
     setProcesandoId(solicitud.id); 
     const promise = fetch(`/api/solicitudes?id=${solicitud.id}`, { method: 'DELETE' });
     toast.promise(promise, {
@@ -89,13 +95,13 @@ export default function BandejaDeTallerPage() {
     return <div className="p-8 text-gray-900">Validando sesión y permisos...</div>;
   }
   
-  // (Renderizado JSX - sin cambios)
   return (
     <div className="p-8 text-gray-900 space-y-12"> 
       <h1 className="text-3xl font-bold">Bandeja de Taller</h1>
       <div>
         <h2 className="text-2xl font-semibold mb-4 text-blue-600">Entradas: Solicitudes Digitales (Conductores)</h2>
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+          {/* --- ¡TABLA ACTUALIZADA! --- */}
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -103,12 +109,14 @@ export default function BandejaDeTallerPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Conductor</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                {/* --- ¡NUEVA COLUMNA! --- */}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evid.</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-4 text-center">Cargando...</td></tr>
+                <tr><td colSpan={6} className="px-6 py-4 text-center">Cargando...</td></tr>
               ) : solicitudes.length > 0 ? (
                 solicitudes.map(req => (
                   <tr key={req.id}>
@@ -116,6 +124,17 @@ export default function BandejaDeTallerPage() {
                     <td className="px-6 py-4 font-medium">{req.patente_vehiculo}</td>
                     <td className="px-6 py-4">{req.nombre_conductor}</td>
                     <td className="px-6 py-4">{req.descripcion_falla}</td>
+                    {/* --- ¡NUEVA CELDA! --- */}
+                    <td className="px-6 py-4">
+                      {req.fotoEvidenciaUrl ? (
+                        <a href={req.fotoEvidenciaUrl} target="_blank" rel="noopener noreferrer" 
+                           className="text-blue-600 hover:underline">
+                          Ver
+                        </a>
+                      ) : (
+                        'No'
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm font-medium space-x-2">
                       <button 
                         onClick={() => handleAgendarOT(req)}
@@ -135,7 +154,7 @@ export default function BandejaDeTallerPage() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan={5} className="px-6 py-4 text-center">No hay solicitudes digitales pendientes.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-4 text-center">No hay solicitudes digitales pendientes.</td></tr>
               )}
             </tbody>
           </table>

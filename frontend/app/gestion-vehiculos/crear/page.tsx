@@ -1,5 +1,5 @@
 // frontend/app/gestion-vehiculos/crear/page.tsx
-// (CÓDIGO CORREGIDO: Arreglado el bucle de carga y los roles)
+// (CÓDIGO ACTUALIZADO: Añadidos los 6 campos nuevos al formulario)
 
 'use client'; 
 
@@ -15,6 +15,7 @@ type User = {
 };
 
 export default function CrearVehiculoPage() {
+  // --- ¡NUEVOS ESTADOS PARA LOS CAMPOS! ---
   const [patente, setPatente] = useState('');
   const [marca, setMarca] = useState('');
   const [modelo, setModelo] = useState('');
@@ -23,43 +24,41 @@ export default function CrearVehiculoPage() {
   const [estado, setEstado] = useState('Operativo');
   const [idChoferAsignado, setIdChoferAsignado] = useState('');
   
-  const [conductores, setConductores] = useState<User[]>([]);
+  const [color, setColor] = useState('');
+  const [vin, setVin] = useState('');
+  const [nMotor, setNMotor] = useState('');
+  const [nChasis, setNChasis] = useState('');
+  const [paisManufactura, setPaisManufactura] = useState('');
+  const [tipoCombustible, setTipoCombustible] = useState('Diesel');
   
+  const [conductores, setConductores] = useState<User[]>([]);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
-  const [loadingData, setLoadingData] = useState(true); // <-- Estado de carga de página
+  const [loadingData, setLoadingData] = useState(true); 
   
   const router = useRouter();
   const { user, userProfile, loading: authLoading } = useAuth();
 
-  // --- useEffect CORREGIDO ---
+  // (useEffect de protección - sin cambios)
   useEffect(() => {
     if (authLoading) {
-      return; // 1. Espera a que la autenticación termine
+      return; 
     }
-    
     if (user && userProfile) {
-      // 2. Autenticación lista, revisa roles
-      // --- ¡ROLES ACTUALIZADOS (SIN JEFE DE TALLER)! ---
       const rolesPermitidos = ['Supervisor', 'Coordinador']; 
-      
       if (rolesPermitidos.includes(userProfile.rol)) {
-        // 3. Tiene permiso, carga los datos
         fetchConductores();
       } else {
-        // 4. No tiene permiso
         toast.error('No tienes permiso para acceder a esta página.');
         router.push('/');
       }
     } else {
-      // 5. No está logueado
       toast.error('Sesión no válida.');
       router.push('/');
     }
-  }, [user, userProfile, authLoading, router]); // Dependencias correctas
+  }, [user, userProfile, authLoading, router]);
 
-  // --- fetchConductores CORREGIDO ---
+  // (fetchConductores - sin cambios)
   const fetchConductores = async () => {
-    // setLoadingData(true) ya está en true
     try {
       const response = await fetch('/api/usuarios');
       if (!response.ok) throw new Error('No se pudo cargar la lista de conductores');
@@ -69,15 +68,15 @@ export default function CrearVehiculoPage() {
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
-      // 6. Avisa que la carga de datos terminó
       setLoadingData(false);
     }
   };
 
-  // --- handleSubmit CORREGIDO ---
+  // --- ¡handleSubmit (ACTUALIZADO)! ---
+  // Ahora envía todos los campos nuevos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoadingSubmit(true); // <-- Usa el estado del botón
+    setLoadingSubmit(true); 
     const toastId = toast.loading('Creando vehículo...');
 
     try {
@@ -88,10 +87,17 @@ export default function CrearVehiculoPage() {
           patente: patente.toUpperCase(), 
           marca, 
           modelo, 
-          año: Number(año), // Asegura que sea número
+          año, 
           tipo_vehiculo: tipoVehiculo, 
           estado,
-          id_chofer_asignado: idChoferAsignado || null
+          id_chofer_asignado: idChoferAsignado || null,
+          // --- ¡Nuevos campos! ---
+          color,
+          vin,
+          n_motor: nMotor,
+          n_chasis: nChasis,
+          pais_manufactura: paisManufactura,
+          tipo_combustible: tipoCombustible
         }),
       });
 
@@ -110,23 +116,23 @@ export default function CrearVehiculoPage() {
         toast.error('Ocurrió un error inesperado', { id: toastId });
       }
     } finally {
-      setLoadingSubmit(false); // <-- Usa el estado del botón
+      setLoadingSubmit(false); 
     }
   };
 
-  // --- PANTALLA DE CARGA CORREGIDA ---
   if (authLoading || loadingData) {
     return <div className="p-8 text-gray-900">Validando sesión y cargando datos...</div>;
   }
   
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50">
+    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-8">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
         <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
           Registrar Nuevo Vehículo
         </h1>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* ... (Inputs Patente, Marca, Modelo, Año, Tipo) ... */}
+          
+          {/* --- Campos Originales --- */}
           <div>
             <label htmlFor="patente" className="block text-sm font-medium text-gray-700">Patente</label>
             <input type="text" id="patente" value={patente} onChange={(e) => setPatente(e.target.value)} required
@@ -144,10 +150,17 @@ export default function CrearVehiculoPage() {
                 className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
             </div>
           </div>
-          <div>
-            <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
-            <input type="number" id="año" value={año} onChange={(e) => setAño(parseInt(e.target.value))}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
+              <input type="number" id="año" value={año} onChange={(e) => setAño(parseInt(e.target.value))}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="color" className="block text-sm font-medium text-gray-700">Color</label>
+              <input type="text" id="color" value={color} onChange={(e) => setColor(e.target.value)}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
           </div>
           <div>
             <label htmlFor="tipoVehiculo" className="block text-sm font-medium text-gray-700">Tipo de Vehículo</label>
@@ -160,8 +173,45 @@ export default function CrearVehiculoPage() {
               <option value="Otro">Otro</option>
             </select>
           </div>
+
+          {/* --- ¡NUEVOS CAMPOS! --- */}
+          <div>
+            <label htmlFor="vin" className="block text-sm font-medium text-gray-700">VIN (N° Identificación)</label>
+            <input type="text" id="vin" value={vin} onChange={(e) => setVin(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="nMotor" className="block text-sm font-medium text-gray-700">N° Motor</label>
+              <input type="text" id="nMotor" value={nMotor} onChange={(e) => setNMotor(e.target.value)}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="nChasis" className="block text-sm font-medium text-gray-700">N° Chasis</label>
+              <input type="text" id="nChasis" value={nChasis} onChange={(e) => setNChasis(e.target.value)}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="paisManufactura" className="block text-sm font-medium text-gray-700">País Manufactura</label>
+              <input type="text" id="paisManufactura" value={paisManufactura} onChange={(e) => setPaisManufactura(e.target.value)}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="tipoCombustible" className="block text-sm font-medium text-gray-700">Combustible</label>
+              <select id="tipoCombustible" value={tipoCombustible} onChange={(e) => setTipoCombustible(e.target.value)}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+                <option value="Diesel">Diesel</option>
+                <option value="Gasolina">Gasolina</option>
+                <option value="Eléctrico">Eléctrico</option>
+                <option value="Híbrido">Híbrido</option>
+                <option value="Gas">Gas</option>
+              </select>
+            </div>
+          </div>
           
-          {/* (Selects Conductor y Estado) */}
+          {/* --- Campos Finales --- */}
           <div>
             <label htmlFor="idChoferAsignado" className="block text-sm font-medium text-gray-700">Conductor Asignado (Opcional)</label>
             <select id="idChoferAsignado" value={idChoferAsignado} onChange={(e) => setIdChoferAsignado(e.target.value)}
@@ -182,7 +232,6 @@ export default function CrearVehiculoPage() {
             </select>
           </div>
 
-          {/* --- ¡BLOQUE DE BOTONES ACTUALIZADO! --- */}
           <div className="space-y-4 pt-4">
             <button
               type="submit"
@@ -191,7 +240,6 @@ export default function CrearVehiculoPage() {
             >
               {loadingSubmit ? 'Guardando...' : 'Guardar Vehículo'}
             </button>
-            
             <button
               type="button"
               onClick={() => router.push('/gestion-vehiculos')}
@@ -200,8 +248,6 @@ export default function CrearVehiculoPage() {
               Cancelar
             </button>
           </div>
-          {/* --- FIN DEL BLOQUE --- */}
-
         </form>
       </div>
     </div>

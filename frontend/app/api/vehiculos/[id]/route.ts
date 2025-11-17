@@ -1,5 +1,5 @@
 // frontend/app/api/vehiculos/[id]/route.ts
-// (CÓDIGO CORREGIDO: Cambiado docSnap.exists() a docSnap.exists)
+// (CÓDIGO ACTUALIZADO: PUT ahora actualiza los 6 campos nuevos)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -10,8 +10,7 @@ type Context = {
 }
 
 /**
- * Función GET: (¡CORREGIDA!)
- * Usa la propiedad 'exists' (sin paréntesis) del Admin SDK.
+ * Función GET: (Sin cambios)
  */
 export async function GET(request: NextRequest, context: Context) {
   let id: string;
@@ -22,11 +21,9 @@ export async function GET(request: NextRequest, context: Context) {
     const docRef = adminDb.collection('vehiculos').doc(id);
     const docSnap = await docRef.get();
 
-    // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-    if (!docSnap.exists) { // Se quitan los paréntesis ()
+    if (!docSnap.exists) { 
       return NextResponse.json({ error: 'Vehículo no encontrado' }, { status: 404 });
     }
-    // --- FIN DE LA CORRECCIÓN ---
 
     return NextResponse.json({ id: docSnap.id, ...docSnap.data() });
   } catch (error: any) {
@@ -36,7 +33,8 @@ export async function GET(request: NextRequest, context: Context) {
 }
 
 /**
- * Función PUT: (Sin cambios)
+ * Función PUT: (¡ACTUALIZADA!)
+ * Ahora recibe y actualiza todos los campos, incluyendo los nuevos.
  */
 export async function PUT(request: NextRequest, context: Context) {
   let id: string;
@@ -45,15 +43,21 @@ export async function PUT(request: NextRequest, context: Context) {
     id = params.id;
     const body = await request.json();
 
-    const { patente, ...datosActualizados } = body; 
+    // Excluimos 'patente' y 'id' del body, ya que no deben modificarse
+    const { patente, id: bodyId, ...datosActualizados } = body; 
     
+    // Asegura que el año sea un número
     if (datosActualizados.año) {
       datosActualizados.año = Number(datosActualizados.año);
     }
     
+    // Asegura que el id_chofer_asignado sea null si está vacío
     if (datosActualizados.id_chofer_asignado === '') {
       datosActualizados.id_chofer_asignado = null;
     }
+
+    // (Los 6 campos nuevos como 'color', 'vin', etc. 
+    // ya vienen dentro de 'datosActualizados')
 
     await adminDb.collection('vehiculos').doc(id).update(datosActualizados);
     

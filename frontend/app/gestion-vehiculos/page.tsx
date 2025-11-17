@@ -1,13 +1,14 @@
 // frontend/app/gestion-vehiculos/page.tsx
-// (CÓDIGO CORREGIDO: Modal de confirmación SIN fondo)
+// (CÓDIGO ACTUALIZADO: Añadidas las nuevas columnas a la tabla)
 
 'use client'; 
-import { useState, useEffect, Fragment } from 'react'; // ¡Añadido Fragment!
+import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
+// --- ¡TIPO ACTUALIZADO! ---
 type Vehiculo = {
   id: string;
   patente: string;
@@ -17,6 +18,10 @@ type Vehiculo = {
   tipo_vehiculo: string;
   estado: string;
   id_chofer_asignado: string | null;
+  // --- Nuevos campos para mostrar ---
+  color?: string;
+  vin?: string;
+  n_motor?: string;
 };
 
 export default function GestionVehiculosPage() {
@@ -28,10 +33,10 @@ export default function GestionVehiculosPage() {
   const router = useRouter();
   const { user, userProfile, loading: authLoading } = useAuth();
 
+  // (useEffect de protección - sin cambios)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // (Roles corregidos según el reparto de vistas)
         const rolesPermitidos = ['Supervisor', 'Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
           fetchVehiculos();
@@ -45,6 +50,7 @@ export default function GestionVehiculosPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
+  // (fetchVehiculos - sin cambios)
   const fetchVehiculos = async () => {
     setLoading(true);
     try {
@@ -59,6 +65,7 @@ export default function GestionVehiculosPage() {
     }
   };
 
+  // (Modal y lógica de borrado - sin cambios)
   const handleAbrirModal = (vehiculo: Vehiculo) => {
     setVehiculoParaEliminar(vehiculo);
     setModalAbierto(true);
@@ -67,24 +74,15 @@ export default function GestionVehiculosPage() {
     setVehiculoParaEliminar(null);
     setModalAbierto(false);
   };
-  
-  // (Lógica de borrado con toast.promise)
   const handleConfirmarEliminar = async () => {
     if (!vehiculoParaEliminar) return;
-    
     const idVehiculo = vehiculoParaEliminar.id;
     setModalAbierto(false); 
-    
-    const promise = fetch(`/api/vehiculos/${idVehiculo}`, {
-      method: 'DELETE',
-    });
-
+    const promise = fetch(`/api/vehiculos/${idVehiculo}`, { method: 'DELETE' });
     toast.promise(promise, {
       loading: 'Eliminando vehículo...',
       success: (res) => {
-        if (!res.ok) {
-          throw new Error('Error de servidor al eliminar');
-        }
+        if (!res.ok) throw new Error('Error de servidor al eliminar');
         setVehiculos(vehiculos.filter(v => v.id !== idVehiculo));
         setVehiculoParaEliminar(null);
         return 'Vehículo eliminado permanentemente.';
@@ -102,15 +100,10 @@ export default function GestionVehiculosPage() {
 
   return (
     <Fragment>
-      {/* --- ¡MODAL CORREGIDO (SIN FONDO)! --- */}
+      {/* (Modal de borrado - sin cambios) */}
       {modalAbierto && vehiculoParaEliminar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* 1. Overlay TRANSPARENTE (para cerrar al hacer clic afuera) */}
-          <div 
-            className="absolute inset-0" 
-            onClick={handleCerrarModal}
-          ></div>
-          {/* 2. Caja Blanca (Contenido) */}
+          <div className="absolute inset-0" onClick={handleCerrarModal}></div>
           <div className="relative z-10 bg-white p-8 rounded-lg shadow-xl max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Eliminación</h2>
             <p className="text-gray-700 mb-6">
@@ -129,7 +122,7 @@ export default function GestionVehiculosPage() {
         </div>
       )}
 
-      {/* (Resto de la página sin cambios) */}
+      {/* Página principal */}
       <div className="p-8 text-gray-900">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Gestión de Vehículos</h1>
@@ -140,14 +133,16 @@ export default function GestionVehiculosPage() {
           </Link>
         </div>
         
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+        {/* --- ¡TABLA ACTUALIZADA! --- */}
+        <div className="bg-white shadow-lg rounded-lg overflow-x-auto"> {/* Añadido overflow-x-auto */}
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marca/Modelo</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Año</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">VIN</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Color</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
               </tr>
@@ -158,7 +153,10 @@ export default function GestionVehiculosPage() {
                   <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{v.patente}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.marca || 'N/A'} {v.modelo}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.año}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.tipo_vehiculo}</td>
+                  {/* --- ¡Nuevas Celdas! --- */}
+                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.vin || 'N/A'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-gray-600">{v.color || 'N/A'}</td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       v.estado === 'Operativo' ? 'bg-green-100 text-green-800' : 

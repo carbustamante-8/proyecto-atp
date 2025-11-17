@@ -14,7 +14,7 @@ type User = {
   rol: string;
 };
 
-// ¡Definimos el tipo con valores NO NULOS!
+// --- ¡TIPO ACTUALIZADO! ---
 type VehiculoData = {
   patente: string;
   marca: string;
@@ -23,13 +23,19 @@ type VehiculoData = {
   tipo_vehiculo: string;
   estado: string;
   id_chofer_asignado: string; // Usamos string vacío en lugar de null
+  // --- Nuevos campos ---
+  color: string;
+  vin: string;
+  n_motor: string;
+  n_chasis: string;
+  pais_manufactura: string;
+  tipo_combustible: string;
 };
 
 function EditarVehiculoForm() {
   
   // --- ¡ESTADO INICIAL CORREGIDO! ---
   // Inicializamos con valores por defecto (strings vacíos)
-  // para que los inputs sean "controlados" desde el inicio.
   const [vehiculoData, setVehiculoData] = useState<VehiculoData>({
     patente: '',
     marca: '',
@@ -38,13 +44,19 @@ function EditarVehiculoForm() {
     tipo_vehiculo: 'Camión',
     estado: 'Operativo',
     id_chofer_asignado: '',
+    // --- Nuevos campos ---
+    color: '',
+    vin: '',
+    n_motor: '',
+    n_chasis: '',
+    pais_manufactura: '',
+    tipo_combustible: 'Diesel',
   });
   
   const [conductores, setConductores] = useState<User[]>([]);
   
-  // 'loadingSubmit' es para el botón, 'loadingPage' es para cargar datos
   const [loadingSubmit, setLoadingSubmit] = useState(false);
-  const [loadingPage, setLoadingPage] = useState(true); // ¡Importante!
+  const [loadingPage, setLoadingPage] = useState(true); 
   
   const router = useRouter();
   const params = useParams();
@@ -54,21 +66,20 @@ function EditarVehiculoForm() {
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        // --- ¡ROLES CORREGIDOS! (quitamos Jefe de Taller) ---
+        // (Roles corregidos según el reparto de vistas)
         const rolesPermitidos = ['Supervisor', 'Coordinador'];
-        if (!rolesPermitidos.includes(userProfile.rol)) {
-          toast.error('No tienes permiso para acceder a esta página.');
-          router.push('/');
-        } else {
-          // Carga ambos, conductores y datos del vehículo
+        if (rolesPermitidos.includes(userProfile.rol)) {
           fetchConductores();
           fetchVehiculoData();
+        } else {
+          toast.error('No tienes permiso para acceder a esta página.');
+          router.push('/');
         }
       } else if (!user) {
         router.push('/');
       }
     }
-  }, [user, userProfile, authLoading, router, id]); // 'id' debe estar aquí
+  }, [user, userProfile, authLoading, router, id]); 
 
   const fetchConductores = async () => {
     try {
@@ -81,6 +92,7 @@ function EditarVehiculoForm() {
     }
   };
 
+  // --- ¡fetchVehiculoData (ACTUALIZADO)! ---
   const fetchVehiculoData = async () => {
     if (!id) return;
     setLoadingPage(true);
@@ -90,11 +102,17 @@ function EditarVehiculoForm() {
       const data = await response.json();
       
       // --- ¡CORRECCIÓN! ---
-      // Aseguramos que 'id_chofer_asignado' y 'año' nunca sean 'null' o 'NaN'
+      // Asegura que NINGÚN campo sea null/undefined
       setVehiculoData({
         ...data,
-        año: data.año || '', // Convertir null/NaN/undefined a string vacío
+        año: data.año || '', 
         id_chofer_asignado: data.id_chofer_asignado || '',
+        color: data.color || '',
+        vin: data.vin || '',
+        n_motor: data.n_motor || '',
+        n_chasis: data.n_chasis || '',
+        pais_manufactura: data.pais_manufactura || '',
+        tipo_combustible: data.tipo_combustible || 'Diesel',
       });
       
     } catch (error) {
@@ -105,10 +123,10 @@ function EditarVehiculoForm() {
     }
   };
 
+  // --- ¡handleSubmit (ACTUALIZADO)! ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // --- ¡NUEVA VALIDACIÓN! ---
     const añoNum = parseInt(vehiculoData.año as string, 10);
     if (isNaN(añoNum)) {
       toast.error('El año debe ser un número válido.');
@@ -124,7 +142,7 @@ function EditarVehiculoForm() {
         body: JSON.stringify({
           ...vehiculoData,
           año: añoNum, // Enviar como número
-          id_chofer_asignado: vehiculoData.id_chofer_asignado || null
+          id_chofer_asignado: vehiculoData.id_chofer_asignado || null 
         }),
       });
       if (!response.ok) {
@@ -145,13 +163,12 @@ function EditarVehiculoForm() {
     setVehiculoData(prev => ({ ...prev, [id]: value })); 
   };
 
-  // --- ¡PANTALLA DE CARGA CORREGIDA! ---
   if (authLoading || loadingPage) {
     return <div className="p-8 text-gray-900">Cargando...</div>;
   }
   
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50">
+    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-8">
       <div className="w-full max-w-lg p-8 bg-white shadow-lg rounded-lg">
         <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
           Editar Vehículo
@@ -176,17 +193,18 @@ function EditarVehiculoForm() {
                 className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
             </div>
           </div>
-          
-          {/* (Año - ¡ACTUALIZADO!) */}
-          <div>
-            <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
-            <input 
-              type="number" // El input sigue siendo 'number' para el teclado móvil
-              id="año" 
-              value={vehiculoData.año} // El valor ahora es un string o número
-              onChange={handleChange}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" 
-            />
+
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="año" className="block text-sm font-medium text-gray-700">Año</label>
+              <input type="number" id="año" value={vehiculoData.año} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="color" className="block text-sm font-medium text-gray-700">Color</label>
+              <input type="text" id="color" value={vehiculoData.color} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
           </div>
           
           <div>
@@ -200,8 +218,43 @@ function EditarVehiculoForm() {
               <option value="Otro">Otro</option>
             </select>
           </div>
+
+          <div>
+            <label htmlFor="vin" className="block text-sm font-medium text-gray-700">VIN (N° Identificación)</label>
+            <input type="text" id="vin" value={vehiculoData.vin} onChange={handleChange}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="n_motor" className="block text-sm font-medium text-gray-700">N° Motor</label>
+              <input type="text" id="n_motor" value={vehiculoData.n_motor} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="n_chasis" className="block text-sm font-medium text-gray-700">N° Chasis</label>
+              <input type="text" id="n_chasis" value={vehiculoData.n_chasis} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="pais_manufactura" className="block text-sm font-medium text-gray-700">País Manufactura</label>
+              <input type="text" id="pais_manufactura" value={vehiculoData.pais_manufactura} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="tipo_combustible" className="block text-sm font-medium text-gray-700">Combustible</label>
+              <select id="tipo_combustible" value={vehiculoData.tipo_combustible} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-md text-gray-900 bg-gray-50">
+                <option value="Diesel">Diesel</option>
+                <option value="Gasolina">Gasolina</option>
+                <option value="Eléctrico">Eléctrico</option>
+                <option value="Híbrido">Híbrido</option>
+                <option value="Gas">Gas</option>
+              </select>
+            </div>
+          </div>
           
-          {/* (Conductor Asignado - ¡ACTUALIZADO!) */}
           <div>
             <label htmlFor="id_chofer_asignado" className="block text-sm font-medium text-gray-700">Conductor Asignado</label>
             <select id="id_chofer_asignado" value={vehiculoData.id_chofer_asignado} onChange={handleChange}
@@ -223,7 +276,6 @@ function EditarVehiculoForm() {
             </select>
           </div>
           
-          {/* (Botones - sin cambios) */}
           <div className="space-y-4 pt-4">
             <button
               type="submit"

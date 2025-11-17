@@ -1,34 +1,21 @@
 // frontend/app/api/solicitudes/route.ts
-// (CÓDIGO ACTUALIZADO: GET ahora devuelve todos los datos)
+// (CÓDIGO ACTUALIZADO: POST ahora acepta 'fotoEvidenciaUrl')
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '../../../lib/firebase-admin'; 
 import * as admin from 'firebase-admin';
 
-type SolicitudDoc = {
-  id: string;
-  estado: string;
-  fechaCreacion: admin.firestore.Timestamp;
-  // ...y todos los demás campos (id_conductor, nombre_conductor, etc.)
-}
-
-/**
- * Función GET: (¡MODIFICADA!)
- * Ahora devuelve todos los datos de la solicitud, no solo el estado.
- */
+// (La función GET no cambia)
 export async function GET(request: NextRequest) {
   try {
     const querySnapshot = await adminDb.collection('solicitudes').get();
-
     const todasLasSolicitudes = querySnapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data(), // <-- ¡CAMBIO! Devuelve todos los campos
-    })) as unknown as SolicitudDoc[]; 
-
+      ...doc.data(), 
+    })) as any[]; 
     const solicitudesPendientes = todasLasSolicitudes
       .filter(req => req.estado === 'Pendiente') 
       .sort((a, b) => a.fechaCreacion.toMillis() - b.fechaCreacion.toMillis()); 
-
     return NextResponse.json(solicitudesPendientes);
   } catch (error: any) { 
     console.error("Error en GET /api/solicitudes:", error);
@@ -36,29 +23,51 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// (El resto de funciones POST, PUT, DELETE se mantienen igual que las que te di)
-// ...
+/**
+ * Función POST: (¡MODIFICADA!)
+ * Acepta 'fotoEvidenciaUrl'
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json(); 
-    if (!body.id_conductor || !body.nombre_conductor || !body.patente_vehiculo || !body.descripcion_falla) {
+    
+    // --- ¡NUEVO CAMPO ACEPTADO! ---
+    const { 
+      id_conductor, nombre_conductor, patente_vehiculo, descripcion_falla,
+      fotoEvidenciaUrl // <-- ¡NUEVO!
+    } = body;
+
+    if (!id_conductor || !nombre_conductor || !patente_vehiculo || !descripcion_falla) {
       return NextResponse.json({ error: 'Faltan datos' }, { status: 400 });
     }
+
     const nuevaSolicitudRef = await adminDb.collection('solicitudes').add({
-      id_conductor: body.id_conductor,
-      nombre_conductor: body.nombre_conductor,
-      patente_vehiculo: body.patente_vehiculo,
-      descripcion_falla: body.descripcion_falla,
+      id_conductor,
+      nombre_conductor,
+      patente_vehiculo,
+      descripcion_falla,
+      fotoEvidenciaUrl: fotoEvidenciaUrl || null, // <-- ¡NUEVO!
       estado: 'Pendiente', 
       fechaCreacion: admin.firestore.FieldValue.serverTimestamp(),
       id_ot_relacionada: null, 
     });
-    return NextResponse.json({ id: nuevaSolicitudRef.id, ...body, estado: 'Pendiente' }, { status: 201 });
+    
+    return NextResponse.json({ 
+      id: nuevaSolicitudRef.id, 
+      ...body, 
+      estado: 'Pendiente', 
+      fotoEvidenciaUrl: fotoEvidenciaUrl || null 
+    }, { status: 201 });
+
   } catch (error: any) { 
     console.error("Error en POST /api/solicitudes:", error);
     return NextResponse.json({ error: 'Error al crear la solicitud' }, { status: 500 });
   }
 }
+
+/**
+ * Función PUT: (Sin cambios)
+ */
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -76,11 +85,15 @@ export async function PUT(request: NextRequest) {
     const solicitudRef = adminDb.collection('solicitudes').doc(id);
     await solicitudRef.update(datosActualizados);
     return NextResponse.json({ message: 'Solicitud actualizada exitosamente' });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error en PUT /api/solicitudes:", error);
     return NextResponse.json({ error: 'Error al actualizar la solicitud' }, { status: 500 });
   }
 }
+
+/**
+ * Función DELETE: (Sin cambios)
+ */
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
