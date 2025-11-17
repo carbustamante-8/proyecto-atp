@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
 
-// --- ¡NUEVO! Iconos para una UI profesional ---
+// --- Iconos para la UI ---
 import { 
   PaperAirplaneIcon, 
   TruckIcon, 
@@ -13,7 +13,7 @@ import {
   XMarkIcon 
 } from '@heroicons/react/24/outline';
 
-// (Los tipos de datos no cambian)
+// (Tipos de datos)
 type Vehiculo = {
   id: string;
   patente: string;
@@ -32,12 +32,12 @@ type Solicitud = {
   fechaHoraAgendada?: { _seconds: number };
 };
 
-// --- ¡NUEVO! Estilo estándar para inputs (v3) ---
+// --- Estilo estándar para inputs (v3) ---
 const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neutral-900 bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200";
 
 export default function PortalConductorPage() {
   
-  // (Toda la lógica de 'useState', 'useEffect' y 'fetch' queda idéntica)
+  // (Lógica de 'useState', 'useEffect' y 'fetch' idéntica)
   const [misVehiculos, setMisVehiculos] = useState<Vehiculo[]>([]);
   const [solicitudesPasadas, setSolicitudesPasadas] = useState<Solicitud[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,11 +71,17 @@ export default function PortalConductorPage() {
     setLoading(true);
     try {
       const response = await fetch(`/api/vehiculos/por-conductor/${conductorId}`);
-      if (!response.ok) throw new Error('No se pudieron cargar tus vehículos');
-      const data = await response.json();
-      setMisVehiculos(data);
-      if (data.length > 0) {
-        setSelectedPatente(data[0].patente); // Selecciona el primer vehículo por defecto
+      if (!response.ok) {
+        // Este es el "error" 404 que viste. 
+        // No es un crash, solo informamos al usuario.
+        console.warn(`No se encontraron vehículos para el conductor ${conductorId}`);
+        setMisVehiculos([]); // Dejamos el array vacío
+      } else {
+        const data = await response.json();
+        setMisVehiculos(data);
+        if (data.length > 0) {
+          setSelectedPatente(data[0].patente); // Selecciona el primer vehículo por defecto
+        }
       }
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
@@ -86,6 +92,7 @@ export default function PortalConductorPage() {
 
   const fetchMisSolicitudes = async (conductorId: string) => {
     try {
+      // Esta API sí funcionó (te dio 200 OK)
       const response = await fetch(`/api/solicitudes/por-conductor/${conductorId}`);
       if (!response.ok) throw new Error('No se pudieron cargar tus solicitudes');
       const data = await response.json();
@@ -96,6 +103,7 @@ export default function PortalConductorPage() {
     }
   };
 
+  // (El resto de la lógica 'handleFileChange', 'handleRemovePreview' y 'handleSubmit' no cambia)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -103,13 +111,11 @@ export default function PortalConductorPage() {
       setPreviewUrl(URL.createObjectURL(file));
     }
   };
-
   const handleRemovePreview = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatente || !descripcionProblema) {
@@ -118,8 +124,6 @@ export default function PortalConductorPage() {
     }
     setIsSubmitting(true);
     let fotoUrl = '';
-
-    // 1. Subir la foto (si existe)
     if (selectedFile) {
       const toastId = toast.loading('Subiendo foto...');
       try {
@@ -136,8 +140,6 @@ export default function PortalConductorPage() {
         return;
       }
     }
-
-    // 2. Crear la solicitud
     const toastSubmitId = toast.loading('Enviando solicitud...');
     try {
       const responseSubmit = await fetch('/api/solicitudes', {
@@ -153,7 +155,6 @@ export default function PortalConductorPage() {
       });
       if (!responseSubmit.ok) throw new Error('Error al enviar la solicitud');
       toast.success('¡Solicitud enviada exitosamente!', { id: toastSubmitId });
-      // Limpiar formulario y recargar
       setDescripcionProblema('');
       handleRemovePreview();
       fetchMisSolicitudes(userProfile!.id);
@@ -163,6 +164,7 @@ export default function PortalConductorPage() {
       setIsSubmitting(false);
     }
   };
+
 
   if (authLoading || loading) {
     return <div className="p-8 font-sans">Cargando tu portal...</div>;
@@ -196,6 +198,8 @@ export default function PortalConductorPage() {
                   value={selectedPatente}
                   onChange={(e) => setSelectedPatente(e.target.value)}
                   className={inputStyle} // Estilo estándar v3
+                  // Se deshabilita si no hay vehículos
+                  disabled={misVehiculos.length === 0} 
                 >
                   {misVehiculos.length > 0 ? (
                     misVehiculos.map(v => (
@@ -204,6 +208,7 @@ export default function PortalConductorPage() {
                       </option>
                     ))
                   ) : (
+                    // Este es el mensaje que deberías estar viendo
                     <option value="" disabled>No tienes vehículos asignados</option>
                   )}
                 </select>
@@ -257,7 +262,7 @@ export default function PortalConductorPage() {
               {/* Botón de Envío */}
               <button
                 type="submit"
-                disabled={isSubmitting || misVehiculos.length === 0}
+                disabled={isSubmitting || misVehiculos.length === 0} // Se deshabilita si no hay vehículos
                 className="w-full flex justify-center items-center gap-2 bg-pepsi-blue text-white py-3 rounded-md font-semibold 
                            hover:bg-pepsi-blue-dark transition-colors duration-200 disabled:bg-gray-400"
               >
@@ -295,7 +300,6 @@ export default function PortalConductorPage() {
                         </td>
                         <td className="px-6 py-4 text-neutral-700">{s.descripcionProblema}</td>
                         <td className="px-6 py-4">
-                          {/* Pastillas de estado semánticas */}
                           <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             s.estado === 'Completado' || s.estado === 'Cerrado' ? 'bg-green-100 text-green-800' :
                             s.estado === 'Agendado' ? 'bg-blue-100 text-pepsi-blue-light' :
@@ -325,6 +329,7 @@ export default function PortalConductorPage() {
               <TruckIcon className="h-6 w-6 text-pepsi-blue" />
               Mis Vehículos
             </h2>
+            {/* Aquí es donde se maneja el 404 */}
             {misVehiculos.length > 0 ? (
               <ul className="space-y-3">
                 {misVehiculos.map(v => (
@@ -335,6 +340,7 @@ export default function PortalConductorPage() {
                 ))}
               </ul>
             ) : (
+              // Este es el mensaje que deberías ver si la API devuelve 404
               <p className="text-neutral-700">No tienes vehículos asignados.</p>
             )}
           </div>
