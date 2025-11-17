@@ -1,35 +1,13 @@
-@import "tailwindcss";
+/* ESTO ES OBLIGATORIO PARA TAILWIND v3 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Variables de color: dejar blanco por defecto para evitar franjas negras
-   independientemente del esquema de color del sistema */
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-/* Removed non-standard @theme rule to avoid linter errors. */
-
-/* Forzar fondo blanco y reset básico para evitar márgenes que muestren el fondo
-   oscuro del sistema. Esto garantiza un lienzo limpio y sin franjas negras. */
-html, body, #__next {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  background: #ffffff;
-}
-
-body {
-  background: #ffffff;
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ... (al final de app/globals.css) ... */
-
-/* Estilos para React-DatePicker */
-.react-datepicker__day--highlighted-times {
-  background-color: #fca5a5; /* Un rojo claro */
-  color: #7f1d1d !important; /* Texto rojo oscuro */
+/* Aquí aplicamos los estilos base que definimos 
+  en tailwind.config.ts
+*/
+@layer base {
+  body {
+    @apply bg-neutral-50 text-neutral-900;
+  }
 }
