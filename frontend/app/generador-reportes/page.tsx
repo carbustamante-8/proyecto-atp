@@ -17,22 +17,40 @@ import {
   ArrowDownTrayIcon 
 } from '@heroicons/react/24/outline';
 
-// (El tipo de dato no cambia)
+// --- ¡CORREGIDO! ---
+// Este es el tipo de dato real que viene de Firebase
+type FirebaseTimestamp = {
+  _seconds: number;
+  _nanoseconds: number;
+};
+
+// --- ¡CORREGIDO! ---
+// Actualizamos el tipo para que use FirebaseTimestamp
 type ReporteData = {
   id: string;
   patente: string;
   descripcionProblema: string;
   estado: string;
-  fechaCreacion: string; // Formateada
-  fechaCierre?: string; // Formateada
+  fechaCreacion: FirebaseTimestamp; // <-- Tipo corregido
+  fechaCierre?: FirebaseTimestamp; // <-- Tipo corregido
   mecanicoAsignadoNombre?: string;
   repuestosUsados?: string;
   costoTotal?: number;
 };
 
+// --- ¡NUEVO! ---
+// Función para formatear fechas de Firebase de forma segura
+const formatFirebaseDate = (timestamp: FirebaseTimestamp | undefined | null): string => {
+  if (!timestamp || !timestamp._seconds) {
+    return 'N/A';
+  }
+  // Formato: dd/MM/yyyy
+  return new Date(timestamp._seconds * 1000).toLocaleDateString('es-CL');
+};
+
 export default function GeneradorReportesPage() {
 
-  // (Toda la lógica de 'useState', 'useEffect' y 'fetch' queda idéntica)
+  // (Estados no cambian)
   const [fechaInicio, setFechaInicio] = useState<Date | null>(new Date());
   const [fechaFin, setFechaFin] = useState<Date | null>(new Date());
   const [reporteData, setReporteData] = useState<ReporteData[]>([]);
@@ -42,6 +60,7 @@ export default function GeneradorReportesPage() {
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  // (useEffect no cambia)
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -58,6 +77,7 @@ export default function GeneradorReportesPage() {
     }
   }, [user, userProfile, authLoading, router]);
 
+  // (handleGenerarReporte no cambia)
   const handleGenerarReporte = async () => {
     if (!fechaInicio || !fechaFin) {
       toast.error('Por favor, selecciona un rango de fechas.');
@@ -89,7 +109,18 @@ export default function GeneradorReportesPage() {
       toast.error('No hay datos para exportar. Genera un reporte primero.');
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(reporteData);
+    
+    // --- ¡CORREGIDO! ---
+    // Mapeamos los datos para formatear las fechas ANTES de exportar
+    const datosParaExcel = reporteData.map(ot => ({
+      ...ot,
+      fechaCreacion: formatFirebaseDate(ot.fechaCreacion),
+      fechaCierre: formatFirebaseDate(ot.fechaCierre),
+      // Opcional: limpiar datos que no queremos en Excel
+      costoTotal: ot.costoTotal || 0,
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(datosParaExcel);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "ReporteTaller");
     XLSX.writeFile(wb, `Reporte_Taller_PepsiCo_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -114,6 +145,7 @@ export default function GeneradorReportesPage() {
             <label htmlFor="fechaInicio" className="block text-sm font-medium text-neutral-700 mb-1">
               Fecha de Inicio
             </label>
+            {/* DatePicker usa estilos de globals.css */}
             <DatePicker
               selected={fechaInicio}
               onChange={(date) => setFechaInicio(date)}
@@ -121,8 +153,8 @@ export default function GeneradorReportesPage() {
               startDate={fechaInicio}
               endDate={fechaFin}
               dateFormat="dd/MM/yyyy"
-              className="mt-1"
-              wrapperClassName="w-full"
+              className="mt-1" // El estilo base viene de globals.css
+              wrapperClassName="w-full" // Asegura que ocupe todo el ancho
             />
           </div>
           
@@ -131,6 +163,7 @@ export default function GeneradorReportesPage() {
             <label htmlFor="fechaFin" className="block text-sm font-medium text-neutral-700 mb-1">
               Fecha de Fin
             </label>
+            {/* DatePicker usa estilos de globals.css */}
             <DatePicker
               selected={fechaFin}
               onChange={(date) => setFechaFin(date)}
@@ -138,13 +171,12 @@ export default function GeneradorReportesPage() {
               startDate={fechaInicio}
               endDate={fechaFin}
               
-              // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-              // Convertimos 'null' a 'undefined' para TypeScript
+              // --- ¡CORRECCIÓN DE TYPESCRIPT! ---
               minDate={fechaInicio || undefined} 
               
               dateFormat="dd/MM/yyyy"
-              className="mt-1"
-              wrapperClassName="w-full"
+              className="mt-1" // El estilo base viene de globals.css
+              wrapperClassName="w-full" // Asegura que ocupe todo el ancho
             />
           </div>
           
@@ -193,8 +225,11 @@ export default function GeneradorReportesPage() {
                 <tr key={ot.id}>
                   <td className="px-6 py-4 whitespace-nowrap font-medium text-neutral-900">{ot.patente}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{ot.mecanicoAsignadoNombre || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{ot.fechaCreacion}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{ot.fechaCierre || 'N/A'}</td>
+                  
+                  {/* --- ¡CORRECCIÓN DE RUNTIME! --- */}
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{formatFirebaseDate(ot.fechaCreacion)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{formatFirebaseDate(ot.fechaCierre)}</td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       ot.estado === 'Completado' ? 'bg-indigo-100 text-indigo-800' :
