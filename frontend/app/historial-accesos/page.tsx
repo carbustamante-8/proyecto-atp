@@ -1,162 +1,155 @@
-'use client';
+// frontend/app/historial-accesos/page.tsx
+'use client'; 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
-// (Tipo de dato de la OT/Log)
-type OT = {
+type HistorialOT = {
   id: string;
   patente: string;
-  nombre_conductor: string;
+  nombre_conductor?: string;
+  fechaIngresoTaller?: { _seconds: number };
+  fechaSalidaTaller?: { _seconds: number };
   estado: string;
-  fechaIngresoTaller?: { _seconds: number }; // Usado por Guardia
-  fechaSalidaTaller?: { _seconds: number };  // Usado por Guardia
 };
 
-// --- ¡Estilo estándar para inputs (v3)! ---
-const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neutral-900 bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-pepsi-blue-light focus:border-transparent transition-shadow duration-200";
+// Función de ayuda defensiva
+const formatFechaSegura = (fecha: { _seconds: number } | undefined | null) => {
+    if (!fecha || !fecha._seconds) return '';
+    return new Date(fecha._seconds * 1000).toLocaleString('es-CL');
+};
 
 export default function HistorialAccesosPage() {
-  
-  // (Toda la lógica de 'useState', 'useEffect' y 'fetch' queda idéntica)
-  const [historial, setHistorial] = useState<OT[]>([]);
-  const [filtroPatente, setFiltroPatente] = useState('');
+  const [historialCompleto, setHistorialCompleto] = useState<HistorialOT[]>([]); 
+  const [historialFiltrado, setHistorialFiltrado] = useState<HistorialOT[]>([]); 
   const [loading, setLoading] = useState(true);
+  const [filtroRango, setFiltroRango] = useState('7dias'); 
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading) {
-      if (user && userProfile) {
-        // Roles que pueden ver esta página (según documentación)
-        const rolesPermitidos = ['Supervisor', 'Jefe de Taller', 'Guardia'];
-        if (rolesPermitidos.includes(userProfile.rol)) {
-          fetchHistorial();
-        } else {
-          toast.error('Acceso denegado');
-          router.push('/');
-        }
-      } else if (!user) {
+    if (!authLoading && user && userProfile) {
+      // --- ¡ROL CORREGIDO! ---
+      const rolesPermitidos = ['Guardia', 'Jefe de Taller', 'Supervisor'];
+      if (rolesPermitidos.includes(userProfile.rol)) {
+        fetchHistorial();
+      } else {
+        toast.error('Acceso denegado');
         router.push('/');
       }
+    } else if (!user && !authLoading) {
+      router.push('/');
     }
   }, [user, userProfile, authLoading, router]);
 
+  // (fetchHistorial - sin cambios)
   const fetchHistorial = async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/ordenes-trabajo');
       if (!response.ok) throw new Error('No se pudo cargar el historial');
-      const data: OT[] = await response.json();
-      
-      // Filtramos solo los estados relevantes para la bitácora de accesos
-      const historialFiltrado = data.filter(ot => 
-        ['Pendiente', 'Asignada', 'En Progreso', 'Finalizado', 'Cerrado', 'Completado', 'Anulado'].includes(ot.estado)
-      );
-      
-      // Ordenar por fecha de ingreso (más reciente primero)
-      historialFiltrado.sort((a, b) => (b.fechaIngresoTaller?._seconds || 0) - (a.fechaIngresoTaller?._seconds || 0));
-      
-      setHistorial(historialFiltrado);
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
+      const data: HistorialOT[] = await response.json();
+      // FILTRO CORREGIDO: Comprobación defensiva en el filtro
+      const ingresados = data.filter(ot => ot.fechaIngresoTaller && ot.fechaIngresoTaller._seconds);
+      ingresados.sort((a, b) => (b.fechaIngresoTaller?._seconds || 0) - (a.fechaIngresoTaller?._seconds || 0));
+      setHistorialCompleto(ingresados);
+    } catch (error) {
+      if (error instanceof Error) toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const historialFiltrado = historial.filter(ot =>
-    ot.patente.toLowerCase().includes(filtroPatente.toLowerCase())
-  );
+  // --- LÓGICA DE FILTRO CORREGIDA (DEFENSIVA) ---
+  useEffect(() => {
+    const ahora = new Date();
+    let fechaLimite = new Date();
+    if (filtroRango === 'hoy') {
+      fechaLimite.setHours(0, 0, 0, 0);
+    } else if (filtroRango === '7dias') {
+      fechaLimite.setDate(ahora.getDate() - 7);
+      fechaLimite.setHours(0, 0, 0, 0);
+    } else if (filtroRango === '30dias') {
+      fechaLimite.setDate(ahora.getDate() - 30);
+      fechaLimite.setHours(0, 0, 0, 0);
+    }
+    if (filtroRango === 'todos') {
+      setHistorialFiltrado(historialCompleto);
+    } else {
+      const limiteTimestamp = fechaLimite.getTime(); 
+      const filtrado = historialCompleto.filter(ot => {
+        // --- ¡CORRECCIÓN! AÑADIR ._seconds A LA COMPROBACIÓN ---
+        if (!ot.fechaIngresoTaller || !ot.fechaIngresoTaller._seconds) return false;
+        
+        const fechaIngreso = new Date(ot.fechaIngresoTaller._seconds * 1000).getTime();
+        return fechaIngreso >= limiteTimestamp;
+      });
+      setHistorialFiltrado(filtrado);
+    }
+  }, [filtroRango, historialCompleto]); 
+  // --- FIN DE LA CORRECCIÓN ---
 
-  if (authLoading || loading) {
-    return <div className="p-8 font-sans">Validando sesión y cargando bitácora...</div>;
+  if (authLoading || !userProfile) {
+    return <div className="p-8 text-gray-900">Validando sesión...</div>;
   }
 
-  // --- JSX REFACTORIZADO VISUALMENTE ---
+  // (Renderizado JSX - CORREGIDO)
   return (
-    <div className="p-8 font-sans">
-      
-      {/* Título con color Pepsi */}
-      <h1 className="text-3xl font-bold text-pepsi-blue mb-6">Historial de Accesos (Bitácora)</h1>
-
-      {/* --- Tarjeta de Filtro --- */}
-      <div className="bg-white shadow-card rounded-lg p-4 mb-6 max-w-md">
-        <label htmlFor="filtroPatente" className="block text-sm font-medium text-neutral-700 mb-1">
-          Buscar por Patente
-        </label>
-        <input
-          type="text"
-          id="filtroPatente"
-          value={filtroPatente}
-          onChange={(e) => setFiltroPatente(e.target.value)}
-          placeholder="Ej: ABCD12..."
-          className={inputStyle} // Estilo estándar v3
-        />
+    <div className="p-8 text-gray-900">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Historial de Accesos (Bitácora)</h1>
+        <div>
+          <label htmlFor="filtroRango" className="block text-sm font-medium text-gray-700">Mostrar:</label>
+          <select
+            id="filtroRango"
+            value={filtroRango}
+            onChange={(e) => setFiltroRango(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-gray-50"
+          >
+            <option value="7dias">Últimos 7 días</option>
+            <option value="hoy">Hoy</option>
+            <option value="30dias">Últimos 30 días</option>
+            <option value="todos">Mostrar Todo el Historial</option>
+          </select>
+        </div>
       </div>
-
-      {/* --- Tarjeta de la Tabla --- */}
-      <div className="bg-white shadow-card rounded-lg overflow-x-auto">
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
-          {/* Header de la tabla (neutral) */}
-          <thead className="bg-neutral-50">
+          <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Patente</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Conductor</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Fecha Ingreso</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Hora Ingreso</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Fecha Salida</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Hora Salida</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 uppercase">Estado OT</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Conductor</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Entrada</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Salida</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado OT</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {historialFiltrado.length > 0 ? (
+            {loading ? (
+              <tr><td colSpan={5} className="p-4 text-center">Cargando bitácora...</td></tr>
+            ) : historialFiltrado.length > 0 ? (
               historialFiltrado.map(ot => (
                 <tr key={ot.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-neutral-900">{ot.patente}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{ot.nombre_conductor}</td>
-                  
-                  {/* Fecha y Hora de Ingreso */}
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">
-                    {ot.fechaIngresoTaller ? new Date(ot.fechaIngresoTaller._seconds * 1000).toLocaleDateString('es-CL') : '-'}
+                  <td className="px-6 py-4 font-medium">{ot.patente}</td>
+                  <td className="px-6 py-4">{ot.nombre_conductor || '-'}</td>
+                  {/* --- ¡APLICA FUNCIÓN DE AYUDA DEFENSIVA! --- */}
+                  <td className="px-6 py-4 text-green-700">
+                    {formatFechaSegura(ot.fechaIngresoTaller)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">
-                    {ot.fechaIngresoTaller ? new Date(ot.fechaIngresoTaller._seconds * 1000).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                  <td className="px-6 py-4 text-red-700">
+                    {ot.fechaSalidaTaller ? formatFechaSegura(ot.fechaSalidaTaller) : 'En Taller'}
                   </td>
-                  
-                  {/* Fecha y Hora de Salida */}
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">
-                    {ot.fechaSalidaTaller ? new Date(ot.fechaSalidaTaller._seconds * 1000).toLocaleDateString('es-CL') : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-neutral-700">
-                    {ot.fechaSalidaTaller ? new Date(ot.fechaSalidaTaller._seconds * 1000).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                  </td>
-                  
-                  {/* Pastillas de Estado (Rediseñadas) */}
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      ot.estado === 'Completado' ? 'bg-indigo-100 text-indigo-800' :
-                      ot.estado === 'Cerrado' ? 'bg-green-100 text-green-900' :
-                      ot.estado === 'Finalizado' ? 'bg-green-100 text-green-800' :
-                      ot.estado === 'En Progreso' ? 'bg-yellow-100 text-yellow-800' :
-                      ot.estado === 'Asignada' ? 'bg-blue-100 text-pepsi-blue-light' :
-                      ot.estado === 'Pendiente' ? 'bg-red-100 text-pepsi-red' :
-                      ot.estado === 'Anulado' ? 'bg-red-100 text-pepsi-red' :
-                      'bg-neutral-100 text-neutral-900' // 'Agendado' u otro
-                    }`}>
+                  {/* --- FIN APLICACIÓN --- */}
+                  <td className="px-6 py-4">
+                    <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
                       {ot.estado}
                     </span>
                   </td>
                 </tr>
               ))
             ) : (
-              <tr>
-                <td colSpan={7} className="p-4 text-center text-neutral-700">
-                  No se encontraron registros de acceso.
-                </td>
-              </tr>
+              <tr><td colSpan={5} className="p-4 text-center">No hay registros de ingreso en el rango seleccionado.</td></tr>
             )}
           </tbody>
         </table>

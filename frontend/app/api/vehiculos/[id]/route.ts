@@ -1,5 +1,4 @@
 // frontend/app/api/vehiculos/[id]/route.ts
-// (CÓDIGO ACTUALIZADO: PUT ahora actualiza los 6 campos nuevos)
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -33,7 +32,7 @@ export async function GET(request: NextRequest, context: Context) {
 }
 
 /**
- * Función PUT: (¡ACTUALIZADA!)
+ * Función PUT: (¡CORREGIDA! Limpieza de ID de conductor)
  * Ahora recibe y actualiza todos los campos, incluyendo los nuevos.
  */
 export async function PUT(request: NextRequest, context: Context) {
@@ -51,13 +50,16 @@ export async function PUT(request: NextRequest, context: Context) {
       datosActualizados.año = Number(datosActualizados.año);
     }
     
-    // Asegura que el id_chofer_asignado sea null si está vacío
+    // Si el valor es una cadena vacía (''), lo convierte a null.
     if (datosActualizados.id_chofer_asignado === '') {
       datosActualizados.id_chofer_asignado = null;
     }
-
-    // (Los 6 campos nuevos como 'color', 'vin', etc. 
-    // ya vienen dentro de 'datosActualizados')
+    
+    // --- ¡CORRECCIÓN DEFINITIVA! Limpia el string del UID ---
+    if (datosActualizados.id_chofer_asignado && typeof datosActualizados.id_chofer_asignado === 'string') {
+        datosActualizados.id_chofer_asignado = datosActualizados.id_chofer_asignado.trim();
+    }
+    // --- FIN CORRECCIÓN ---
 
     await adminDb.collection('vehiculos').doc(id).update(datosActualizados);
     

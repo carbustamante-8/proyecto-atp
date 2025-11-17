@@ -1,33 +1,35 @@
 // frontend/app/api/vehiculos/por-conductor/[id]/route.ts
-// (CÓDIGO CORREGIDO: Renombrado a [id] y lógica de búsqueda arreglada)
 
 import { NextResponse, NextRequest } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin'; // ¡IMPORTACIÓN CORREGIDA!
 
 type Context = {
-  params: Promise<{ id: string }> // ¡Ahora sí es 'id'!
+  params: Promise<{ id: string }> 
 }
 
 export async function GET(request: NextRequest, context: Context) {
   let idConductor: string;
   try {
     const params = await context.params;
-    idConductor = params.id; // <-- Ahora 'id' es el ID del Conductor
+    idConductor = params.id; 
 
     if (!idConductor) {
       return NextResponse.json({ error: 'Falta el ID del conductor' }, { status: 400 });
     }
     
-    console.log(`GET /api/vehiculos/por-conductor: Buscando vehículo para conductor ID: ${idConductor}`);
+    // --- CORRECCIÓN DEFINITIVA! Limpia el ID entrante ---
+    // Esto asegura que si el router o el cliente añadieron espacios, se limpien para la búsqueda.
+    const cleanedIdConductor = idConductor.trim();
+    
+    console.log(`GET /api/vehiculos/por-conductor: Buscando vehículo para conductor ID: ${cleanedIdConductor}`);
 
     const vehiculosRef = adminDb.collection('vehiculos');
     
-    // --- ¡LÓGICA CORREGIDA! ---
+    // Busca el vehículo usando el ID limpio
     const querySnapshot = await vehiculosRef
-      .where('id_chofer_asignado', '==', idConductor) // <-- ¡Ahora busca en el campo correcto!
+      .where('id_chofer_asignado', '==', cleanedIdConductor) 
       .limit(1) 
       .get();
-    // --- FIN DE LA CORRECCIÓN ---
 
     if (querySnapshot.empty) {
       console.log(`No se encontró vehículo asignado al conductor: ${idConductor}`);
