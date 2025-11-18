@@ -1,3 +1,6 @@
+// frontend/app/registrar-salida/page.tsx
+// (CÓDIGO CORREGIDO: Se elimina la actualización de estado en la salida para evitar el bug de visualización)
+
 'use client';
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
@@ -11,6 +14,7 @@ type OT = {
   nombre_conductor: string;
   mecanicoAsignadoNombre?: string;
   estado: string;
+  fechaSalidaTaller?: any; // Añadido para el filtro
 };
 
 // --- ¡NUEVO! Estilo estándar para inputs (v3) ---
@@ -18,7 +22,6 @@ const inputStyle = "w-full px-4 py-3 border border-gray-300 rounded-md text-neut
 
 export default function RegistrarSalidaPage() {
   
-  // (Toda la lógica de 'useState', 'useEffect' y 'fetch' queda idéntica)
   const [otsCerradas, setOtsCerradas] = useState<OT[]>([]);
   const [filtroPatente, setFiltroPatente] = useState('');
   const [loading, setLoading] = useState(true);
@@ -49,8 +52,14 @@ export default function RegistrarSalidaPage() {
       const response = await fetch('/api/ordenes-trabajo');
       if (!response.ok) throw new Error('No se pudo cargar la lista de OTs');
       const data: OT[] = await response.json();
-      const cerradas = data.filter(ot => ot.estado === 'Cerrado');
-      setOtsCerradas(cerradas);
+      
+      // [FILTRO CRUCIAL] Muestra OTs que están listas (Finalizado/Cerrado) Y que aún NO han salido.
+      const listasParaSalida = data.filter(ot => 
+        (ot.estado === 'Cerrado' || ot.estado === 'Finalizado') &&
+        !ot.fechaSalidaTaller 
+      );
+      setOtsCerradas(listasParaSalida);
+      
     } catch (err) {
       if (err instanceof Error) toast.error(err.message);
     } finally {
@@ -71,11 +80,12 @@ export default function RegistrarSalidaPage() {
   const handleConfirmarSalida = async () => {
     if (!otSeleccionada) return;
     setIsUpdating(true);
+    
     const promise = fetch(`/api/ordenes-trabajo/${otSeleccionada.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        estado: 'Completado', // Estado final del ciclo de vida
+        // [CORRECCIÓN] Eliminamos el cambio de estado, solo enviamos la acción
         accion: 'registrarSalida',
       }),
     });
@@ -86,7 +96,11 @@ export default function RegistrarSalidaPage() {
         if (!res.ok) throw new Error('Error al registrar la salida');
         setIsUpdating(false);
         handleCerrarModal();
-        fetchOTsCerradas(); // Recargar la lista
+        
+        // Eliminamos la OT de la lista localmente (ya tiene fechaSalidaTaller)
+        setOtsCerradas(prev => prev.filter(ot => ot.id !== otSeleccionada.id)); 
+        setOtSeleccionada(null);
+        
         return '¡Salida registrada exitosamente!';
       },
       error: (err) => {
@@ -182,14 +196,15 @@ export default function RegistrarSalidaPage() {
                     <td className="px-6 py-4 text-neutral-700">{ot.mecanicoAsignadoNombre || 'Taller'}</td>
                     <td className="px-6 py-4">
                       {/* Pastilla de estado (neutral) */}
-                      <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-neutral-100 text-neutral-900">
-                        {ot.estado}
+                      <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        Listo para Salir
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       {/* Botón de acción con estilo Pepsi */}
                       <button 
                         onClick={() => handleAbrirModal(ot)}
+                        disabled={isUpdating}
                         className="bg-pepsi-blue text-white px-4 py-2 rounded-md shadow font-medium hover:bg-pepsi-blue-dark transition-colors duration-200"
                       >
                         Registrar Salida

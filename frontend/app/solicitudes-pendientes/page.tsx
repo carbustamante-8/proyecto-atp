@@ -1,12 +1,15 @@
-'use client';
+// frontend/app/solicitudes-pendientes/page.tsx
+
+'use client'; 
+
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import toast from 'react-hot-toast';
+import { useAuth } from '@/context/AuthContext'; 
+import toast from 'react-hot-toast'; 
 import Link from 'next/link';
 import Image from 'next/image';
 
-// --- ¡NUEVO! Iconos para la UI ---
+// --- Iconos para la UI ---
 import { 
   CalendarIcon, 
   PhotoIcon, 
@@ -16,26 +19,41 @@ import {
 // (Tipo de dato de la solicitud)
 type Solicitud = {
   id: string;
-  patente: string;
+  patente_vehiculo: string; 
   nombre_conductor: string;
   id_conductor: string;
-  descripcionProblema: string;
-  estado: string;
+  descripcion_falla: string;
+  estado: string; 
   fechaCreacion: { _seconds: number };
-  fotoUrl?: string;
+  fotoEvidenciaUrl?: string; 
 };
 
 export default function SolicitudesPendientesPage() {
   
-  // (Lógica de 'useState' y 'useRouter' no cambia)
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null); // ¡NUEVO! Para el modal
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null); 
+  const [procesandoId, setProcesandoId] = useState<string | null>(null); 
 
   const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // --- ¡NUEVO! Auth Check (basado en la documentación) ---
+  const fetchSolicitudes = async () => {
+    // [CORRECCIÓN] Eliminado setLoading(true) redundante. 
+    // El estado ya es true desde el useEffect.
+    try {
+      const response = await fetch('/api/solicitudes');
+      if (!response.ok) throw new Error('No se pudieron cargar las solicitudes');
+      const data: Solicitud[] = await response.json();
+      
+      setSolicitudes(data);
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message);
+    } finally {
+      setLoading(false); // ¡Esto debe ejecutarse para salir de la pantalla de carga!
+    }
+  };
+
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
@@ -45,59 +63,73 @@ export default function SolicitudesPendientesPage() {
         } else {
           toast.error('Acceso denegado');
           router.push('/');
+          setLoading(false); // [CRUCIAL] Terminar el estado de carga local
         }
       } else if (!user) {
         router.push('/');
+        setLoading(false); // [CRUCIAL] Terminar el estado de carga local
       }
     }
   }, [user, userProfile, authLoading, router]);
 
-  const fetchSolicitudes = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/solicitudes');
-      if (!response.ok) throw new Error('No se pudieron cargar las solicitudes');
-      const data: Solicitud[] = await response.json();
-      
-      // Filtramos solo las 'Ingresado' (nuevas) y ordenamos
-      const pendientes = data
-        .filter(s => s.estado === 'Ingresado')
-        .sort((a, b) => a.fechaCreacion._seconds - b.fechaCreacion._seconds); // Más antiguas primero
-        
-      setSolicitudes(pendientes);
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
+  // ... (handleAgendarOT y handleRechazarSolicitud no cambian)
+
+  const handleAgendarOT = (solicitud: Solicitud) => {
+    toast.success('Redirigiendo para agendar...');
+    const params = new URLSearchParams();
+    
+    params.set('patente', solicitud.patente_vehiculo); 
+    params.set('motivo', solicitud.descripcion_falla);
+    params.set('id_conductor', solicitud.id_conductor);
+    params.set('nombre_conductor', solicitud.nombre_conductor);
+    params.set('solicitud_id', solicitud.id);
+    
+    router.push(`/crear-ot?${params.toString()}`);
   };
 
+  const handleRechazarSolicitud = async (solicitud: Solicitud) => {
+    setProcesandoId(solicitud.id); 
+    const promise = fetch(`/api/solicitudes?id=${solicitud.id}`, { method: 'DELETE' });
+    toast.promise(promise, {
+      loading: 'Rechazando...',
+      success: (res) => {
+        if (!res.ok) throw new Error('Error al rechazar');
+        setSolicitudes(actuales => actuales.filter(s => s.id !== solicitud.id));
+        setProcesandoId(null);
+        return 'Solicitud rechazada.';
+      },
+      error: (err) => {
+        setProcesandoId(null);
+        return err.message || 'Error al rechazar.';
+      }
+    });
+  };
+  
   if (authLoading || loading) {
     return <div className="p-8 font-sans">Validando sesión y cargando solicitudes...</div>;
   }
 
-  // --- JSX REFACTORIZADO VISUALMENTE ---
+  // --- JSX (sin cambios, usa el formato de tabla ya corregido) ---
   return (
     <Fragment>
-      {/* --- Modal de Foto Ampliada (Estilo v3) --- */}
+      {/* --- Modal de Foto Ampliada --- */}
       {fotoAmpliada && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm p-4"
+          className="modal-overlay"
           onClick={() => setFotoAmpliada(null)}
         >
-          <div className="relative w-full h-full max-w-4xl max-h-[80vh]">
+          <div className="relative w-full h-full max-w-4xl max-h-[80vh] p-4" onClick={(e) => e.stopPropagation()}>
             <Image 
               src={fotoAmpliada} 
               alt="Evidencia ampliada"
               layout="fill"
               objectFit="contain"
-              onClick={(e) => e.stopPropagation()} 
             />
           </div>
           <button
             onClick={() => setFotoAmpliada(null)}
             className="absolute top-4 right-4 bg-white text-neutral-900 rounded-full w-10 h-10 shadow-lg
-                       flex items-center justify-center hover:bg-neutral-100 transition-colors"
+                     flex items-center justify-center hover:bg-neutral-100 transition-colors"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
@@ -110,79 +142,73 @@ export default function SolicitudesPendientesPage() {
         {/* Título con color Pepsi */}
         <h1 className="text-3xl font-bold text-pepsi-blue mb-6">Bandeja de Taller (Solicitudes Pendientes)</h1>
         
-        {solicitudes.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {solicitudes.map(solicitud => (
-              
-              // --- Tarjeta de Solicitud (Rediseñada) ---
-              <div 
-                key={solicitud.id} 
-                // Añadimos la animación de hover
-                className="bg-white rounded-lg shadow-card p-6 flex flex-col justify-between 
-                           transition-transform-shadow duration-200 transform hover:-translate-y-1 hover:shadow-card-hover"
-              >
-                <div>
-                  {/* Encabezado de la Tarjeta */}
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-bold text-xl text-neutral-900">{solicitud.patente}</span>
-                    <span className="text-xs text-neutral-700">
-                      {new Date(solicitud.fechaCreacion._seconds * 1000).toLocaleDateString('es-CL')}
-                    </span>
-                  </div>
-                  <p className="text-sm text-neutral-700 mb-4">
-                    Por: <span className="font-medium">{solicitud.nombre_conductor}</span>
-                  </p>
-                  
-                  {/* Foto (si existe) */}
-                  {solicitud.fotoUrl && (
-                    <div 
-                      className="relative w-full h-40 rounded-md overflow-hidden mb-4 border border-neutral-100 cursor-pointer"
-                      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-                      // Añadimos '|| null' para satisfacer a TypeScript
-                      onClick={() => setFotoAmpliada(solicitud.fotoUrl || null)}
-                    >
-                      <Image src={solicitud.fotoUrl} alt="Foto de evidencia" layout="fill" objectFit="cover" />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 flex items-center justify-center transition-opacity duration-200">
-                        <PhotoIcon className="h-8 w-8 text-white opacity-0 hover:opacity-100 transition-opacity" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Descripción del Problema */}
-                  <p className="text-sm text-neutral-900 mb-4">{solicitud.descripcionProblema}</p>
-                </div>
-                
-                {/* Botón de Acción (Preserva la lógica del Link) */}
-                <Link 
-                  href={{
-                    pathname: '/crear-ot',
-                    query: { 
-                      patente: solicitud.patente, 
-                      motivo: solicitud.descripcionProblema,
-                      id_conductor: solicitud.id_conductor,
-                      nombre_conductor: solicitud.nombre_conductor,
-                      solicitud_id: solicitud.id
-                    }
-                  }}
-                  className="mt-4"
-                >
-                  <span className="inline-flex items-center justify-center gap-2 w-full bg-pepsi-blue text-white px-4 py-2 
-                                 rounded-md shadow font-medium hover:bg-pepsi-blue-dark transition-colors duration-200 cursor-pointer"
-                  >
-                    <CalendarIcon className="h-5 w-5" />
-                    Agendar OT
-                  </span>
-                </Link>
-              </div>
-            ))}
-          </div>
-        ) : (
-          // Mensaje si no hay solicitudes
-          <div className="bg-white rounded-lg shadow-card p-8 text-center">
-            <h2 className="text-xl font-bold text-neutral-900">Bandeja Limpia</h2>
-            <p className="text-neutral-700 mt-2">No hay nuevas solicitudes de conductores pendientes de agendar.</p>
-          </div>
-        )}
+        <div className="bg-white shadow-lg rounded-lg overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Solicitud</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patente</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Conductor</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción de Falla</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Evidencia</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {solicitudes.length > 0 ? (
+                solicitudes.map(solicitud => (
+                  <tr key={solicitud.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {new Date(solicitud.fechaCreacion._seconds * 1000).toLocaleString('es-CL')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-900">{solicitud.patente_vehiculo}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">{solicitud.nombre_conductor}</td>
+                    <td className="px-6 py-4 max-w-xs truncate text-sm text-gray-600">{solicitud.descripcion_falla}</td>
+                    
+                    {/* Celda de Evidencia */}
+                    <td className="px-6 py-4 text-center">
+                      {solicitud.fotoEvidenciaUrl ? (
+                        <button 
+                          onClick={() => setFotoAmpliada(solicitud.fotoEvidenciaUrl || null)} 
+                          className="text-pepsi-blue hover:text-blue-700 p-1 rounded-full bg-blue-50 transition-colors"
+                          title="Ver evidencia"
+                        >
+                          <PhotoIcon className="h-5 w-5" />
+                        </button>
+                      ) : (
+                        <span className="text-gray-400 text-sm">N/A</span>
+                      )}
+                    </td>
+                    
+                    {/* Celda de Acciones */}
+                    <td className="px-6 py-4 whitespace-nowrap text-right space-x-3">
+                      <button
+                        onClick={() => handleRechazarSolicitud(solicitud)}
+                        disabled={procesandoId === solicitud.id}
+                        className="bg-pepsi-red text-white px-3 py-1 rounded shadow hover:bg-red-700 disabled:bg-gray-400 font-medium text-sm"
+                      >
+                        Rechazar
+                      </button>
+                      <button 
+                        onClick={() => handleAgendarOT(solicitud)}
+                        disabled={procesandoId === solicitud.id}
+                        className="bg-pepsi-blue text-white px-3 py-1 rounded shadow hover:bg-blue-700 disabled:bg-gray-400 font-medium text-sm"
+                      >
+                        Agendar OT
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-lg text-gray-500">
+                    No hay solicitudes pendientes de agendar.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </Fragment>
   );

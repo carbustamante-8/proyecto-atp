@@ -1,5 +1,5 @@
 // frontend/app/api/ordenes-trabajo/[id]/route.ts
-// (CÓDIGO ACTUALIZADO: Implementa el Flujo Híbrido de Asignación)
+// (CÓDIGO FUSIONADO Y CORREGIDO: Añade validación de estado a 'registrarSalida')
 
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
@@ -29,14 +29,7 @@ export async function GET(request: NextRequest, context: Context) {
 }
 
 /**
- * Función PUT: (¡MODIFICADA PARA FLUJO HÍBRIDO!)
- * Maneja los casos por rol:
- * 1. Guardia: 'Agendado' -> 'Pendiente'
- * 2. Admin (Asignación): 'Pendiente' -> 'Asignada'
- * 3. Mecánico (Gestión): 'Asignada' -> 'En Progreso' -> 'Finalizado'
- * 4. Admin (Cierre): 'Finalizado' -> 'Cerrado'
- * 5. Admin (Anulación): 'Agendado' -> 'Anulado'
- * 6. Guardia (Salida): Añade fecha de salida.
+ * Función PUT: (FUSIONADA Y CORREGIDA)
  */
 export async function PUT(request: NextRequest, context: Context) {
   let id: string = 'ID_DESCONOCIDO'; 
@@ -54,31 +47,43 @@ export async function PUT(request: NextRequest, context: Context) {
       fechaIngresoTaller?: admin.firestore.FieldValue,
       fechaCierreAdministrativo?: admin.firestore.FieldValue,
       fechaAnulacion?: admin.firestore.FieldValue,
-      fechaSalidaTaller?: admin.firestore.FieldValue
+      fechaSalidaTaller?: admin.firestore.FieldValue,
+      // Se añade la lógica de PUT general de vehiculos
+      nuevaFotoURL?: string // Si solo se envía una foto, se maneja aquí
     } = {};
 
-    // --- ¡NUEVA LÓGICA DE ESTADOS POR ROL! ---
+    // --- VALIDACIÓN DE SALIDA y LÓGICA DE ESTADOS ---
     
+    // CASO DE SALIDA (Guardia)
+    if (body.accion === 'registrarSalida') {
+        const otDoc = await adminDb.collection('ordenes-trabajo').doc(id).get();
+        const currentEstado = otDoc.data()?.estado;
+        
+        // 1. Regla de Negocio: Debe estar Finalizado o Cerrado
+        if (currentEstado !== 'Finalizado' && currentEstado !== 'Cerrado') {
+             return NextResponse.json({ 
+                 error: `Acción denegada. La OT debe estar 'Finalizado' o 'Cerrado' para registrar la salida. Estado actual: ${currentEstado}` 
+             }, { status: 403 }); 
+        }
+        // 2. Acción: Registrar la marca de tiempo de salida
+        datosActualizados.fechaSalidaTaller = admin.firestore.FieldValue.serverTimestamp();
+    }
+
     // CASO 1: Guardia "Registra Llegada" (Agendado -> Pendiente)
-    if (body.accion === 'registrarLlegada' && body.estado === 'Pendiente') {
+    else if (body.accion === 'registrarLlegada' && body.estado === 'Pendiente') {
       datosActualizados.estado = 'Pendiente'; 
       datosActualizados.fechaIngresoTaller = admin.firestore.FieldValue.serverTimestamp(); 
     }
     
-    // CASO 2: Guardia "Registra Salida"
-    else if (body.accion === 'registrarSalida') {
-      datosActualizados.fechaSalidaTaller = admin.firestore.FieldValue.serverTimestamp();
-    }
-
-    // --- ¡NUEVO! CASO 3: Admin "Asigna Tarea" (Pendiente -> Asignada) ---
+    // CASO 3: Admin "Asigna Tarea" (Pendiente -> Asignada)
     else if (body.accion === 'asignarTarea' && body.mecanicoAsignadoId && body.mecanicoAsignadoNombre) {
       datosActualizados.mecanicoAsignadoId = body.mecanicoAsignadoId;
       datosActualizados.mecanicoAsignadoNombre = body.mecanicoAsignadoNombre;
-      datosActualizados.estado = 'Asignada'; // ¡Nuevo estado!
+      datosActualizados.estado = 'Asignada'; 
     } 
     
-    // --- ¡MODIFICADO! CASO 4: Mecánico "Gestiona Tarea" (Asignada -> En Progreso -> Finalizado) ---
-    // (El mecánico ya no puede tomar desde 'Pendiente')
+    // CASO 4: Mecánico "Gestiona Tarea" (Asignada -> En Progreso -> Finalizado)
+    // El cuerpo solo tiene el nuevo estado.
     else if (body.estado === 'En Progreso' || body.estado === 'Finalizado') {
       datosActualizados.estado = body.estado;
     }
@@ -95,12 +100,14 @@ export async function PUT(request: NextRequest, context: Context) {
       datosActualizados.fechaAnulacion = admin.firestore.FieldValue.serverTimestamp(); 
     }
     
-    // --- FIN DE LA LÓGICA ---
+    // LÓGICA GENERAL DE ACTUALIZACIÓN DE DATOS
     
     // Añade repuestos o fotos si vienen en el body (para el mecánico)
     if (body.repuestosUsados !== undefined) {
       datosActualizados.repuestosUsados = body.repuestosUsados;
     }
+    
+    // Manejo de la subida de una nueva foto
     if (body.nuevaFotoURL) {
       datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
     }
