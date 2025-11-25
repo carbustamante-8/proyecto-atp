@@ -295,59 +295,50 @@ export default function DetalleOTPage() {
   return (
     <Fragment>
     
-{/* --- Modal de Foto Ampliada (Versión "Estilos Directos") --- */}
+{/* --- Modal Definitivo (A prueba de fallos) --- */}
       {fotoAmpliada && (
         <div 
-          // Usamos 'style' para forzar la posición fija y el z-index máximo
           style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw', // 100% del ancho de la ventana
-            height: '100vh', // 100% del alto de la ventana
-            zIndex: 99999,   // Por encima de TODO (Navbar, Toasts, etc.)
-            backgroundColor: 'rgba(0, 0, 0, 0.9)', // Fondo casi negro
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backdropFilter: 'blur(5px)' // Efecto borroso de fondo
+            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+            zIndex: 999999, backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           }}
           onClick={() => setFotoAmpliada(null)}
         >
-          {/* Imagen con ajuste automático */}
+          {/* Botones Superiores */}
+          <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: '15px', zIndex: 100000 }}>
+            
+            {/* BOTÓN SALVAVIDAS: Abre la foto en una pestaña nueva */}
+            <a 
+              href={fotoAmpliada} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="bg-pepsi-blue text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-blue-700 no-underline flex items-center"
+            >
+              Abrir Original ↗
+            </a>
+
+            <button 
+              onClick={() => setFotoAmpliada(null)} 
+              className="bg-pepsi-red text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-red-700"
+            >
+              Cerrar X
+            </button>
+          </div>
+
           <img 
             src={fotoAmpliada} 
             alt="Evidencia ampliada"
-            style={{
-              maxWidth: '95%',  // Ocupa casi todo el ancho
-              maxHeight: '95%', // Ocupa casi todo el alto
-              objectFit: 'contain', // Asegura que se vea completa sin recortarse
-              borderRadius: '8px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+            style={{ 
+              maxWidth: '90vw', 
+              maxHeight: '80vh', 
+              objectFit: 'contain', 
+              border: '1px solid #444',
+              borderRadius: '8px'
             }}
             onClick={(e) => e.stopPropagation()} 
           />
-
-          {/* Botón Cerrar Flotante */}
-          <button
-            onClick={() => setFotoAmpliada(null)}
-            style={{
-              position: 'absolute',
-              top: '20px',
-              right: '20px',
-              backgroundColor: '#dc2626', // Rojo Pepsi
-              color: 'white',
-              borderRadius: '50%',
-              padding: '12px',
-              border: 'none',
-              cursor: 'pointer',
-              zIndex: 100000,
-              boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-            }}
-            title="Cerrar imagen"
-          >
-            <XMarkIcon style={{ width: '32px', height: '32px', strokeWidth: 2 }} />
-          </button>
         </div>
       )}
       {/* Contenedor principal de la página */}

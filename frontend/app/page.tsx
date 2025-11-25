@@ -38,7 +38,7 @@ export default function LoginPage() {
         router.push('/agenda-taller'); // <--- CAMBIO AQUÍ (Antes era /aprobacion-ots)
       }
       // 3. Coordinador -> A la agenda
-      else if (rol === 'Supervisor') {
+      else if (rol === 'Coordinador') {
         router.push('/agenda-taller');
       }
       // 4. Roles Operativos (Ya estaban bien)
