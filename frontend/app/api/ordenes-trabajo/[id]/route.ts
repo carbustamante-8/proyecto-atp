@@ -1,6 +1,4 @@
 // frontend/app/api/ordenes-trabajo/[id]/route.ts
-// (CÓDIGO FUSIONADO Y CORREGIDO: Añade validación de estado a 'registrarSalida')
-
 import { NextResponse, NextRequest } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import * as admin from 'firebase-admin';
@@ -9,9 +7,6 @@ type Context = {
   params: Promise<{ id: string }>
 }
 
-/**
- * Función GET: (Sin cambios)
- */
 export async function GET(request: NextRequest, context: Context) {
   let id: string;
   try {
@@ -23,14 +18,10 @@ export async function GET(request: NextRequest, context: Context) {
     }
     return NextResponse.json({ id: otDoc.id, ...otDoc.data() });
   } catch (error) {
-    console.error(`Error en GET /api/ordenes-trabajo/[id]:`, error); 
     return NextResponse.json({ error: 'Error al obtener la OT' }, { status: 500 });
   }
 }
 
-/**
- * Función PUT: (FUSIONADA Y CORREGIDA)
- */
 export async function PUT(request: NextRequest, context: Context) {
   let id: string = 'ID_DESCONOCIDO'; 
   try {
@@ -38,82 +29,59 @@ export async function PUT(request: NextRequest, context: Context) {
     id = params.id; 
     const body = await request.json(); 
 
-    const datosActualizados: { 
-      estado?: string, 
-      repuestosUsados?: string,
-      fotos?: admin.firestore.FieldValue,
-      mecanicoAsignadoId?: string | null,
-      mecanicoAsignadoNombre?: string | null,
-      fechaIngresoTaller?: admin.firestore.FieldValue,
-      fechaCierreAdministrativo?: admin.firestore.FieldValue,
-      fechaAnulacion?: admin.firestore.FieldValue,
-      fechaSalidaTaller?: admin.firestore.FieldValue,
-      // Se añade la lógica de PUT general de vehiculos
-      nuevaFotoURL?: string // Si solo se envía una foto, se maneja aquí
-    } = {};
+    const datosActualizados: any = {};
 
-    // --- VALIDACIÓN DE SALIDA y LÓGICA DE ESTADOS ---
+    // --- LÓGICA CORREGIDA ---
     
-    // CASO DE SALIDA (Guardia)
-    if (body.accion === 'registrarSalida') {
-        const otDoc = await adminDb.collection('ordenes-trabajo').doc(id).get();
-        const currentEstado = otDoc.data()?.estado;
-        
-        // 1. Regla de Negocio: Debe estar Finalizado o Cerrado
-        if (currentEstado !== 'Finalizado' && currentEstado !== 'Cerrado') {
-             return NextResponse.json({ 
-                 error: `Acción denegada. La OT debe estar 'Finalizado' o 'Cerrado' para registrar la salida. Estado actual: ${currentEstado}` 
-             }, { status: 403 }); 
-        }
-        // 2. Acción: Registrar la marca de tiempo de salida
-        datosActualizados.fechaSalidaTaller = admin.firestore.FieldValue.serverTimestamp();
-    }
-
-    // CASO 1: Guardia "Registra Llegada" (Agendado -> Pendiente)
-    else if (body.accion === 'registrarLlegada' && body.estado === 'Pendiente') {
+    // CASO 1: Guardia "Registra Llegada"
+    if (body.accion === 'registrarLlegada') {
       datosActualizados.estado = 'Pendiente'; 
       datosActualizados.fechaIngresoTaller = admin.firestore.FieldValue.serverTimestamp(); 
     }
     
-    // CASO 3: Admin "Asigna Tarea" (Pendiente -> Asignada)
-    else if (body.accion === 'asignarTarea' && body.mecanicoAsignadoId && body.mecanicoAsignadoNombre) {
+    // CASO 2: Guardia "Registra Salida"
+    else if (body.accion === 'registrarSalida') {
+      datosActualizados.fechaSalidaTaller = admin.firestore.FieldValue.serverTimestamp();
+    }
+
+    // CASO 3: Admin "Asigna Tarea" (CORREGIDO: Ya no exige 'mecanicoAsignadoNombre')
+    else if (body.accion === 'asignarTarea' && body.mecanicoAsignadoId) {
       datosActualizados.mecanicoAsignadoId = body.mecanicoAsignadoId;
-      datosActualizados.mecanicoAsignadoNombre = body.mecanicoAsignadoNombre;
-      datosActualizados.estado = 'Asignada'; 
+      // Si el frontend manda el nombre, lo guardamos. Si no, guardamos solo el ID.
+      if (body.mecanicoAsignadoNombre) {
+          datosActualizados.mecanicoAsignadoNombre = body.mecanicoAsignadoNombre;
+      }
+      // Si el frontend manda el estado 'Asignada', lo usamos.
+      if (body.estado) {
+          datosActualizados.estado = body.estado;
+      } else {
+          datosActualizados.estado = 'Asignada'; // Forzamos por defecto si no viene
+      }
     } 
     
-    // CASO 4: Mecánico "Gestiona Tarea" (Asignada -> En Progreso -> Finalizado)
-    // El cuerpo solo tiene el nuevo estado.
-    else if (body.estado === 'En Progreso' || body.estado === 'Finalizado') {
+    // CASO 4: Mecánico "Gestiona Tarea"
+    else if (body.estado === 'En Progreso' || body.estado === 'Finalizado' || body.estado === 'Asignada') {
       datosActualizados.estado = body.estado;
     }
     
     // CASO 5: Admin "Cierra OT"
-    else if (body.accion === 'cierreAdministrativo' && body.estado === 'Cerrado') {
+    else if (body.accion === 'cierreAdministrativo') {
       datosActualizados.estado = 'Cerrado';
       datosActualizados.fechaCierreAdministrativo = admin.firestore.FieldValue.serverTimestamp(); 
     }
     
-    // CASO 6: Admin "Anula OT"
-    else if (body.accion === 'anularOT' && body.estado === 'Anulado') {
+    // CASO 6: Anular
+    else if (body.accion === 'anularOT') {
       datosActualizados.estado = 'Anulado';
       datosActualizados.fechaAnulacion = admin.firestore.FieldValue.serverTimestamp(); 
     }
     
-    // LÓGICA GENERAL DE ACTUALIZACIÓN DE DATOS
-    
-    // Añade repuestos o fotos si vienen en el body (para el mecánico)
+    // Datos comunes (Repuestos y Fotos)
     if (body.repuestosUsados !== undefined) {
       datosActualizados.repuestosUsados = body.repuestosUsados;
     }
-    
-    // Manejo de la subida de una nueva foto
     if (body.nuevaFotoURL) {
       datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
-    }
-    
-    if (Object.keys(datosActualizados).length === 0 && !body.repuestosUsados && !body.nuevaFotoURL) {
-      return NextResponse.json({ message: 'Sin cambios necesarios.' });
     }
 
     const otRef = adminDb.collection('ordenes-trabajo').doc(id);
