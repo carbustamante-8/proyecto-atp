@@ -23,18 +23,34 @@ export default function LoginPage() {
   const router = useRouter();
 
   // Lógica de redirección (CRÍTICA: NO TOCAR)
+// Lógica de redirección CORREGIDA
   useEffect(() => {
     if (user && userProfile) {
-      // Redirección basada en el rol
       const rol = userProfile.rol;
-      if (rol === 'Conductor') router.push('/portal-conductor');
+
+      // 1. Jefe de Taller -> A su gestión de vehículos/OTs (NO al admin)
+      if (rol === 'Jefe de Taller') {
+        router.push('/agenda-taller'); 
+      }
+
+        // 2. Supervisor -> Como no creamos su vista, lo mandamos al Dashboard General
+      else if (rol === 'Supervisor') {
+        router.push('/agenda-taller'); // <--- CAMBIO AQUÍ (Antes era /aprobacion-ots)
+      }
+      // 3. Coordinador -> A la agenda
+      else if (rol === 'Supervisor') {
+        router.push('/agenda-taller');
+      }
+      // 4. Roles Operativos (Ya estaban bien)
+      else if (rol === 'Conductor') router.push('/portal-conductor');
       else if (rol === 'Mecánico') router.push('/mis-tareas');
       else if (rol === 'Guardia') router.push('/control-acceso');
-      else if (['Supervisor', 'Coordinador', 'Jefe de Taller'].includes(rol)) {
-        router.push('/dashboard-admin');
-      }
       else if (rol === 'Gerente') router.push('/generador-reportes');
-      else router.push('/dashboard-admin'); // Fallback
+      
+      // 5. Fallback para Administrador real o roles no definidos
+      else {
+        router.push('/dashboard-admin'); 
+      }
     }
   }, [user, userProfile, router]);
 

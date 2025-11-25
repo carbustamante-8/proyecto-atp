@@ -295,31 +295,61 @@ export default function DetalleOTPage() {
   return (
     <Fragment>
     
-      {/* --- Modal de Foto Ampliada (Rediseñado) --- */}
+{/* --- Modal de Foto Ampliada (Versión "Estilos Directos") --- */}
       {fotoAmpliada && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm p-4"
+          // Usamos 'style' para forzar la posición fija y el z-index máximo
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw', // 100% del ancho de la ventana
+            height: '100vh', // 100% del alto de la ventana
+            zIndex: 99999,   // Por encima de TODO (Navbar, Toasts, etc.)
+            backgroundColor: 'rgba(0, 0, 0, 0.9)', // Fondo casi negro
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(5px)' // Efecto borroso de fondo
+          }}
           onClick={() => setFotoAmpliada(null)}
         >
-          <div className="relative w-full h-full max-w-4xl max-h-[80vh]">
-            <Image 
-              src={fotoAmpliada} 
-              alt="Evidencia ampliada"
-              layout="fill"
-              objectFit="contain"
-              onClick={(e) => e.stopPropagation()} 
-            />
-          </div>
+          {/* Imagen con ajuste automático */}
+          <img 
+            src={fotoAmpliada} 
+            alt="Evidencia ampliada"
+            style={{
+              maxWidth: '95%',  // Ocupa casi todo el ancho
+              maxHeight: '95%', // Ocupa casi todo el alto
+              objectFit: 'contain', // Asegura que se vea completa sin recortarse
+              borderRadius: '8px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+            }}
+            onClick={(e) => e.stopPropagation()} 
+          />
+
+          {/* Botón Cerrar Flotante */}
           <button
             onClick={() => setFotoAmpliada(null)}
-            className="absolute top-4 right-4 bg-white text-neutral-900 rounded-full w-10 h-10 shadow-lg
-                       flex items-center justify-center hover:bg-neutral-100 transition-colors"
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              backgroundColor: '#dc2626', // Rojo Pepsi
+              color: 'white',
+              borderRadius: '50%',
+              padding: '12px',
+              border: 'none',
+              cursor: 'pointer',
+              zIndex: 100000,
+              boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+            }}
+            title="Cerrar imagen"
           >
-            <XMarkIcon className="h-6 w-6" />
+            <XMarkIcon style={{ width: '32px', height: '32px', strokeWidth: 2 }} />
           </button>
         </div>
       )}
-
       {/* Contenedor principal de la página */}
       <div className="p-8 font-sans max-w-7xl mx-auto">
         
@@ -488,7 +518,11 @@ export default function DetalleOTPage() {
                                        hover:shadow-card-hover hover:border-pepsi-blue-light hover:-translate-y-1"
                             onClick={() => setFotoAmpliada(fotoUrl)}
                           >
-                            <Image src={fotoUrl} alt={`Evidencia ${index + 1}`} layout="fill" objectFit="cover" />
+                            <img 
+                              src={fotoUrl} 
+                              alt={`Evidencia ${index + 1}`} 
+                              className="w-full h-full object-cover" 
+                            />
                           </div>
                         ))}
                       </div>

@@ -36,7 +36,7 @@ export default function AgendaTallerPage() {
   useEffect(() => {
     if (!authLoading) {
       if (user && userProfile) {
-        const rolesPermitidos = ['Supervisor', 'Jefe de Taller'];
+        const rolesPermitidos = ['Supervisor', 'Jefe de Taller','Coordinador'];
         if (rolesPermitidos.includes(userProfile.rol)) {
           fetchOTs();
           fetchMecanicos();
