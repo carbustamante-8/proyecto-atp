@@ -8,14 +8,10 @@ type Context = {
 }
 
 export async function GET(request: NextRequest, context: Context) {
-  let id: string;
   try {
     const params = await context.params;
-    id = params.id; 
-    const otDoc = await adminDb.collection('ordenes-trabajo').doc(id).get();
-    if (!otDoc.exists) {
-      return NextResponse.json({ error: 'OT no encontrada' }, { status: 404 });
-    }
+    const otDoc = await adminDb.collection('ordenes-trabajo').doc(params.id).get();
+    if (!otDoc.exists) return NextResponse.json({ error: 'OT no encontrada' }, { status: 404 });
     return NextResponse.json({ id: otDoc.id, ...otDoc.data() });
   } catch (error) {
     return NextResponse.json({ error: 'Error al obtener la OT' }, { status: 500 });
@@ -23,74 +19,78 @@ export async function GET(request: NextRequest, context: Context) {
 }
 
 export async function PUT(request: NextRequest, context: Context) {
-  let id: string = 'ID_DESCONOCIDO'; 
   try {
     const params = await context.params;
-    id = params.id; 
+    const id = params.id; 
     const body = await request.json(); 
 
     const datosActualizados: any = {};
 
-    // --- LÓGICA CORREGIDA ---
+    // --- LÓGICA DE ESTADOS ---
     
-    // CASO 1: Guardia "Registra Llegada"
+    // 1. Guardia: Registrar Llegada
     if (body.accion === 'registrarLlegada') {
       datosActualizados.estado = 'Pendiente'; 
       datosActualizados.fechaIngresoTaller = admin.firestore.FieldValue.serverTimestamp(); 
     }
     
-    // CASO 2: Guardia "Registra Salida"
+    // 2. Guardia: Registrar Salida
     else if (body.accion === 'registrarSalida') {
       datosActualizados.fechaSalidaTaller = admin.firestore.FieldValue.serverTimestamp();
     }
 
-    // CASO 3: Admin "Asigna Tarea" (CORREGIDO: Ya no exige 'mecanicoAsignadoNombre')
+    // 3. Admin: Asignar Tarea (MEJORADO: Busca el nombre si falta)
     else if (body.accion === 'asignarTarea' && body.mecanicoAsignadoId) {
       datosActualizados.mecanicoAsignadoId = body.mecanicoAsignadoId;
-      // Si el frontend manda el nombre, lo guardamos. Si no, guardamos solo el ID.
-      if (body.mecanicoAsignadoNombre) {
-          datosActualizados.mecanicoAsignadoNombre = body.mecanicoAsignadoNombre;
-      }
-      // Si el frontend manda el estado 'Asignada', lo usamos.
-      if (body.estado) {
-          datosActualizados.estado = body.estado;
+      datosActualizados.estado = 'Asignada';
+
+      // SI EL FRONTEND NO MANDÓ EL NOMBRE, LO BUSCAMOS EN LA BD DE USUARIOS
+      if (!body.mecanicoAsignadoNombre) {
+          try {
+              const usuarioDoc = await adminDb.collection('usuarios').doc(body.mecanicoAsignadoId).get();
+              if (usuarioDoc.exists) {
+                  const dataUser = usuarioDoc.data();
+                  datosActualizados.mecanicoAsignadoNombre = dataUser?.nombre || 'Mecánico Desconocido';
+              } else {
+                  datosActualizados.mecanicoAsignadoNombre = 'ID no encontrado';
+              }
+          } catch (e) {
+              console.error("Error buscando nombre de mecánico:", e);
+              datosActualizados.mecanicoAsignadoNombre = 'Error al buscar nombre';
+          }
       } else {
-          datosActualizados.estado = 'Asignada'; // Forzamos por defecto si no viene
+          // Si el frontend sí lo mandó, lo usamos directo
+          datosActualizados.mecanicoAsignadoNombre = body.mecanicoAsignadoNombre;
       }
     } 
     
-    // CASO 4: Mecánico "Gestiona Tarea"
-    else if (body.estado === 'En Progreso' || body.estado === 'Finalizado' || body.estado === 'Asignada') {
+    // 4. Mecánico: Gestión de Avance
+    else if (['En Progreso', 'Finalizado', 'Asignada'].includes(body.estado)) {
       datosActualizados.estado = body.estado;
     }
     
-    // CASO 5: Admin "Cierra OT"
+    // 5. Admin: Cerrar OT
     else if (body.accion === 'cierreAdministrativo') {
       datosActualizados.estado = 'Cerrado';
       datosActualizados.fechaCierreAdministrativo = admin.firestore.FieldValue.serverTimestamp(); 
     }
-    
-    // CASO 6: Anular
+    // 6. Anular
     else if (body.accion === 'anularOT') {
-      datosActualizados.estado = 'Anulado';
-      datosActualizados.fechaAnulacion = admin.firestore.FieldValue.serverTimestamp(); 
+        datosActualizados.estado = 'Anulado';
+        datosActualizados.fechaAnulacion = admin.firestore.FieldValue.serverTimestamp();
     }
     
-    // Datos comunes (Repuestos y Fotos)
-    if (body.repuestosUsados !== undefined) {
-      datosActualizados.repuestosUsados = body.repuestosUsados;
-    }
-    if (body.nuevaFotoURL) {
-      datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
-    }
+    // Datos extra
+    if (body.repuestosUsados !== undefined) datosActualizados.repuestosUsados = body.repuestosUsados;
+    if (body.nuevaFotoURL) datosActualizados.fotos = admin.firestore.FieldValue.arrayUnion(body.nuevaFotoURL);
 
-    const otRef = adminDb.collection('ordenes-trabajo').doc(id);
-    await otRef.update(datosActualizados);
+    // Ejecutar actualización
+    await adminDb.collection('ordenes-trabajo').doc(id).update(datosActualizados);
 
-    return NextResponse.json({ message: 'OT actualizada exitosamente' });
+    return NextResponse.json({ message: 'OT actualizada' });
 
   } catch (error) {
-    console.error(`Error en PUT /api/ordenes-trabajo/${id}:`, error); 
-    return NextResponse.json({ error: 'Error al actualizar la OT' }, { status: 500 });
+    console.error(`Error PUT /api/ordenes-trabajo:`, error); 
+    return NextResponse.json({ error: 'Error al actualizar' }, { status: 500 });
   }
 }
